@@ -1316,6 +1316,29 @@ block when body contains onerror</pre>
   /* ================= W9: API SECURITY ================= */
   {
     id: "n34", world: "w9", title: "BOLA — API #1", xp: 100, kind: "quiz",
+    deepDive: `<b>BOLA</b> (Broken Object Level Authorization) is the <b>#1</b> API risk. The API authenticates you but doesn't verify you're allowed <i>this specific object</i>, so changing an ID in the URL leaks someone else's data.
+<pre>GET /api/orders/123   (yours)   -> OK
+GET /api/orders/124   (not yours) -> should be DENIED, but isn't</pre>
+<p>Fix: enforce per-object ownership/authorization on the server for every access.</p>`,
+    examples: [
+      `<b>IDOR/BOLA:</b> incrementing an order/account/document id returns another user's record.`,
+      `<b>Fix:</b> <code>if resource.owner != current_user: 403</code> on every object fetch/update/delete.`,
+    ],
+    pitfalls: [
+      `Using UUIDs instead of sequential IDs is <b>not</b> a fix — it's obscurity; still authorize server-side.`,
+      `Checking the list endpoint but not detail/update/delete leaves holes.`,
+      `Trusting a client-supplied "tenant_id" without verifying it belongs to the caller.`,
+    ],
+    why: `BOLA tops the OWASP API Top 10 and causes a huge share of real breaches. "Authenticated but not authorized per object" is the exact definition interviewers want.`,
+    keyPoints: [
+      "BOLA = missing per-object authorization (authn without authz).",
+      "Enforce ownership checks server-side on every object op.",
+      "Random IDs ≠ access control.",
+    ],
+    references: [
+      { title: "OWASP API1 — Broken Object Level Authorization", url: "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/" },
+      { title: "OWASP — Authorization Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html" },
+    ],
     story: `🔑 The #1 API risk isn't exotic — it's missing authorization checks on objects.`,
     concept: `<b>BOLA</b> (Broken Object Level Authorization) = the API authenticates you but doesn't verify you own the object you requested, so changing an ID (<code>/orders/123</code> → <code>/orders/124</code>) leaks someone else's data.`,
     task: `You're logged in and own order 123. Requesting <code>/api/orders/124</code> returns it with no ownership check. This is:`,
@@ -1332,6 +1355,28 @@ block when body contains onerror</pre>
   },
   {
     id: "n35", world: "w9", title: "Require Authentication", xp: 120, kind: "l7", defaultAction: "block",
+    deepDive: `An API gateway in <b>positive</b> mode is deny-by-default — you explicitly allow only authenticated, authorized calls. First gate: no valid token, no entry.
+<pre>allow when token present   # everything else -> default block</pre>
+<p>"Broken authentication" (OWASP API #2) includes missing auth, weak tokens, and endpoints that forgot to check — the gateway enforces a consistent baseline across every route.</p>`,
+    examples: [
+      `<b>Require a token:</b> requests without a bearer token are blocked at the edge.`,
+      `<b>Centralize:</b> the gateway validates the token once so each microservice doesn't reinvent auth.`,
+    ],
+    pitfalls: [
+      `"Present" isn't "valid" — the gateway/service must also verify the token's signature/exp/aud (see JWT lesson).`,
+      `Unauthenticated health/metrics endpoints are fine, but must not leak sensitive data.`,
+      `Relying only on the gateway while a service is also directly reachable bypasses auth — lock down east-west too.`,
+    ],
+    why: `Deny-by-default auth at the gateway is the baseline for API security. "How do you enforce auth consistently across many APIs?" → a gateway that rejects unauthenticated requests.`,
+    keyPoints: [
+      "Positive model: deny by default, allow authenticated calls.",
+      "Validate tokens (not just presence) centrally at the gateway.",
+      "Prevent direct service access that bypasses the gateway.",
+    ],
+    references: [
+      { title: "OWASP API2 — Broken Authentication", url: "https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/" },
+      { title: "OWASP — API Security Top 10", url: "https://owasp.org/API-Security/editions/2023/en/0x11-t10/" },
+    ],
     story: `This is an API gateway in <b>positive</b> mode — <b>deny by default</b>, allow only what you authorize. First: no token, no entry.`,
     concept: `Default action is <b>block</b>. You must explicitly allow legitimate traffic. The <code>token</code> field holds the bearer token (empty/absent = unauthenticated).`,
     task: `Allow requests only when a <code>token</code> is <code>present</code>. Unauthenticated calls must be blocked.`,
@@ -1347,6 +1392,29 @@ block when body contains onerror</pre>
   },
   {
     id: "n36", world: "w9", title: "Role-Based Access", xp: 160, kind: "l7", defaultAction: "block",
+    deepDive: `<b>RBAC</b> grants access by role. Authentication (valid token) is not enough — admin routes need an admin role, users get their own data, and the unauthenticated get nothing. Build it up with ordered rules on a deny-by-default base:
+<pre>block when token missing           # 1) reject unauthenticated
+allow when role eq admin           # 2) admins
+allow when path contains /api/profile  # 3) any authed user's profile</pre>`,
+    examples: [
+      `<b>RBAC outcomes:</b> admin→admin API allowed; user→admin API blocked; user→profile allowed; unauth→blocked.`,
+      `<b>Function-level authz:</b> this is OWASP API #5 — enforce role checks on privileged functions.`,
+    ],
+    pitfalls: [
+      `Order matters: reject unauthenticated first, then grant — a broad allow above the reject lets anons through.`,
+      `Roles are coarse; combine with object-level checks (BOLA) for "this admin, this tenant".`,
+      `Hidden admin endpoints without server-side role checks (security by obscurity) still get found.`,
+    ],
+    why: `Broken Function Level Authorization (OWASP API #5) is common. Showing ordered, deny-by-default RBAC that distinguishes authn from authz is the strong answer.`,
+    keyPoints: [
+      "RBAC = access by role, on top of authentication.",
+      "Order rules: reject unauth, then grant by role.",
+      "Combine role (function-level) with object-level checks.",
+    ],
+    references: [
+      { title: "OWASP API5 — Broken Function Level Authorization", url: "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/" },
+      { title: "NIST — RBAC", url: "https://csrc.nist.gov/projects/role-based-access-control" },
+    ],
     story: `Authentication isn't authorization. Admin APIs need an admin role; users get their own profile; nobody unauthenticated gets in. Order your rules carefully.`,
     concept: `Still deny-by-default. Build it up: reject unauthenticated first, then grant admins, then allow the user profile path. First match wins.`,
     task: `Allow: admins to <code>/api/admin/*</code> and anyone authenticated to <code>/api/profile</code>. Block non-admins from admin APIs and all unauthenticated calls.`,
@@ -1367,6 +1435,28 @@ block when body contains onerror</pre>
   },
   {
     id: "n37", world: "w9", title: "JWTs: Decode ≠ Verify", xp: 110, kind: "quiz",
+    deepDive: `A JWT's payload is just base64 — readable and <b>forgeable</b> by anyone. Trusting a decoded token is a critical bug. You must <b>verify</b>: the <b>signature</b> (with the issuer's key), <b>exp</b> (not expired), <b>aud</b> (for your API), and <b>iss</b> (trusted issuer).
+<pre>decode  -> you can read the claims (anyone can)
+verify  -> you know the claims are genuine (needs the key)</pre>`,
+    examples: [
+      `<b>Forgery:</b> an attacker edits <code>"role":"user"</code> to <code>"admin"</code>; only signature verification catches it.`,
+      `<b>alg:none attack:</b> a token claiming "no algorithm" must be rejected — pin the expected algorithm.`,
+    ],
+    pitfalls: [
+      `Using a JWT library's "decode" instead of "verify" — a classic, severe broken-auth bug.`,
+      `Accepting <code>alg:none</code> or algorithm confusion (RS256↔HS256) lets attackers forge tokens.`,
+      `Skipping exp/aud lets stolen or cross-service tokens work.`,
+    ],
+    why: `JWT decode-vs-verify (and alg:none) is a favorite API-security question and a real-world vuln. The crisp answer: verify signature + exp + aud + iss, pin the algorithm.`,
+    keyPoints: [
+      "Decoding reads claims; verifying proves they're genuine.",
+      "Check signature + exp + aud + iss; pin the algorithm.",
+      "Never trust an unverified token.",
+    ],
+    references: [
+      { title: "Auth0 — JWT best practices", url: "https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-token-best-practices" },
+      { title: "RFC 8725 — JWT Best Current Practices", url: "https://datatracker.ietf.org/doc/html/rfc8725" },
+    ],
     story: `A very common, very dangerous API mistake.`,
     concept: `A JWT's payload is just base64 — anyone can read AND forge it. You must cryptographically <b>verify the signature</b> with the issuer's key, and check <b>exp</b> (expiry), <b>aud</b> (audience), and <b>iss</b> (issuer). Trusting a decoded-but-unverified token lets attackers mint their own.`,
     task: `Your API base64-decodes a JWT and trusts the <code>role</code> claim to authorize. What's the flaw?`,
@@ -1383,6 +1473,27 @@ block when body contains onerror</pre>
   },
   {
     id: "n38", world: "w9", title: "Throttle the Abuse", xp: 90, kind: "quiz",
+    deepDive: `<b>Rate limiting / throttling</b> caps how many requests a client (per API key, user, or IP) can make in a window. It blunts brute force, credential stuffing, scraping, and resource-exhaustion abuse — and protects backends from overload.
+<pre>429 Too Many Requests + Retry-After   # the server's "slow down"</pre>`,
+    examples: [
+      `<b>Login protection:</b> 5 attempts/min/account stops password brute force.`,
+      `<b>Algorithms:</b> token bucket / leaky bucket / sliding window implement the limit.`,
+    ],
+    pitfalls: [
+      `Rate-limiting by IP alone is weak (NAT shares IPs; botnets rotate them) — key on user/API key where possible.`,
+      `No limit on expensive endpoints (search, export) invites resource-exhaustion DoS (OWASP API #4).`,
+      `Returning different errors for valid vs invalid users leaks account existence under brute force.`,
+    ],
+    why: `Unrestricted resource consumption is OWASP API #4. "How do you stop brute force/scraping?" → per-client rate limiting is the direct, expected answer.`,
+    keyPoints: [
+      "Throttle per client (key/user/IP) to stop brute force/scraping/DoS.",
+      "429 + Retry-After signals clients to back off.",
+      "IP-only limiting is weak; limit expensive endpoints too.",
+    ],
+    references: [
+      { title: "OWASP API4 — Unrestricted Resource Consumption", url: "https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/" },
+      { title: "Cloudflare — What is rate limiting?", url: "https://www.cloudflare.com/learning/bots/what-is-rate-limiting/" },
+    ],
     story: `APIs get hammered — credential stuffing, scraping, brute force.`,
     concept: `<b>Rate limiting / throttling</b> (per API key, user, or IP) caps request volume, blunting brute-force, credential stuffing, and scraping, and protecting backends from overload.`,
     task: `Which control best mitigates brute-force login and data scraping against an API?`,
@@ -1401,6 +1512,27 @@ block when body contains onerror</pre>
   /* ================= W10: CI/CD & SUPPLY CHAIN ================= */
   {
     id: "n39", world: "w10", title: "Secrets in Pipelines", xp: 100, kind: "quiz",
+    deepDive: `CI/CD systems hold the keys to prod, so pipeline secrets are prime targets. Deliver them safely: from a <b>secrets manager</b> or the CI's <b>masked secret store</b>, injected at runtime and scoped/short-lived. Best of all: <b>OIDC federation</b> so the pipeline gets short-lived cloud credentials with no stored secret at all.
+<p>Never commit secrets to the repo/YAML, and never print them to build logs.</p>`,
+    examples: [
+      `<b>Good:</b> GitHub Actions OIDC → assume an AWS role for 15 minutes; no long-lived key stored.`,
+      `<b>Good:</b> masked CI secret injected as an env var only for the job that needs it.`,
+    ],
+    pitfalls: [
+      `Hardcoding in pipeline YAML (it's in the repo and history forever).`,
+      `Echoing secrets to logs — CI masking helps but <code>set -x</code>/debug can still leak them.`,
+      `Long-lived cloud keys shared across all jobs = huge blast radius; prefer OIDC/short-lived.`,
+    ],
+    why: `"How should a pipeline get a prod credential?" is a standard DevSecOps question. Secrets manager / masked store / OIDC (never hardcode or log) is the answer.`,
+    keyPoints: [
+      "Inject from a secrets manager / masked store at runtime.",
+      "Prefer OIDC federation (short-lived, no stored secret).",
+      "Never commit to repo/YAML or print to logs.",
+    ],
+    references: [
+      { title: "GitHub — OIDC in Actions", url: "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect" },
+      { title: "OWASP — CI/CD Security Top 10", url: "https://owasp.org/www-project-top-10-ci-cd-security-risks/" },
+    ],
     story: `⚙️ A leaked pipeline credential is a breach waiting to happen.`,
     concept: `Pipeline secrets belong in a <b>secrets manager</b> or the CI's masked secret store, injected at runtime and scoped/short-lived (ideally OIDC federation for cloud). Never commit them to the repo, YAML, or build logs.`,
     task: `How should a CI job obtain a production API key?`,
@@ -1417,6 +1549,32 @@ block when body contains onerror</pre>
   },
   {
     id: "n40", world: "w10", title: "SAST vs DAST vs SCA", xp: 100, kind: "quiz",
+    deepDive: `Three complementary scanners catch different bugs:
+<ul>
+<li><b>SAST</b> — static analysis of <i>your source</i> for insecure code (early, but false positives).</li>
+<li><b>DAST</b> — dynamic testing of the <i>running app</i> from outside (finds real exploitable issues, later in the cycle).</li>
+<li><b>SCA</b> — scans <i>third-party dependencies</i> for known CVEs (e.g., Log4Shell).</li>
+</ul>
+<p>Add <b>IaC</b> scanning and secret scanning for full "shift-left" coverage.</p>`,
+    examples: [
+      `<b>SCA catches the library bug:</b> a vulnerable <code>log4j</code>/<code>openssl</code> version in your dependency tree.`,
+      `<b>SAST</b> flags a SQL concatenation in your code; <b>DAST</b> confirms it's exploitable live.`,
+    ],
+    pitfalls: [
+      `Relying on one tool — they cover different layers (your code vs running app vs dependencies).`,
+      `SAST false-positive fatigue leads teams to ignore it — tune and triage.`,
+      `DAST needs a deployed/staged target and good coverage of routes.`,
+    ],
+    why: `"Which tool finds vulnerable dependencies?" (SCA) and "SAST vs DAST?" are staple DevSecOps questions. Knowing each layer and that they're complementary is the answer.`,
+    keyPoints: [
+      "SAST = your source code; DAST = running app; SCA = dependencies/CVEs.",
+      "Add IaC + secret scanning for full coverage.",
+      "They're complementary — use all, and triage findings.",
+    ],
+    references: [
+      { title: "OWASP — Source Code Analysis (SAST)", url: "https://owasp.org/www-community/Source_Code_Analysis_Tools" },
+      { title: "OWASP — Vulnerability scanning (DAST)", url: "https://owasp.org/www-community/Vulnerability_Scanning_Tools" },
+    ],
     story: `Different scanners catch different bugs. Know which is which.`,
     concept: `<b>SAST</b> = static analysis of your source for insecure code. <b>DAST</b> = dynamic testing of the running app from outside. <b>SCA</b> = scanning third-party dependencies for known CVEs.`,
     task: `Which tool finds <b>known-vulnerable third-party dependencies</b> in your project?`,
@@ -1428,6 +1586,31 @@ block when body contains onerror</pre>
   },
   {
     id: "n41", world: "w10", title: "Harden the Supply Chain", xp: 110, kind: "quiz",
+    deepDive: `Software supply-chain attacks (SolarWinds, dependency typosquats, compromised build systems) hit you via what you <i>trust</i>. Defenses:
+<ul>
+<li><b>Pin</b> exact versions + commit a <b>lockfile with integrity hashes</b>.</li>
+<li><b>Verify signatures/provenance</b> of dependencies and base images.</li>
+<li>Generate an <b>SBOM</b> and monitor it; restrict who can publish.</li>
+</ul>`,
+    examples: [
+      `<b>Pin + verify:</b> a lockfile hash mismatch blocks a tampered/typosquatted package.`,
+      `<b>Provenance:</b> SLSA attestations + Sigstore signatures prove where an artifact came from.`,
+    ],
+    pitfalls: [
+      `Floating <code>latest</code>/<code>*</code> versions make builds non-reproducible and auto-pull compromised updates.`,
+      `Trusting a dependency's dependencies (transitive) blindly — SBOM + SCA cover the whole tree.`,
+      `Downloading over plain HTTP / unverified mirrors.`,
+    ],
+    why: `Supply-chain security is front-and-center. "How do you defend against a compromised dependency?" → pin + lockfile hashes + signature/provenance verification + SBOM.`,
+    keyPoints: [
+      "Pin versions; lockfile with integrity hashes.",
+      "Verify signatures/provenance (SLSA, Sigstore); generate SBOM.",
+      "Avoid floating versions and unverified sources.",
+    ],
+    references: [
+      { title: "SLSA — Supply-chain levels", url: "https://slsa.dev/" },
+      { title: "CISA — Software supply chain security", url: "https://www.cisa.gov/resources-tools/resources/securing-software-supply-chain-series" },
+    ],
     story: `SolarWinds and typosquats made supply-chain defense mandatory.`,
     concept: `Defenses: <b>pin</b> exact versions and commit a <b>lockfile with integrity hashes</b>, verify <b>signatures/provenance</b> of dependencies and base images, and limit who can publish. This resists tampered or typosquatted packages.`,
     task: `Which practice best protects against a tampered or typosquatted dependency?`,
@@ -1444,6 +1627,32 @@ block when body contains onerror</pre>
   },
   {
     id: "n42", world: "w10", title: "Pipeline Blast Radius", xp: 110, kind: "quiz",
+    deepDive: `The CI/CD system can push to prod, so it's a high-value target. Minimize blast radius:
+<ul>
+<li><b>Least-privilege, short-lived</b> (OIDC) credentials per job — no standing admin.</li>
+<li><b>Protected branches</b> + required reviews; no direct pushes to main.</li>
+<li>Don't run <b>untrusted PR code</b> with access to secrets.</li>
+<li>Pin/verify third-party <b>Actions/plugins</b> (they run in your pipeline).</li>
+</ul>`,
+    examples: [
+      `<b>Worst case:</b> long-lived cloud admin keys as plaintext env vars in every job — one compromised job owns everything.`,
+      `<b>Good:</b> scoped OIDC role per pipeline + protected branches + pinned actions.`,
+    ],
+    pitfalls: [
+      `Running fork PRs with secrets exposed lets attackers exfiltrate them via a malicious workflow.`,
+      `Unpinned third-party actions (<code>@main</code>) can change under you (supply-chain in the pipeline).`,
+      `Over-privileged CI service accounts that never get reviewed.`,
+    ],
+    why: `"What's the riskiest CI/CD practice?" and "how do you secure a pipeline?" are common. Least-privilege/OIDC + protected branches + no-untrusted-code-with-secrets is the model answer.`,
+    keyPoints: [
+      "Least-privilege, short-lived (OIDC) creds per job.",
+      "Protected branches + reviews; don't run untrusted PR code with secrets.",
+      "Pin/verify third-party actions/plugins.",
+    ],
+    references: [
+      { title: "OWASP — CI/CD Security Top 10", url: "https://owasp.org/www-project-top-10-ci-cd-security-risks/" },
+      { title: "GitHub — Security hardening for Actions", url: "https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions" },
+    ],
     story: `The CI/CD system itself is a high-value target — it can push to prod.`,
     concept: `Harden pipelines: least-privilege, short-lived (OIDC) credentials; protected branches + required reviews; don't run untrusted PR code with secrets; never expose long-lived admin keys to every job.`,
     task: `Which is the <b>riskiest</b> CI/CD practice?`,
@@ -1460,6 +1669,31 @@ block when body contains onerror</pre>
   },
   {
     id: "n43", world: "w10", title: "Sign & Prove It", xp: 110, kind: "quiz",
+    deepDive: `Consumers need to trust that an artifact really came from your pipeline, untampered. Two mechanisms:
+<ul>
+<li><b>Artifact signing</b> (e.g., Sigstore/cosign) — cryptographically sign builds/images so tampering is detectable.</li>
+<li><b>Provenance</b> (SLSA attestations) — a signed record of <i>what</i> was built, <i>from which source</i>, <i>by which pipeline</i>.</li>
+</ul>
+<p>Verifiers (admission controllers, deploy gates) then <b>require</b> a valid signature + provenance before running an image.</p>`,
+    examples: [
+      `<b>Verify at deploy:</b> a Kubernetes admission policy rejects unsigned images.`,
+      `<b>Provenance:</b> prove image X was built from commit Y by pipeline Z — detect a swapped artifact.`,
+    ],
+    pitfalls: [
+      `Signing without <b>verifying</b> at consumption is pointless — enforce the check at deploy.`,
+      `Protecting the signing key is critical — a stolen key lets attackers sign malicious artifacts.`,
+      `Provenance only helps if the build system itself is trustworthy (hardened CI).`,
+    ],
+    why: `Artifact signing + SLSA provenance are the cutting edge of supply-chain integrity (post-SolarWinds). Explaining sign + verify + provenance shows current knowledge.`,
+    keyPoints: [
+      "Sign artifacts (Sigstore) + generate SLSA provenance.",
+      "Verify signature/provenance at deploy (admission gate).",
+      "Protect signing keys; harden the build system.",
+    ],
+    references: [
+      { title: "Sigstore — Signing & verification", url: "https://www.sigstore.dev/" },
+      { title: "SLSA — Provenance", url: "https://slsa.dev/spec/v1.0/provenance" },
+    ],
     story: `Consumers need to trust that an artifact really came from your pipeline, untampered.`,
     concept: `<b>Artifact signing</b> (e.g., Sigstore/cosign) plus <b>provenance</b> (SLSA attestations) let consumers cryptographically verify <i>what</i> was built, <i>from which source</i>, and <i>by which pipeline</i> — detecting tampering after the build.`,
     task: `Signing artifacts and generating SLSA provenance primarily gives consumers:`,
@@ -1478,6 +1712,28 @@ block when body contains onerror</pre>
   /* ================= W11: ADVANCED NETWORKING ================= */
   {
     id: "n44", world: "w11", title: "Mutual TLS", xp: 100, kind: "quiz",
+    deepDive: `Standard TLS authenticates only the <b>server</b> to the client (via its certificate). <b>mTLS</b> adds a <b>client certificate</b> so <i>both</i> ends prove identity — the foundation of zero-trust service-to-service communication and service meshes.
+<pre>TLS:  client verifies server cert
+mTLS: client verifies server cert AND server verifies client cert</pre>`,
+    examples: [
+      `<b>Service mesh:</b> Istio/Linkerd issue per-workload certs so every pod-to-pod call is mutually authenticated + encrypted.`,
+      `<b>Zero trust:</b> identity is proven by cert, not by network location.`,
+    ],
+    pitfalls: [
+      `Certificate lifecycle (issuance, rotation, revocation) is the hard part — automate it (SPIFFE/mesh CA) or it breaks.`,
+      `mTLS authenticates the connection, not the <i>request</i> — still do authz (scopes/roles) per call.`,
+      `Expired/misissued client certs cause outages; monitor and auto-renew.`,
+    ],
+    why: `mTLS underpins zero-trust and service meshes, a hot architecture topic. "What does mTLS add over TLS?" (mutual auth / client cert) with the cert-lifecycle caveat is the strong answer.`,
+    keyPoints: [
+      "mTLS = both client and server present/verify certificates.",
+      "Basis of zero-trust service-to-service (service mesh).",
+      "Cert lifecycle automation is the real challenge.",
+    ],
+    references: [
+      { title: "Cloudflare — What is mTLS?", url: "https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/" },
+      { title: "SPIFFE — Workload identity", url: "https://spiffe.io/docs/latest/spiffe-about/overview/" },
+    ],
     story: `🛰️ Zero-trust service meshes lean heavily on mTLS.`,
     concept: `Standard TLS authenticates the <b>server</b> to the client. <b>mTLS</b> adds a <b>client certificate</b> so both ends authenticate each other — common for service-to-service and zero-trust architectures.`,
     task: `What does mutual TLS add over standard TLS?`,
@@ -1494,6 +1750,31 @@ block when body contains onerror</pre>
   },
   {
     id: "n45", world: "w11", title: "Absorb the Flood", xp: 100, kind: "quiz",
+    deepDive: `DDoS attacks come in layers, needing different defenses:
+<ul>
+<li><b>Volumetric</b> (L3/4 floods, UDP/DNS/NTP amplification) — measured in Gbps/Tbps; mitigated <b>upstream</b> by CDN/anycast + scrubbing centers that absorb and filter.</li>
+<li><b>Application-layer</b> (L7, e.g. HTTP floods) — fewer packets but expensive requests; mitigated by WAF, rate limiting, bot management, caching.</li>
+</ul>
+<p>A single on-prem firewall just gets saturated by a big volumetric attack.</p>`,
+    examples: [
+      `<b>Volumetric:</b> a 300 Gbps UDP flood — absorbed by a provider's anycast/scrubbing network, not your edge box.`,
+      `<b>L7:</b> a flood of expensive <code>/search</code> requests — throttled/challenged by a WAF/bot manager.`,
+    ],
+    pitfalls: [
+      `Trying to handle volumetric DDoS at the on-prem firewall — the pipe/box saturates first.`,
+      `Amplification abuses spoofable UDP services (DNS/NTP/memcached) — anti-spoofing (BCP 38) helps upstream.`,
+      `Ignoring L7 DDoS because bandwidth looks fine — low-bandwidth request floods still exhaust the app.`,
+    ],
+    why: `DDoS categories and "mitigate volumetric upstream" is a standard availability question. Distinguishing L3/4 volumetric from L7 and matching the defense is the depth.`,
+    keyPoints: [
+      "Volumetric (L3/4) → upstream CDN/anycast/scrubbing.",
+      "Application-layer (L7) → WAF, rate limiting, bot mgmt, caching.",
+      "A single firewall can't absorb a large volumetric flood.",
+    ],
+    references: [
+      { title: "Cloudflare — What is a DDoS attack?", url: "https://www.cloudflare.com/learning/ddos/what-is-a-ddos-attack/" },
+      { title: "CISA — Understanding DDoS", url: "https://www.cisa.gov/news-events/alerts/2022/01/21/understanding-and-responding-distributed-denial-service-attacks" },
+    ],
     story: `A volumetric DDoS can be hundreds of Gbps — no single appliance survives it.`,
     concept: `Volumetric DDoS is mitigated <b>upstream</b>: CDN/anycast to spread load, and cloud <b>scrubbing</b> services that absorb and filter attack traffic before it reaches you. A single on-prem firewall just gets saturated.`,
     task: `Best mitigation for a large <b>volumetric</b> DDoS?`,
@@ -1510,6 +1791,30 @@ block when body contains onerror</pre>
   },
   {
     id: "n46", world: "w11", title: "Stateful vs Stateless", xp: 110, kind: "quiz",
+    deepDive: `Cloud network controls trip people up because two layers behave differently:
+<ul>
+<li><b>Security Groups</b> are <b>stateful</b> — allow an outbound (or inbound) flow and the <i>return</i> traffic is automatically permitted. They're allow-only, attached to instances/ENIs.</li>
+<li><b>Network ACLs</b> are <b>stateless</b> — each direction is evaluated independently, so you must explicitly allow the return traffic (including the <b>ephemeral</b> response ports). They support allow <i>and</i> deny, at the subnet level.</li>
+</ul>`,
+    examples: [
+      `<b>SG:</b> allow inbound 443 → responses flow back automatically.`,
+      `<b>NACL:</b> allow inbound 443 AND allow outbound 1024–65535 (ephemeral) or replies are dropped.`,
+    ],
+    pitfalls: [
+      `Forgetting ephemeral return ports on a NACL silently breaks connections that "should" work.`,
+      `Expecting NACL deny rules in a Security Group (SGs are allow-only).`,
+      `Layering SG + NACL without realizing both must permit the traffic.`,
+    ],
+    why: `"Security Group vs NACL (stateful vs stateless)" is one of the most common cloud-networking interview questions — and a frequent real-world debugging trap.`,
+    keyPoints: [
+      "SG = stateful, allow-only, instance-level (returns auto-allowed).",
+      "NACL = stateless, allow+deny, subnet-level (allow return/ephemeral explicitly).",
+      "Both must permit the traffic when layered.",
+    ],
+    references: [
+      { title: "AWS — Security groups vs NACLs", url: "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html" },
+      { title: "AWS — Ephemeral ports", url: "https://docs.aws.amazon.com/vpc/latest/userguide/nacl-ephemeral-ports.html" },
+    ],
     story: `Cloud network controls trip people up because two layers behave differently.`,
     concept: `AWS <b>Security Groups</b> are <b>stateful</b> — allow outbound and the return is automatic. <b>Network ACLs</b> are <b>stateless</b> — you must explicitly allow BOTH directions (including ephemeral return ports).`,
     task: `AWS Security Groups are stateful. Network ACLs are:`,
@@ -1526,6 +1831,28 @@ block when body contains onerror</pre>
   },
   {
     id: "n47", world: "w11", title: "Something in the DNS", xp: 120, kind: "quiz",
+    deepDive: `DNS is a near-universal outbound protocol, so attackers abuse it as a <b>covert channel</b>. <b>DNS tunneling</b> encodes data/C2 inside DNS queries — typically long, high-entropy subdomains and heavy <b>TXT</b> traffic to a single attacker-controlled domain.
+<pre>Signal: thousands of unique, random-looking subdomains of one domain;
+        abnormal query volume; high TXT-record ratio</pre>`,
+    examples: [
+      `<b>Tunneling:</b> <code>aGVsbG8gd29ybGQ.exfil.evil.com</code>-style subdomains carrying encoded payload.`,
+      `<b>Detection:</b> baseline per-domain query volume/entropy; alert on outliers; inspect at the resolver.`,
+    ],
+    pitfalls: [
+      `Blocking DNS outright isn't viable — detect anomalies and force internal resolvers you can monitor.`,
+      `Legit services (some CDNs/antivirus) use many subdomains — baseline to avoid false positives.`,
+      `DoH can hide these lookups from network monitoring — a reason enterprises control DoH.`,
+    ],
+    why: `DNS tunneling/exfiltration is a classic covert-channel question. Knowing the signals (entropy, TXT volume, one domain) and that DoH complicates detection shows real depth.`,
+    keyPoints: [
+      "DNS tunneling = data/C2 hidden in DNS queries.",
+      "Signals: long high-entropy subdomains, heavy TXT, one domain.",
+      "Detect via resolver monitoring/baselines; DoH can blind you.",
+    ],
+    references: [
+      { title: "MITRE ATT&CK — Exfiltration Over Alternative Protocol / DNS", url: "https://attack.mitre.org/techniques/T1048/" },
+      { title: "SANS — Detecting DNS tunneling", url: "https://www.sans.org/white-papers/34152/" },
+    ],
     story: `Attackers smuggle data out over a protocol you can't simply block: DNS.`,
     concept: `<b>DNS tunneling</b> encodes data/C2 inside DNS queries — typically long, high-entropy subdomains and heavy <b>TXT</b> traffic to a single attacker-controlled domain. Detection: volume/length anomalies and unusual record-type ratios per domain.`,
     task: `Many long, high-entropy subdomain lookups and heavy TXT queries to one domain most likely indicate:`,
