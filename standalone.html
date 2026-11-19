@@ -536,6 +536,36 @@ class SiemSim:
     def list_events(self):
         return self.events
 
+class VaultSim:
+    # A secrets store for rotation / leak-response lessons.
+    def __init__(self):
+        self.secrets = [
+            {"name": "db-password", "age_days": 200, "rotated": False, "revoked": False},
+            {"name": "api-key", "age_days": 10, "rotated": True, "revoked": False},
+            {"name": "legacy-token", "age_days": 400, "rotated": False, "revoked": False},
+            {"name": "tls-key", "age_days": 45, "rotated": True, "revoked": False},
+        ]
+    def _find(self, name):
+        for s in self.secrets:
+            if s["name"] == name:
+                return s
+        return None
+    def list_secrets(self):
+        return self.secrets
+    def rotate(self, name):
+        s = self._find(name)
+        if s is None:
+            raise KeyError("No secret " + str(name))
+        s["age_days"] = 0
+        s["rotated"] = True
+        return s
+    def revoke(self, name):
+        s = self._find(name)
+        if s is None:
+            raise KeyError("No secret " + str(name))
+        s["revoked"] = True
+        return s
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
@@ -543,6 +573,7 @@ falcon = FalconSim()
 aws = AwsSim()
 k8s = K8sSim()
 siem = SiemSim()
+vault = VaultSim()
 
 def __state__():
     return _json.dumps({
@@ -555,6 +586,7 @@ def __state__():
         "policies": aws.policies,
         "pods": k8s.pods,
         "events": siem.events,
+        "secrets": vault.secrets,
     })
 `;
 
@@ -582,6 +614,8 @@ const WORLDS = [
   { id: "w12", name: "Cloud Security",    emoji: "☁️", blurb: "boto3-style automation: public buckets, encryption & IAM." },
   { id: "w13", name: "Container & K8s",   emoji: "🐳", blurb: "Audit pods: privileged, root, :latest & env secrets." },
   { id: "w14", name: "Detection Eng",     emoji: "🚨", blurb: "Write SIEM rules: thresholds, correlation & alerts." },
+  { id: "w15", name: "Secrets Mgmt",      emoji: "🔑", blurb: "Vault automation: find stale, rotate & revoke leaked." },
+  { id: "w16", name: "Incident Response", emoji: "🧭", blurb: "Timeline, IOCs, scoping & a full incident report." },
 ];
 
 const LESSONS = [
@@ -2172,6 +2206,209 @@ else:
       "Sort with a severity rank dict so critical comes before high.",
     ],
     solution: `from collections import Counter\n\ndef run_detections(events):\n    alerts = []\n    for e in events:\n        if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES:\n            alerts.append({"rule": "malware", "severity": "critical", "subject": e["host"]})\n    fails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\n    success = {e["user"] for e in events if e["type"] == "login" and e["result"] == "success"}\n    for u in sorted(success):\n        if fails[u] >= 5:\n            alerts.append({"rule": "brute_force_success", "severity": "high", "subject": u})\n    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}\n    return sorted(alerts, key=lambda a: rank[a["severity"]])\n\nalerts = run_detections(siem.list_events())\nprint(alerts)`,
+  },
+
+  /* ================= WORLD 15: SECRETS MANAGEMENT ================= */
+  {
+    id: "l73", world: "w15", title: "Find Stale Secrets", xp: 120,
+    story: `🔑 A secrets vault is available as <code>vault</code>. Credentials that haven't rotated in ages are a standing risk — find them.`,
+    concept: `<pre>for s in vault.list_secrets():
+    s["name"], s["age_days"], s["rotated"], s["revoked"]</pre>
+Also: <code>vault.rotate(name)</code> (resets age to 0) and <code>vault.revoke(name)</code>.`,
+    task: `Build <code>stale</code> — names of secrets older than 90 days (expect <code>['db-password', 'legacy-token']</code>).`,
+    starter: `# find secrets older than 90 days\n`,
+    check: `
+if 'stale' not in globals():
+    _feedback = "Create stale."
+elif sorted(stale) == ["db-password", "legacy-token"]:
+    _passed = True; _feedback = "Stale credentials surfaced — rotation candidates found. 🔑"
+else:
+    _feedback = f"Expected ['db-password','legacy-token'], got {stale}."
+`,
+    hints: ["Filter s['age_days'] > 90.", "stale = [s['name'] for s in vault.list_secrets() if s['age_days'] > 90]"],
+    solution: `stale = [s["name"] for s in vault.list_secrets() if s["age_days"] > 90]\nprint(stale)`,
+  },
+  {
+    id: "l74", world: "w15", title: "Rotate Everything Old", xp: 130,
+    story: `Don't just report — rotate. Automated rotation shrinks the window a leaked key is useful.`,
+    concept: `<pre>for s in vault.list_secrets():
+    if s["age_days"] > 90:
+        vault.rotate(s["name"])</pre>`,
+    task: `Rotate every secret older than 90 days. Afterwards none should be older than 90 days.`,
+    starter: `# rotate all stale secrets\n`,
+    check: `
+_still = [s["name"] for s in vault.list_secrets() if s["age_days"] > 90]
+if not _still:
+    _passed = True; _feedback = "All aged secrets rotated — blast radius minimized. 🔄"
+else:
+    _feedback = f"Still stale: {_still}. Loop and call vault.rotate(name) where age_days > 90."
+`,
+    hints: ["Loop the secrets.", "if s['age_days'] > 90: vault.rotate(s['name'])"],
+    solution: `for s in vault.list_secrets():\n    if s["age_days"] > 90:\n        vault.rotate(s["name"])\nprint("rotated")`,
+  },
+  {
+    id: "l75", world: "w15", title: "Leak Response", xp: 130,
+    story: `A secret just leaked in a public repo. Rotation isn't enough — you must <b>revoke</b> it immediately so the old value is dead.`,
+    concept: `<pre>vault.revoke("legacy-token")   # old value no longer valid</pre>
+Assume any exposed credential is compromised: revoke, then rotate, then audit usage.`,
+    task: `The secret <code>"legacy-token"</code> leaked. Revoke it (so its <code>revoked</code> flag becomes True).`,
+    starter: `# revoke the leaked secret\n`,
+    check: `
+_s = vault._find("legacy-token") if hasattr(vault, "_find") else None
+if _s is None:
+    for _x in vault.list_secrets():
+        if _x["name"] == "legacy-token":
+            _s = _x
+if _s and _s.get("revoked") is True:
+    _passed = True; _feedback = "Leaked credential revoked — correct first move in leak response. 🚫"
+else:
+    _feedback = "legacy-token should be revoked. Use vault.revoke('legacy-token')."
+`,
+    hints: ["Use vault.revoke with the secret name.", "vault.revoke('legacy-token')"],
+    solution: `vault.revoke("legacy-token")\nprint(vault.list_secrets())`,
+  },
+  {
+    id: "l76", world: "w15", title: "BOSS: Secrets Hygiene", xp: 260,
+    story: `🏆 Write the secrets-hygiene job: find stale secrets, rotate them all, and revoke a known-leaked one — then report what you did.`,
+    concept: `<pre>def secrets_hygiene(vault, leaked):
+    stale = sorted(s["name"] for s in vault.list_secrets() if s["age_days"] > 90)
+    for name in stale:
+        vault.rotate(name)
+    vault.revoke(leaked)
+    return {"rotated": stale, "revoked": leaked}</pre>`,
+    task: `Write <code>secrets_hygiene(vault, leaked)</code> that rotates all 90+ day secrets and revokes <code>leaked</code>, returning <code>{"rotated": [sorted names], "revoked": leaked}</code>. Call it with <code>leaked="legacy-token"</code> into <code>report</code>.`,
+    starter: `# define secrets_hygiene(vault, leaked); then report = secrets_hygiene(vault, "legacy-token")\n`,
+    check: `
+if 'secrets_hygiene' not in globals() or not callable(secrets_hygiene):
+    _feedback = "Define secrets_hygiene(vault, leaked)."
+else:
+    _r = globals().get("report")
+    _leaked = None
+    for _x in vault.list_secrets():
+        if _x["name"] == "legacy-token":
+            _leaked = _x
+    _no_stale = not [s for s in vault.list_secrets() if s["age_days"] > 90]
+    if (isinstance(_r, dict)
+            and sorted(_r.get("rotated", [])) == ["db-password", "legacy-token"]
+            and _r.get("revoked") == "legacy-token"
+            and _no_stale and _leaked and _leaked["revoked"] is True):
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. Automated secrets hygiene — rotate, revoke, report. You're interview-ready."
+    else:
+        _feedback = f"Rotate all 90+ day secrets, revoke the leaked one, and report both. Got {_r}."
+`,
+    hints: [
+      "Collect stale names FIRST (age_days > 90), sorted.",
+      "Rotate each, then vault.revoke(leaked).",
+      'Return {"rotated": stale, "revoked": leaked}.',
+    ],
+    solution: `def secrets_hygiene(vault, leaked):\n    stale = sorted(s["name"] for s in vault.list_secrets() if s["age_days"] > 90)\n    for name in stale:\n        vault.rotate(name)\n    vault.revoke(leaked)\n    return {"rotated": stale, "revoked": leaked}\n\nreport = secrets_hygiene(vault, "legacy-token")\nprint(report)`,
+  },
+
+  /* ================= WORLD 16: INCIDENT RESPONSE & FORENSICS ================= */
+  {
+    id: "l77", world: "w16", title: "Build the Timeline", xp: 120,
+    story: `🧭 First move in any investigation: order the events. A timeline turns chaos into a story.`,
+    concept: `Sort by a key with <code>sorted(..., key=...)</code>:
+<pre>ordered = sorted(events, key=lambda e: e["ts"])</pre>`,
+    task: `From <code>siem</code> events, build <code>timeline</code> — event ids ordered by <code>ts</code> (expect <code>[1,2,3,4,5,6,7,8,9,10]</code>).`,
+    starter: `# order event ids by timestamp\n`,
+    check: `
+if 'timeline' not in globals():
+    _feedback = "Create timeline."
+elif list(timeline) == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+    _passed = True; _feedback = "Timeline reconstructed — the backbone of every investigation. 🧭"
+else:
+    _feedback = f"Expected ids 1..10 ordered by ts, got {timeline}."
+`,
+    hints: ["Sort events by e['ts'].", "timeline = [e['id'] for e in sorted(siem.list_events(), key=lambda e: e['ts'])]"],
+    solution: `timeline = [e["id"] for e in sorted(siem.list_events(), key=lambda e: e["ts"])]\nprint(timeline)`,
+  },
+  {
+    id: "l78", world: "w16", title: "Scope the Blast Radius", xp: 130,
+    story: `When a host is implicated, pull everything that happened on it to understand the scope.`,
+    concept: `Filter events by host and collect the distinct users involved.`,
+    task: `For compromised host <code>"PC1"</code>, build <code>pc1_users</code> — the distinct users seen in events on PC1 (expect <code>['alice']</code>).`,
+    starter: `# who acted on host PC1?\n`,
+    check: `
+if 'pc1_users' not in globals():
+    _feedback = "Create pc1_users."
+elif sorted(pc1_users) == ["alice"]:
+    _passed = True; _feedback = "Scoped the host to its actors — containment starts here. 🎯"
+else:
+    _feedback = f"Expected ['alice'], got {pc1_users}."
+`,
+    hints: ["Filter events where e['host']=='PC1'.", "Use a set of users to dedupe.", "pc1_users = sorted({e['user'] for e in siem.list_events() if e['host']=='PC1'})"],
+    solution: `pc1_users = sorted({e["user"] for e in siem.list_events() if e["host"] == "PC1"})\nprint(pc1_users)`,
+  },
+  {
+    id: "l79", world: "w16", title: "Extract IOCs", xp: 130,
+    story: `Pull indicators of compromise from the evidence so you can hunt for them everywhere else.`,
+    concept: `Indicators here are the malicious process names seen in events (matched against <code>KNOWN_BAD_PROCESSES</code>).`,
+    task: `Build <code>iocs</code> — sorted distinct known-bad process names observed (expect <code>['mimikatz.exe']</code>).`,
+    starter: `# extract known-bad process IOCs\n`,
+    check: `
+if 'iocs' not in globals():
+    _feedback = "Create iocs."
+elif sorted(iocs) == ["mimikatz.exe"]:
+    _passed = True; _feedback = "IOCs extracted — now you can sweep the whole fleet for them. 🧬"
+else:
+    _feedback = f"Expected ['mimikatz.exe'], got {iocs}."
+`,
+    hints: ["Process events whose name is in KNOWN_BAD_PROCESSES.", "iocs = sorted({e['name'] for e in siem.list_events() if e['type']=='process' and e['name'] in KNOWN_BAD_PROCESSES})"],
+    solution: `iocs = sorted({e["name"] for e in siem.list_events() if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES})\nprint(iocs)`,
+  },
+  {
+    id: "l80", world: "w16", title: "Decide Containment", xp: 140,
+    story: `Containment = which hosts to isolate right now. Pull in both malware hosts AND hosts of compromised accounts.`,
+    concept: `Union two sets:
+<pre>isolate = malware_hosts | compromised_login_hosts</pre>`,
+    task: `Build <code>isolate</code> — sorted hosts that either ran known-bad malware OR hosted a brute-forced-then-successful login (expect <code>['PC1', 'PC2']</code>).`,
+    starter: `from collections import Counter\n\n# hosts to isolate: malware hosts + compromised-login hosts\n`,
+    check: `
+if 'isolate' not in globals():
+    _feedback = "Create isolate."
+elif sorted(isolate) == ["PC1", "PC2"]:
+    _passed = True; _feedback = "Containment scope set — PC2 (malware) and PC1 (compromised login). 🧱"
+else:
+    _feedback = f"Expected ['PC1','PC2'], got {isolate}. (PC2 ran mimikatz; alice was brute-forced then logged in on PC1.)"
+`,
+    hints: [
+      "Malware hosts: process events in KNOWN_BAD_PROCESSES.",
+      "Compromised: users with >=5 fails AND a success; take their success host.",
+      "Union the two host sets and sort.",
+    ],
+    solution: `from collections import Counter\nevents = siem.list_events()\nmalware_hosts = {e["host"] for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES}\nfails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\ncompromised_hosts = {e["host"] for e in events if e["type"] == "login" and e["result"] == "success" and fails[e["user"]] >= 5}\nisolate = sorted(malware_hosts | compromised_hosts)\nprint(isolate)`,
+  },
+  {
+    id: "l81", world: "w16", title: "BOSS: Incident Report", xp: 300,
+    story: `🏆 Final boss of the whole curriculum. Produce a complete incident report: timeline length, IOCs, compromised users, and containment list — the artifact you hand to leadership.`,
+    concept: `Assemble everything you've built:
+<pre>def incident_report(events):
+    ... timeline, iocs, compromised users, hosts to isolate ...
+    return {"events": N, "iocs": [...], "compromised_users": [...], "isolate": [...]}</pre>`,
+    task: `Write <code>incident_report(events)</code> returning <code>events</code> (count), <code>iocs</code> (sorted), <code>compromised_users</code> (sorted), and <code>isolate</code> (sorted hosts). Call it into <code>report</code>.`,
+    starter: `from collections import Counter\n\n# define incident_report(events); then report = incident_report(siem.list_events())\n`,
+    check: `
+if 'incident_report' not in globals() or not callable(incident_report):
+    _feedback = "Define incident_report(events)."
+else:
+    _r = globals().get("report")
+    _ok = (isinstance(_r, dict)
+           and _r.get("events") == 10
+           and sorted(_r.get("iocs", [])) == ["mimikatz.exe"]
+           and sorted(_r.get("compromised_users", [])) == ["alice"]
+           and sorted(_r.get("isolate", [])) == ["PC1", "PC2"])
+    if _ok:
+        _passed = True; _feedback = "🏆 FINAL BOSS DEFEATED. A full incident report from raw events — timeline, IOCs, scope, containment. You've completed the curriculum. Go ace that interview. 🎓"
+    else:
+        _feedback = f"Report needs events=10, iocs=['mimikatz.exe'], compromised_users=['alice'], isolate=['PC1','PC2']. Got {_r}."
+`,
+    hints: [
+      "Reuse your earlier pieces: IOCs, compromised users (>=5 fails + success), isolate hosts.",
+      "events = len(the event list).",
+      'Return a dict with keys events / iocs / compromised_users / isolate (lists sorted).',
+    ],
+    solution: `from collections import Counter\n\ndef incident_report(events):\n    fails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\n    compromised = sorted({e["user"] for e in events if e["type"] == "login" and e["result"] == "success" and fails[e["user"]] >= 5})\n    iocs = sorted({e["name"] for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES})\n    malware_hosts = {e["host"] for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES}\n    comp_hosts = {e["host"] for e in events if e["type"] == "login" and e["result"] == "success" and fails[e["user"]] >= 5}\n    return {"events": len(events), "iocs": iocs, "compromised_users": compromised, "isolate": sorted(malware_hosts | comp_hosts)}\n\nreport = incident_report(siem.list_events())\nprint(report)`,
   },
 ];
 

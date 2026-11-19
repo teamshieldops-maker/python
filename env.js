@@ -265,6 +265,36 @@ class SiemSim:
     def list_events(self):
         return self.events
 
+class VaultSim:
+    # A secrets store for rotation / leak-response lessons.
+    def __init__(self):
+        self.secrets = [
+            {"name": "db-password", "age_days": 200, "rotated": False, "revoked": False},
+            {"name": "api-key", "age_days": 10, "rotated": True, "revoked": False},
+            {"name": "legacy-token", "age_days": 400, "rotated": False, "revoked": False},
+            {"name": "tls-key", "age_days": 45, "rotated": True, "revoked": False},
+        ]
+    def _find(self, name):
+        for s in self.secrets:
+            if s["name"] == name:
+                return s
+        return None
+    def list_secrets(self):
+        return self.secrets
+    def rotate(self, name):
+        s = self._find(name)
+        if s is None:
+            raise KeyError("No secret " + str(name))
+        s["age_days"] = 0
+        s["rotated"] = True
+        return s
+    def revoke(self, name):
+        s = self._find(name)
+        if s is None:
+            raise KeyError("No secret " + str(name))
+        s["revoked"] = True
+        return s
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
@@ -272,6 +302,7 @@ falcon = FalconSim()
 aws = AwsSim()
 k8s = K8sSim()
 siem = SiemSim()
+vault = VaultSim()
 
 def __state__():
     return _json.dumps({
@@ -284,5 +315,6 @@ def __state__():
         "policies": aws.policies,
         "pods": k8s.pods,
         "events": siem.events,
+        "secrets": vault.secrets,
     })
 `;
