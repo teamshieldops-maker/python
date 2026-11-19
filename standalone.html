@@ -3333,6 +3333,30 @@ else:
   /* ================= WORLD 12: CLOUD SECURITY (Python) ================= */
   {
     id: "l56", world: "w12", title: "Scan for Public Buckets", xp: 120,
+    deepDive: `Publicly readable object storage is the archetypal cloud leak (countless breaches began with an open S3 bucket). CSPM automation starts by <b>enumerating</b> resources and flagging the exposed ones:
+<pre>for b in aws.list_buckets():
+    b["name"], b["public"], b["encrypted"]
+public = [b["name"] for b in aws.list_buckets() if b["public"]]</pre>
+<p>Real tooling reads bucket ACLs, bucket policies, and the account-level "Block Public Access" setting via the provider API.</p>`,
+    examples: [
+      `<b>Find exposure:</b> list buckets, keep those where <code>public</code> is True.`,
+      `<b>Real signal:</b> a bucket policy with <code>Principal:"*"</code> + <code>s3:GetObject</code> = world-readable.`,
+    ],
+    pitfalls: [
+      `"Public" has several sources (ACL, bucket policy, account setting) — check all, not just one.`,
+      `A bucket can be private but hold objects with public ACLs — object-level exposure hides from bucket-level checks.`,
+      `Read-only scanning is safe; be careful that remediation (next lesson) doesn't break a legitimately-public site bucket.`,
+    ],
+    why: `"How would you find publicly exposed storage across an account?" is a standard cloud-security task. Enumerate → flag is the CSPM pattern interviewers expect.`,
+    keyPoints: [
+      "CSPM step 1 = enumerate resources and flag exposure.",
+      "Public can come from ACL, bucket policy, or account setting.",
+      "Check object-level ACLs too, not just the bucket.",
+    ],
+    references: [
+      { title: "AWS — Blocking public access to S3", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html" },
+      { title: "CrowdStrike — What is CSPM?", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/cloud-security/cloud-security-posture-management-cspm/" },
+    ],
     story: `☁️ A live mock AWS account is available as <code>aws</code> (boto3-style). The #1 cloud leak is a public object store — go find them.`,
     concept: `The <code>aws</code> client lists resources:
 <pre>for b in aws.list_buckets():
@@ -3353,6 +3377,30 @@ else:
   },
   {
     id: "l57", world: "w12", title: "Lock Them Down", xp: 130,
+    deepDive: `Detection without remediation is just a longer to-do list. Loop the exposed buckets and close them:
+<pre>for b in aws.list_buckets():
+    if b["public"]:
+        aws.block_public_access(b["name"])</pre>
+<p>In AWS the durable fix is enabling account- and bucket-level <b>Block Public Access</b>, which overrides stray ACLs/policies.</p>`,
+    examples: [
+      `<b>Remediate all:</b> after the loop, no bucket should report <code>public</code> True.`,
+      `<b>Belt and braces:</b> enable Block Public Access at the <i>account</i> level so new buckets are private by default.`,
+    ],
+    pitfalls: [
+      `Some buckets are <i>meant</i> to be public (static sites, CDN origins) — maintain an allowlist so you don't break them.`,
+      `Fixing only bucket ACLs while a permissive bucket <i>policy</i> remains leaves it exposed — address all sources.`,
+      `Do this with change control; a fleet-wide "make private" can take down services.`,
+    ],
+    why: `Auto-remediation is the "fix" half of CSPM. Interviewers want to hear you remediate safely (allowlist intended-public, change control), not blindly flip everything.`,
+    keyPoints: [
+      "Remediate exposure by enabling Block Public Access.",
+      "Allowlist intentionally-public buckets.",
+      "Apply the durable account-level default, with change control.",
+    ],
+    references: [
+      { title: "AWS — S3 Block Public Access", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html" },
+      { title: "AWS — Security best practices for S3", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html" },
+    ],
     story: `Don't just report — remediate. Block public access on every exposed bucket.`,
     concept: `<pre>for b in aws.list_buckets():
     if b["public"]:
@@ -3371,6 +3419,28 @@ else:
   },
   {
     id: "l58", world: "w12", title: "Encryption Audit", xp: 120,
+    deepDive: `Encryption at rest protects data if the underlying storage is stolen or misconfigured. Audit which stores lack it:
+<pre>unencrypted = [b["name"] for b in aws.list_buckets() if not b["encrypted"]]</pre>
+<p>Most compliance frameworks (PCI, HIPAA, SOC 2, CIS) require encryption at rest, so this is a recurring audit finding.</p>`,
+    examples: [
+      `<b>Find gaps:</b> list buckets where <code>encrypted</code> is False.`,
+      `<b>Scope:</b> the same audit applies to EBS volumes, RDS, and snapshots — not just object storage.`,
+    ],
+    pitfalls: [
+      `Encryption at rest doesn't protect against an attacker with valid access — it's one layer, not the whole story (pair with IAM + key policy).`,
+      `Default-encrypted ≠ encrypted-with-your-key — know whether it's provider-managed or KMS/CMK.`,
+      `Auditing buckets only misses volumes/databases/backups.`,
+    ],
+    why: `"Is our data encrypted at rest?" is a baseline audit question across every framework. Knowing encryption is necessary-but-not-sufficient (access still matters) is the nuance.`,
+    keyPoints: [
+      "Flag stores lacking encryption at rest.",
+      "Required by PCI/HIPAA/SOC 2/CIS.",
+      "Encryption is one layer — access control still matters.",
+    ],
+    references: [
+      { title: "AWS — Protecting data with encryption (S3)", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingEncryption.html" },
+      { title: "CIS Benchmarks", url: "https://www.cisecurity.org/cis-benchmarks" },
+    ],
     story: `Data at rest must be encrypted. Find the buckets that aren't.`,
     concept: `Same list, different flag: <code>b["encrypted"]</code>.`,
     task: `Build <code>unencrypted</code> — names of buckets where <code>encrypted</code> is False (expect <code>['customer-backups', 'terraform-state']</code>).`,
@@ -3388,6 +3458,30 @@ else:
   },
   {
     id: "l59", world: "w12", title: "Enforce Encryption", xp: 120,
+    deepDive: `Turn the audit into action — enable encryption everywhere it's missing:
+<pre>for b in aws.list_buckets():
+    if not b["encrypted"]:
+        aws.enable_encryption(b["name"])</pre>
+<p>Better than fixing after the fact: <b>prevent</b> unencrypted resources via policy — an SCP/bucket policy that denies creating/uploading without encryption, enforced by default.</p>`,
+    examples: [
+      `<b>Remediate:</b> after the loop every bucket is encrypted.`,
+      `<b>Prevent:</b> a deny policy on <code>s3:PutObject</code> without <code>x-amz-server-side-encryption</code> stops unencrypted uploads entirely.`,
+    ],
+    pitfalls: [
+      `Re-encrypting existing objects may need a copy/backfill — new default encryption doesn't retroactively encrypt old data.`,
+      `Who controls the key still matters — enabling KMS with an over-broad key policy adds little (see IAM/KMS world).`,
+      `Enforcement-by-policy beats periodic remediation, but test it so you don't break legitimate writes.`,
+    ],
+    why: `"Detect vs prevent" is a recurring theme — preventing unencrypted resources by policy is stronger than cleaning up afterward. That distinction impresses.`,
+    keyPoints: [
+      "Remediate missing encryption in a loop.",
+      "Prefer prevention: deny-by-policy without encryption.",
+      "Backfill old objects; mind who owns the key.",
+    ],
+    references: [
+      { title: "AWS — Default encryption for S3 buckets", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/default-bucket-encryption.html" },
+      { title: "AWS — Service control policies (SCPs)", url: "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" },
+    ],
     story: `Turn on encryption everywhere it's missing.`,
     concept: `<pre>aws.enable_encryption(name)</pre>`,
     task: `Enable encryption on every unencrypted bucket. Afterwards all buckets must be encrypted.`,
@@ -3404,6 +3498,29 @@ else:
   },
   {
     id: "l60", world: "w12", title: "Hunt Over-Permissive IAM", xp: 140,
+    deepDive: `Wildcard IAM policies are a breach multiplier: one leaked credential with <code>Action:"*"</code> on <code>Resource:"*"</code> owns the account. Flag any policy whose actions contain a <code>*</code>:
+<pre>risky = [p["name"] for p in aws.list_policies()
+         if any("*" in a for a in p["actions"])]</pre>
+<p>"*" shows up as full admin (<code>"*"</code>), service-wide (<code>"s3:*"</code>), or verb wildcards (<code>"s3:Get*"</code>) — all worth reviewing against least privilege.</p>`,
+    examples: [
+      `<b>Flag wildcards:</b> policies with <code>["*"]</code> or <code>["s3:*"]</code> get surfaced for review.`,
+      `<b>Right-size:</b> replace <code>s3:*</code> with the specific actions actually used (from access logs / Access Analyzer).`,
+    ],
+    pitfalls: [
+      `Not all wildcards are equal — <code>s3:Get*</code> (read-ish) is far less dangerous than <code>*:*</code>; prioritize by power.`,
+      `Policies combine with resource scope and conditions — a wildcard action tightly scoped by resource may be acceptable.`,
+      `Inline + attached + group + boundary policies all stack; evaluate effective permissions, not one document.`,
+    ],
+    why: `Least-privilege IAM is the single highest-leverage cloud control. "How do you find over-permissive roles?" → scan for wildcards + use access analyzers is the expected answer.`,
+    keyPoints: [
+      "Flag actions containing * (full/service/verb wildcards).",
+      "Weight by blast radius; consider resource scope + conditions.",
+      "Evaluate effective (combined) permissions, not single policies.",
+    ],
+    references: [
+      { title: "AWS — IAM security best practices (least privilege)", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html" },
+      { title: "AWS — IAM Access Analyzer", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" },
+    ],
     story: `Wildcard IAM policies are a breach multiplier. Flag any policy granting <code>*</code> actions.`,
     concept: `Each policy has an <code>actions</code> list. A wildcard like <code>"*"</code> or <code>"s3:*"</code> is over-permissive:
 <pre>any("*" in a for a in policy["actions"])</pre>`,
@@ -3422,6 +3539,35 @@ else:
   },
   {
     id: "l61", world: "w12", title: "BOSS: Cloud Posture Scanner", xp: 300,
+    deepDive: `This capstone is a mini <b>CSPM</b>: scan the whole account for misconfigurations (public buckets, unencrypted data, wildcard IAM), report them, <i>and</i> auto-remediate the safe fixes.
+<pre>def secure_cloud(aws):
+    public = sorted(...public buckets...)
+    unenc  = sorted(...unencrypted...)
+    risky  = sorted(...wildcard IAM...)
+    for b in aws.list_buckets():      # remediate
+        aws.block_public_access(b["name"])
+        aws.enable_encryption(b["name"])
+    return {"public": public, "unencrypted": unenc, "risky_policies": risky}</pre>
+<p>Collect findings <b>before</b> remediating so the report reflects what was wrong.</p>`,
+    examples: [
+      `<b>Report + fix:</b> return the lists of what was found, then leave the account with no public/unencrypted buckets.`,
+      `<b>Real CSPM:</b> Prisma Cloud, Wiz, Defender for Cloud, AWS Config rules do exactly this continuously, mapped to CIS benchmarks.`,
+    ],
+    pitfalls: [
+      `Auto-remediating risky things (closing a legitimately public site bucket, detaching an in-use policy) causes outages — gate destructive fixes.`,
+      `Remediating before snapshotting findings loses your audit record of what was wrong.`,
+      `No drift re-scan — misconfigs reappear; CSPM must run continuously, not once.`,
+    ],
+    why: `"Design a tool that finds and fixes cloud misconfigurations" is a senior cloud-security prompt. Findings + safe auto-remediation + continuous re-scan is the complete answer.`,
+    keyPoints: [
+      "CSPM = continuous scan → report → (safe) remediate.",
+      "Capture findings before remediating for the audit trail.",
+      "Gate destructive fixes; re-scan for drift.",
+    ],
+    references: [
+      { title: "CIS Benchmarks (cloud baselines)", url: "https://www.cisecurity.org/cis-benchmarks" },
+      { title: "AWS Config — Rules & remediation", url: "https://docs.aws.amazon.com/config/latest/developerguide/evaluate-config.html" },
+    ],
     story: `🏆 Final boss. Write one function that audits the whole cloud account — finds public buckets, unencrypted data, and wildcard IAM — then auto-remediates the buckets. This is a real CSPM tool in miniature.`,
     concept: `Collect findings, then remediate:
 <pre>def secure_cloud(aws):
@@ -3462,6 +3608,30 @@ else:
   /* ================= WORLD 13: CONTAINER & K8s SECURITY (Python) ================= */
   {
     id: "l62", world: "w13", title: "Find Privileged Pods", xp: 130,
+    deepDive: `A <b>privileged</b> container runs with full host capabilities — it can load kernel modules, access devices, and escape to the node. Auditing for them is step one of pod security:
+<pre>for p in k8s.list_pods():
+    p["name"], p["namespace"], p["privileged"], p["runAsRoot"], p["image"]
+privileged = [p["name"] for p in k8s.list_pods() if p["privileged"]]</pre>
+<p>In a real cluster you'd read each pod's <code>securityContext.privileged</code> via the Kubernetes API or a scanner.</p>`,
+    examples: [
+      `<b>Flag them:</b> list pods where <code>privileged</code> is True — almost nothing legitimately needs it.`,
+      `<b>Real equivalent:</b> <code>kubectl get pods -o json</code> then inspect <code>securityContext</code>, or use kube-bench / Kubescape.`,
+    ],
+    pitfalls: [
+      `Privileged is the extreme; also watch <code>hostPID/hostNetwork</code>, added capabilities (<code>CAP_SYS_ADMIN</code>), and hostPath mounts.`,
+      `A legitimate-looking tool pod with privileged is a prime lateral-movement target — justify every one.`,
+      `Scanning running pods misses workloads not yet deployed — gate at admission too.`,
+    ],
+    why: `Container escape via privileged pods is a top Kubernetes risk. "How do you find/stop privileged containers?" is a standard cloud-native security question.`,
+    keyPoints: [
+      "Privileged containers can escape to the host node.",
+      "Also audit hostPID/hostNetwork, capabilities, hostPath.",
+      "Scan running pods AND block at admission.",
+    ],
+    references: [
+      { title: "Kubernetes — Pod Security Standards", url: "https://kubernetes.io/docs/concepts/security/pod-security-standards/" },
+      { title: "Kubernetes — Security context for a pod", url: "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/" },
+    ],
     story: `🐳 A live mock cluster is available as <code>k8s</code>. A privileged container can escape to the host — hunt them down.`,
     concept: `<pre>for p in k8s.list_pods():
     p["name"], p["namespace"], p["privileged"]
@@ -3481,6 +3651,32 @@ else:
   },
   {
     id: "l63", world: "w13", title: "Root & No Limits", xp: 140,
+    deepDive: `Two baseline pod-hygiene checks: run as <b>non-root</b>, and set resource <b>limits</b>.
+<ul>
+<li><b>runAsRoot</b>: a container running as UID 0 that's breached gives the attacker root inside the container (and a better shot at escape). Set <code>runAsNonRoot: true</code>.</li>
+<li><b>no limits</b>: a pod with no CPU/memory limits can starve neighbors (a "noisy neighbor" or a DoS) — resource exhaustion is an availability risk.</li>
+</ul>
+<pre>unsafe = [p["name"] for p in k8s.list_pods()
+          if p["runAsRoot"] or not p["limits"]]</pre>`,
+    examples: [
+      `<b>Flag either problem:</b> root OR missing limits → on the review list.`,
+      `<b>Fix:</b> <code>securityContext.runAsNonRoot: true</code> + <code>resources.limits</code> for cpu/memory.`,
+    ],
+    pitfalls: [
+      `Non-root alone isn't enough — also drop capabilities and use a read-only root filesystem.`,
+      `Limits that are too tight cause OOM-kills/throttling — size from real usage.`,
+      `"runAsNonRoot" fails if the image's default user is root and no UID is set.`,
+    ],
+    why: `Least-privilege and resource limits are the two most common Pod Security findings. Explaining why root and no-limits are risks (escape surface, availability) is the depth interviewers want.`,
+    keyPoints: [
+      "runAsNonRoot shrinks the escape surface of a breached container.",
+      "Resource limits prevent noisy-neighbor / DoS.",
+      "Pair with dropped capabilities + read-only rootfs.",
+    ],
+    references: [
+      { title: "Kubernetes — Configure resource limits", url: "https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" },
+      { title: "Kubernetes — Pod Security Standards (restricted)", url: "https://kubernetes.io/docs/concepts/security/pod-security-standards/" },
+    ],
     story: `Pods should run as non-root with resource limits. Flag the ones that break both rules.`,
     concept: `Combine two conditions with <code>and</code>/<code>or</code>. Here: running as root OR missing resource limits is a finding.`,
     task: `Build <code>unsafe</code> — names of pods that <code>runAsRoot</code> OR have no <code>limits</code> (expect <code>['api-5d', 'debug-shell']</code>).`,
@@ -3498,6 +3694,29 @@ else:
   },
   {
     id: "l64", world: "w13", title: "The :latest Trap", xp: 130,
+    deepDive: `The <code>:latest</code> tag is <b>mutable</b> — it points at whatever was pushed last. That breaks reproducibility and lets unreviewed code reach prod silently.
+<pre>latest = [p["name"] for p in k8s.list_pods()
+          if p["image"].endswith(":latest")]</pre>
+<p>Pin to an immutable identifier: a specific version tag, or best, a content <b>digest</b> (<code>image@sha256:...</code>) that can never change under you.</p>`,
+    examples: [
+      `<b>Flag unpinned:</b> any image ending in <code>:latest</code> is a finding.`,
+      `<b>Pin by digest:</b> <code>app@sha256:abc123…</code> guarantees the exact bytes you reviewed/scanned run in prod.`,
+    ],
+    pitfalls: [
+      `Two nodes pulling <code>:latest</code> at different times can run <i>different</i> images — nondeterministic and hard to debug.`,
+      `A scan of <code>:latest</code> is stale the moment the tag moves — pin, then scan the pinned digest.`,
+      `<code>imagePullPolicy: Always</code> + <code>:latest</code> compounds the drift.`,
+    ],
+    why: `Image pinning is a core supply-chain control and a frequent "what's wrong with :latest?" question. Mentioning digests (not just version tags) shows depth.`,
+    keyPoints: [
+      ":latest is mutable — breaks reproducibility and review.",
+      "Pin to a version tag or, better, an immutable digest.",
+      "Scan the pinned digest, not a moving tag.",
+    ],
+    references: [
+      { title: "Kubernetes — Images & imagePullPolicy", url: "https://kubernetes.io/docs/concepts/containers/images/" },
+      { title: "SLSA — Supply-chain integrity", url: "https://slsa.dev/" },
+    ],
     story: `Mutable <code>:latest</code> image tags break reproducibility and let unreviewed code into prod. Find them.`,
     concept: `A string ends with a suffix via <code>.endswith(...)</code>:
 <pre>"api:latest".endswith(":latest")   # True</pre>`,
@@ -3516,6 +3735,28 @@ else:
   },
   {
     id: "l65", world: "w13", title: "Secrets in Env", xp: 130,
+    deepDive: `Secrets stuffed into environment variables leak easily — into <code>kubectl describe</code>, crash dumps, child processes, and logs. Flag pods doing it:
+<pre>leaky = [p["name"] for p in k8s.list_pods() if p["envSecrets"]]</pre>
+<p>Better delivery: mount secrets as files from a <b>Kubernetes Secret</b> (with etcd encryption enabled) or, best, pull from an external vault at runtime via a CSI driver / workload identity.</p>`,
+    examples: [
+      `<b>Flag exposure:</b> any pod with entries in <code>envSecrets</code> is a finding.`,
+      `<b>Safer pattern:</b> mount <code>/var/run/secrets/...</code> from a Secret, or inject from Vault/Secrets Store CSI.`,
+    ],
+    pitfalls: [
+      `K8s Secrets are only base64 by default — enable <b>encryption at rest</b> for etcd or use an external vault.`,
+      `Env vars are inherited by child processes and often logged — file mounts are less leak-prone.`,
+      `Baking secrets into the image is worst of all — they live in every layer and registry copy.`,
+    ],
+    why: `Secret handling in Kubernetes is a common design question. Knowing env-vars are leak-prone and that K8s Secrets need etcd encryption / external vaults is the expected nuance.`,
+    keyPoints: [
+      "Env-var secrets leak via describe/logs/child processes.",
+      "Prefer mounted Secrets (etcd-encrypted) or an external vault/CSI.",
+      "Never bake secrets into the image.",
+    ],
+    references: [
+      { title: "Kubernetes — Secrets", url: "https://kubernetes.io/docs/concepts/configuration/secret/" },
+      { title: "Kubernetes — Encrypt secret data at rest", url: "https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/" },
+    ],
     story: `Secrets in plain environment variables leak into logs, crash dumps, and <code>kubectl describe</code>. Find pods doing it.`,
     concept: `A non-empty list is truthy:
 <pre>if p["envSecrets"]:   # has secrets in env</pre>`,
@@ -3534,6 +3775,35 @@ else:
   },
   {
     id: "l66", world: "w13", title: "BOSS: Pod Security Audit", xp: 300,
+    deepDive: `This capstone is a mini admission/policy engine: scan every pod and report all finding classes at once.
+<pre>def audit_pods(k8s):
+    pods = k8s.list_pods()
+    return {
+        "privileged":   sorted(p["name"] for p in pods if p["privileged"]),
+        "run_as_root":  sorted(p["name"] for p in pods if p["runAsRoot"]),
+        "latest_image": sorted(p["name"] for p in pods if p["image"].endswith(":latest")),
+        "secrets_in_env": sorted(p["name"] for p in pods if p["envSecrets"]),
+    }</pre>
+<p>This is exactly what Pod Security Admission, OPA/Gatekeeper, and Kyverno do — encode rules, evaluate every workload, report/deny violations.</p>`,
+    examples: [
+      `<b>One report, many rules:</b> privileged + run-as-root + :latest + env-secrets in a single pass.`,
+      `<b>Enforce not just report:</b> the same rules as an admission policy <i>reject</i> bad pods at deploy time.`,
+    ],
+    pitfalls: [
+      `Audit-only (detect) without admission (prevent) means bad pods still run — pair them.`,
+      `Blanket-blocking breaks legitimate exceptions; support namespaced policy + documented waivers.`,
+      `Rules drift from reality — review against the Pod Security Standards (baseline/restricted) periodically.`,
+    ],
+    why: `"How would you enforce pod security at scale?" → policy-as-code (PSA/OPA/Kyverno) that audits and admits. Building the auditor shows you understand the mechanism, not just the tool names.`,
+    keyPoints: [
+      "Encode multiple pod-security rules into one audit pass.",
+      "Same rules enforce at admission (prevent), not just report.",
+      "Use namespaced policy + waivers; align to Pod Security Standards.",
+    ],
+    references: [
+      { title: "OPA Gatekeeper", url: "https://open-policy-agent.github.io/gatekeeper/website/docs/" },
+      { title: "Kyverno — Kubernetes policy", url: "https://kyverno.io/docs/" },
+    ],
     story: `🏆 Final boss. Write one admission-style auditor that scans every pod and reports all four classes of finding. This is what a Pod Security / OPA policy engine does.`,
     concept: `Return a dict with four sorted lists:
 <pre>def audit_pods(k8s):
@@ -3571,6 +3841,32 @@ else:
   /* ================= WORLD 14: DETECTION ENGINEERING (SIEM) ================= */
   {
     id: "l67", world: "w14", title: "Filter the Stream", xp: 120,
+    deepDive: `A SIEM ingests a firehose of events; detection starts by narrowing to the relevant subset. The <code>siem</code> client yields event dicts:
+<pre>for e in siem.list_events():
+    e["type"]    # "login" / "process" / ...
+    e["user"], e["host"], e["result"], e["name"]
+fails = [e for e in siem.list_events()
+         if e["type"] == "login" and e["result"] == "fail"]</pre>
+<p>Filtering by type + outcome is the first stage of every rule — reduce volume before you reason.</p>`,
+    examples: [
+      `<b>Failed logins:</b> filter type == login and result == fail, then count.`,
+      `<b>Real world:</b> this is a SIEM query — Splunk <code>index=auth action=failure</code> or KQL <code>SigninLogs | where ResultType != 0</code>.`,
+    ],
+    pitfalls: [
+      `Filtering too late (after expensive work) wastes compute — narrow early.`,
+      `Field names/values vary by source — normalize events to a schema (ECS/OCSF) before cross-source rules.`,
+      `Over-filtering can drop the context an analyst needs — keep enough fields to investigate.`,
+    ],
+    why: `Every detection begins with a filter. Framing it as "a SIEM query" (Splunk/KQL) connects the Python skill to the tools interviewers use.`,
+    keyPoints: [
+      "Stage 1 of detection = filter the stream to relevant events.",
+      "Narrow early; normalize fields across sources (ECS/OCSF).",
+      "Equivalent to a SIEM query (SPL/KQL).",
+    ],
+    references: [
+      { title: "Elastic Common Schema (ECS)", url: "https://www.elastic.co/guide/en/ecs/current/index.html" },
+      { title: "OCSF — Open Cybersecurity Schema Framework", url: "https://schema.ocsf.io/" },
+    ],
     story: `🚨 Raw events are available as <code>siem</code>. Detection starts with filtering the firehose down to what matters.`,
     concept: `Each event is a dict:
 <pre>for e in siem.list_events():
@@ -3591,6 +3887,31 @@ else:
   },
   {
     id: "l68", world: "w14", title: "Threshold Alert", xp: 140,
+    deepDive: `One failed login is noise; many from one source is an attack. A <b>threshold</b> rule tallies then flags over a limit:
+<pre>from collections import Counter
+fails = Counter(e["user"] for e in events
+                if e["type"]=="login" and e["result"]=="fail")
+brute = [u for u, n in fails.items() if n >= 5]</pre>
+<p>Real rules add a <b>time window</b> ("5 fails in 60s") so slow, spread-out attempts are judged separately from bursts.</p>`,
+    examples: [
+      `<b>Brute force:</b> 5+ failed logins for one user → alert.`,
+      `<b>Windowed:</b> "100 requests/min from one IP" (rate) rather than 100 ever.`,
+    ],
+    pitfalls: [
+      `No time window → a low-and-slow attacker stays under a lifetime count; window your tallies.`,
+      `A single static threshold fits poorly across users/hosts — baselining (UEBA) adapts per entity.`,
+      `Too low floods analysts; too high misses attacks — tune against real traffic.`,
+    ],
+    why: `Threshold rules are the most common SIEM detection. Knowing they need time windows (and that UEBA/baselining improves on static thresholds) is the depth that lands.`,
+    keyPoints: [
+      "Tally then flag over a limit = threshold detection.",
+      "Add time windows / rates, not lifetime counts.",
+      "Tune thresholds; baselining beats one static value.",
+    ],
+    references: [
+      { title: "Sigma — Detection rule format", url: "https://github.com/SigmaHQ/sigma" },
+      { title: "MITRE ATT&CK — Brute Force (T1110)", url: "https://attack.mitre.org/techniques/T1110/" },
+    ],
     story: `A single failed login is noise. Many from one user is a brute-force attempt. Alert on the threshold.`,
     concept: `Tally per user, then keep those over the line:
 <pre>from collections import Counter
@@ -3611,6 +3932,30 @@ else:
   },
   {
     id: "l69", world: "w14", title: "Correlate the Kill Chain", xp: 160,
+    deepDive: `The strongest detections <b>correlate</b> multiple events, not single ones. "Many failures <i>then</i> a success" is a brute-force that worked — far higher-signal than fails or a success alone:
+<pre>fails = Counter(e["user"] for e in events if login and result=="fail")
+success = {e["user"] for e in events if login and result=="success"}
+compromised = [u for u in success if fails[u] >= 5]</pre>
+<p>Correlation across event types/time is what separates a SIEM from grep, and maps to MITRE ATT&CK chains (Credential Access → Initial Access).</p>`,
+    examples: [
+      `<b>Brute-force success:</b> user with 5+ fails AND a later success → likely compromised account.`,
+      `<b>Other chains:</b> new-process (mimikatz) → lateral logon; impossible travel → sensitive data access.`,
+    ],
+    pitfalls: [
+      `Order/time matter: a success <i>before</i> the fails isn't the same story — add time windows for real correlation.`,
+      `Correlation across huge event sets is expensive — index/aggregate first (what SIEMs optimize).`,
+      `More conditions = fewer false positives but more false negatives; tune deliberately.`,
+    ],
+    why: `"How is a SIEM better than grep?" → correlation. Demonstrating a multi-condition rule (fails + success) that maps to an ATT&CK chain is exactly the detection-engineering signal.`,
+    keyPoints: [
+      "Correlate multiple events/types for high-signal detections.",
+      "Mind order and time windows, not just counts.",
+      "Maps to MITRE ATT&CK technique chains.",
+    ],
+    references: [
+      { title: "MITRE ATT&CK — Enterprise matrix", url: "https://attack.mitre.org/matrices/enterprise/" },
+      { title: "MITRE ATT&CK — Brute Force (T1110)", url: "https://attack.mitre.org/techniques/T1110/" },
+    ],
     story: `The real signal isn't fails OR a success — it's many fails <b>followed by</b> a success (a brute-force that worked). Correlate the two.`,
     concept: `Combine a count rule with a set membership:
 <pre>success_users = {e["user"] for e in events
@@ -3631,6 +3976,29 @@ else:
   },
   {
     id: "l70", world: "w14", title: "Signature Detection", xp: 130,
+    deepDive: `<b>Signature</b> detection matches known-bad indicators exactly — fast and precise for things that are always malicious:
+<pre>bad = [e["host"] for e in events
+       if e["type"]=="process" and e["name"] in KNOWN_BAD_PROCESSES]</pre>
+<p>Signatures (hashes, tool names, YARA/Snort rules) catch <i>known</i> threats with low false positives, but miss <i>novel</i> ones — the complement to behavioral/anomaly detection.</p>`,
+    examples: [
+      `<b>Known-bad tool:</b> a process named <code>mimikatz.exe</code> → immediate high-severity hit.`,
+      `<b>Signature families:</b> file-hash IOCs, YARA (file content), Snort/Suricata (network) all follow this model.`,
+    ],
+    pitfalls: [
+      `Signatures miss zero-days and renamed/obfuscated tools — pair with behavioral detection.`,
+      `Exact-match misses variants (<code>mimikatz64.exe</code>); consider patterns/hashes of behavior, not just names.`,
+      `Stale signature lists rot — feed them from current threat intel.`,
+    ],
+    why: `Signature vs behavioral detection (and their trade-offs) is a classic detection-engineering discussion. Showing you'd combine both is the mature answer.`,
+    keyPoints: [
+      "Signatures match known-bad exactly: precise, low FP.",
+      "They miss novel/obfuscated threats — combine with behavior.",
+      "Feed signatures from fresh threat intel.",
+    ],
+    references: [
+      { title: "YARA — Pattern matching for malware", url: "https://virustotal.github.io/yara/" },
+      { title: "CrowdStrike — IOCs", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/threat-intelligence/indicators-of-compromise-ioc/" },
+    ],
     story: `Some things are bad on sight. Match process events against a known-bad list.`,
     concept: `<code>KNOWN_BAD_PROCESSES</code> is provided by the environment (<code>mimikatz.exe</code>, <code>nc.exe</code>, <code>psexec.exe</code>).`,
     task: `Build <code>malware_hosts</code> — hosts running a process in <code>KNOWN_BAD_PROCESSES</code> (expect <code>['PC2']</code>).`,
@@ -3648,6 +4016,31 @@ else:
   },
   {
     id: "l71", world: "w14", title: "Write a Detection Rule", xp: 140,
+    deepDive: `Package detection logic as a reusable <b>rule</b> that emits structured <b>alerts</b> with a severity — so downstream systems can route/triage them:
+<pre>def detect_malware(events):
+    return [{"host": e["host"], "severity": "critical"}
+            for e in events
+            if e["type"]=="process" and e["name"] in KNOWN_BAD_PROCESSES]</pre>
+<p>Structured alerts (dicts with rule, severity, subject, evidence) are what SOAR/ticketing consume. This mirrors how Sigma rules compile to per-SIEM queries.</p>`,
+    examples: [
+      `<b>Structured alert:</b> <code>{"rule": "...", "severity": "critical", "subject": host, "evidence": ...}</code>.`,
+      `<b>Portable rules:</b> write once in Sigma, convert to Splunk/KQL/Elastic — the same idea as a reusable function.`,
+    ],
+    pitfalls: [
+      `Free-text alerts can't be automated — emit structured fields (severity, entity, evidence).`,
+      `Missing severity/entity means SOAR can't route or prioritize.`,
+      `Rules without test cases silently break — unit-test detections like any code.`,
+    ],
+    why: `Detection-as-code (rules that output structured alerts, version-controlled and tested) is modern SOC practice. Building one shows you think in pipelines, not ad-hoc scripts.`,
+    keyPoints: [
+      "A rule = function emitting structured, severity-tagged alerts.",
+      "Structured output enables SOAR routing/triage.",
+      "Version-control and unit-test detections (detection-as-code).",
+    ],
+    references: [
+      { title: "Sigma — Rule creation", url: "https://sigmahq.io/docs/basics/rules.html" },
+      { title: "Detection Engineering (Elastic overview)", url: "https://www.elastic.co/security/detection-engineering" },
+    ],
     story: `Package detection logic as a reusable rule that emits structured alerts with a severity.`,
     concept: `A rule is a function returning alert dicts:
 <pre>def detect_malware(events):
@@ -3671,6 +4064,33 @@ else:
   },
   {
     id: "l72", world: "w14", title: "BOSS: Detection Pipeline", xp: 300,
+    deepDive: `The capstone runs <b>multiple rules</b> over the stream and emits one <b>prioritized</b> alert feed — a SIEM correlation engine in miniature:
+<pre>def run_detections(events):
+    alerts = []
+    # rule 1: malware (critical)   ... append structured alerts
+    # rule 2: brute-force success (high)
+    rank = {"critical":0,"high":1,"medium":2,"low":3}
+    return sorted(alerts, key=lambda a: rank[a["severity"]])</pre>
+<p>Rules are independent and composable; results are merged and sorted so the SOC sees criticals first.</p>`,
+    examples: [
+      `<b>Prioritized feed:</b> a critical malware alert sorts above a high brute-force alert.`,
+      `<b>Extend:</b> add rules (impossible travel, data exfil) without touching existing ones — just append.`,
+    ],
+    pitfalls: [
+      `Unprioritized alerts = alert fatigue; always sort/route by severity (and asset value).`,
+      `Rules sharing mutable state cause flaky results — keep each pure over the event set.`,
+      `No dedup/suppression floods on repeated events — add suppression windows in production.`,
+    ],
+    why: `"Design a detection pipeline" is a senior SOC/detection-engineering prompt. Independent composable rules → merged, prioritized, deduped alert feed is exactly the architecture they're after.`,
+    keyPoints: [
+      "Run many independent rules; merge + prioritize the alerts.",
+      "Sort/route by severity and asset value to fight fatigue.",
+      "Add dedup/suppression for production.",
+    ],
+    references: [
+      { title: "Elastic — Detection engineering", url: "https://www.elastic.co/security/detection-engineering" },
+      { title: "CrowdStrike — Next-Gen SIEM", url: "https://www.crowdstrike.com/en-us/platform/next-gen-siem/" },
+    ],
     story: `🏆 Final boss. Run multiple detection rules over the event stream and emit a single <b>prioritized</b> alert list — exactly what a SIEM correlation engine does.`,
     concept: `Combine two rules and sort critical-first:
 <pre>def run_detections(events):
