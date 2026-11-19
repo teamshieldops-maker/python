@@ -3057,6 +3057,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W15: SECRETS MANAGEMENT ================= */
   {
     id: "n68", world: "w15", title: "Why a Vault", xp: 90, kind: "quiz",
+    deepDive: `Secrets scattered across configs, code, CI variables, and chat are impossible to control or rotate. A <b>secrets manager / vault</b> (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) centralizes them with <b>access control, auditing, encryption at rest, and rotation</b>, delivering them to apps at runtime.
+<p>The goal: no long-lived secret sitting in a repo or image — fetch it, scoped and short-lived, when needed.</p>`,
+    examples: [
+      `<b>Runtime delivery:</b> the app requests the DB password from the vault at startup — nothing stored in the image.`,
+      `<b>Auditability:</b> the vault logs who accessed which secret when — impossible with secrets in files.`,
+    ],
+    pitfalls: [
+      `A vault concentrates risk — its own access policies and unseal/root keys must be tightly guarded.`,
+      `Fetching a secret then caching it forever reintroduces sprawl — keep leases short.`,
+      `Bootstrapping ("secret-zero": how the app authenticates to the vault) needs a secure method (workload identity).`,
+    ],
+    why: `"Why use a secrets manager over config files?" is a standard question. Centralized, access-controlled, audited, rotatable, runtime-delivered — is the answer.`,
+    keyPoints: [
+      "Centralize secrets with access control, audit, encryption, rotation.",
+      "Deliver at runtime; no long-lived secrets in repos/images.",
+      "Guard the vault's own access + solve secret-zero via workload identity.",
+    ],
+    references: [
+      { title: "HashiCorp Vault — What is Vault?", url: "https://developer.hashicorp.com/vault/docs/what-is-vault" },
+      { title: "AWS — Secrets Manager", url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html" },
+    ],
     story: `🔑 Secrets scattered across configs, code, and chat are a breach waiting to happen.`,
     concept: `A <b>secrets manager / vault</b> (HashiCorp Vault, AWS Secrets Manager, etc.) centralizes secrets with <b>access control, auditing, encryption, and rotation</b>, and hands them to apps at runtime — instead of hardcoding them in repos, images, or environment files.`,
     task: `What's the main benefit of a secrets manager over config files?`,
@@ -3073,6 +3094,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n69", world: "w15", title: "Rotate to Limit Damage", xp: 100, kind: "quiz",
+    deepDive: `<b>Rotation</b> periodically replaces a secret's value, so a leaked credential is only useful until the next rotation — it caps the <b>blast radius over time</b>. Automated, scheduled rotation (ideally zero-downtime with overlapping validity) beats manual rotation that gets skipped.
+<p>The strongest form is not rotating static secrets at all but issuing <b>short-lived dynamic</b> ones (next lesson).</p>`,
+    examples: [
+      `<b>Scheduled rotation:</b> a DB password auto-rotates every 30 days; a leaked copy dies at the next cycle.`,
+      `<b>Zero-downtime:</b> issue new credential → deploy → revoke old, so nothing breaks mid-rotation.`,
+    ],
+    pitfalls: [
+      `Rotating without updating every consumer causes outages — coordinate with an overlap window.`,
+      `Manual rotation doesn't scale and gets skipped under pressure — automate it.`,
+      `Rotation doesn't help if the secret is still over-shared — pair with least privilege.`,
+    ],
+    why: `"Why rotate secrets?" → limit the useful life of a leaked credential. Mentioning zero-downtime overlap and dynamic secrets shows operational depth.`,
+    keyPoints: [
+      "Rotation caps a leaked secret's useful lifetime.",
+      "Automate on a schedule; zero-downtime via overlap-then-revoke.",
+      "Short-lived dynamic secrets are stronger than static+rotation.",
+    ],
+    references: [
+      { title: "AWS — Rotate secrets", url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets.html" },
+      { title: "NIST SP 800-57 — Key management (lifecycle)", url: "https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final" },
+    ],
     story: `Even well-stored secrets should not live forever.`,
     concept: `Regular <b>rotation</b> limits the <b>blast radius</b> of a leaked credential — a stolen secret is only useful until it's rotated. Short-lived / <b>dynamic secrets</b> (generated per-session, auto-expiring) are even stronger than long-lived static ones.`,
     task: `Why rotate secrets on a schedule?`,
@@ -3089,6 +3131,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n70", world: "w15", title: "Dynamic Secrets", xp: 100, kind: "quiz",
+    deepDive: `<b>Dynamic secrets</b> are generated <b>on demand</b>, scoped to the caller, and <b>auto-expire</b> after a short TTL (e.g., a 15-minute database credential per request). There's no long-lived secret to steal, and access is automatically revoked when the lease ends.
+<p>This is the end state of good secret management — closely related to short-lived cloud creds via <b>OIDC/workload identity</b>.</p>`,
+    examples: [
+      `<b>DB creds on demand:</b> Vault generates a unique 15-minute DB user per app instance.`,
+      `<b>Cloud equivalent:</b> OIDC-federated short-lived role credentials instead of static access keys.`,
+    ],
+    pitfalls: [
+      `Dynamic secrets need backend integration (DB/cloud) and lease management — more setup than static.`,
+      `Too-short TTLs can cause churn/failures under load; tune leases.`,
+      `You still must secure the initial auth to the issuer (secret-zero).`,
+    ],
+    why: `Dynamic/short-lived secrets are the modern best practice. "What's better than rotating static secrets?" → generate short-lived ones so there's nothing durable to steal.`,
+    keyPoints: [
+      "Dynamic secrets are on-demand, scoped, auto-expiring.",
+      "Nothing long-lived to steal; access auto-revoked at lease end.",
+      "Cloud analog: OIDC/workload-identity short-lived creds.",
+    ],
+    references: [
+      { title: "HashiCorp Vault — Dynamic secrets", url: "https://developer.hashicorp.com/vault/docs/secrets/databases" },
+      { title: "AWS — IAM roles (temporary credentials)", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html" },
+    ],
     story: `The modern pattern: don't hand out standing credentials at all.`,
     concept: `<b>Dynamic secrets</b> are generated on demand, scoped, and <b>auto-expire</b> after a short TTL (e.g., a 15-minute database credential per request). There's no long-lived secret to steal, and access is automatically revoked.`,
     task: `What best describes dynamic secrets?`,
@@ -3105,6 +3168,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n71", world: "w15", title: "A Key Just Leaked", xp: 110, kind: "quiz",
+    deepDive: `Treat any exposed secret as <b>compromised</b>. Correct order: <b>revoke/disable</b> it immediately (so the old value stops working), then <b>rotate/replace</b>, then <b>investigate</b> logs for misuse. Deleting the commit alone is useless — it's already in git history, forks, and scraper caches the instant it's public.`,
+    examples: [
+      `<b>Leaked AWS key in a public repo:</b> disable the key in IAM now, issue a new one, then review CloudTrail for abuse.`,
+      `<b>Automate:</b> wire secret-scanner alerts to an auto-revoke workflow for instant response.`,
+    ],
+    pitfalls: [
+      `"I force-pushed to remove it" is not remediation — the secret was scraped; revoke it.`,
+      `Rotating without revoking leaves the old value valid in parallel.`,
+      `Skipping the log review misses that it may already have been used.`,
+    ],
+    why: `"A credential just leaked — what now?" is a very common incident question. Revoke → rotate → investigate (assume compromise) is the answer that shows IR instinct.`,
+    keyPoints: [
+      "Exposed = compromised: revoke immediately.",
+      "Order: revoke → rotate → investigate usage.",
+      "Deleting the commit doesn't help; automate revoke on detection.",
+    ],
+    references: [
+      { title: "GitHub — Remediating a leaked secret", url: "https://docs.github.com/en/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/remediating-a-leaked-secret" },
+      { title: "AWS — What to do if you expose an access key", url: "https://repost.aws/knowledge-center/compromised-credentials-iam-user" },
+    ],
     story: `An AWS key appears in a public commit. What's the correct first move?`,
     concept: `Treat any exposed secret as <b>compromised</b>: <b>revoke/disable it immediately</b> (so the old value is dead), then rotate/replace, then review logs for misuse. Deleting the commit alone is useless — it's already in git history, forks, and caches.`,
     task: `A live API key is pushed to a public repo. Best immediate action?`,
@@ -3121,6 +3204,32 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n72", world: "w15", title: "Keep Them Out of Git", xp: 100, kind: "quiz",
+    deepDive: `The cheapest leak to prevent is the one never committed. Stop secrets at the source:
+<ul>
+<li><b>Pre-commit secret scanning</b> (gitleaks, trufflehog) blocks the commit locally.</li>
+<li><b>Push protection</b> (GitHub) blocks the push server-side.</li>
+<li><code>.gitignore</code> for <code>.env</code>/key files; <code>git-secrets</code> hooks.</li>
+</ul>
+<p>Once a secret is committed it lives in <b>git history</b> forever (and in forks/clones) unless history is rewritten — and it must be <b>rotated</b> regardless.</p>`,
+    examples: [
+      `<b>Shift left:</b> a pre-commit hook rejects an <code>AKIA…</code> key before it's ever committed.`,
+      `<b>Defense in depth:</b> pre-commit + server-side push protection + CI secret scan.`,
+    ],
+    pitfalls: [
+      `A secret already in history isn't fixed by deleting the latest file — rewrite history AND rotate.`,
+      `Pattern scanners miss high-entropy/opaque secrets — combine with entropy detection.`,
+      `Example/test keys cause false positives — allowlist them so the gate stays trusted.`,
+    ],
+    why: `"How do you stop secrets leaking into the repo?" → pre-commit + push protection + .gitignore, and rotate anything that slipped in. Knowing history is forever is the key nuance.`,
+    keyPoints: [
+      "Block at commit/push with scanners; .gitignore env/key files.",
+      "Committed = in history/forks forever → rewrite AND rotate.",
+      "Combine regex + entropy; allowlist examples.",
+    ],
+    references: [
+      { title: "GitHub — Push protection", url: "https://docs.github.com/en/code-security/secret-scanning/push-protection-for-repositories-and-organizations" },
+      { title: "gitleaks", url: "https://github.com/gitleaks/gitleaks" },
+    ],
     story: `The cheapest leak to prevent is the one that never gets committed.`,
     concept: `Prevent secrets entering source control with <b>pre-commit secret scanning</b> (gitleaks, trufflehog), <code>.gitignore</code> for env files, and server-side push protection. Remember: once committed, a secret lives in <b>git history</b> forever unless history is rewritten — and it should be rotated anyway.`,
     task: `Which best prevents secrets from ever reaching your repo?`,
@@ -3139,6 +3248,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W16: INCIDENT RESPONSE & FORENSICS ================= */
   {
     id: "n73", world: "w16", title: "The IR Lifecycle", xp: 100, kind: "quiz",
+    deepDive: `The <b>NIST SP 800-61</b> incident response lifecycle has four phases:
+<pre>1. Preparation
+2. Detection & Analysis
+3. Containment, Eradication & Recovery
+4. Post-Incident Activity (lessons learned)</pre>
+<p><b>Preparation</b> (plans, tooling, access, runbooks, backups) done <i>before</i> an incident is what makes the rest work under pressure. The cycle feeds back: lessons learned improve preparation.</p>`,
+    examples: [
+      `<b>Preparation pays off:</b> having IR playbooks, logging, and backups ready turns chaos into a process.`,
+      `<b>SANS variant:</b> PICERL — Prepare, Identify, Contain, Eradicate, Recover, Lessons Learned.`,
+    ],
+    pitfalls: [
+      `Skipping preparation means improvising mid-breach — the worst time to build process.`,
+      `Jumping straight to eradication (wipe/rebuild) before analysis destroys evidence and understanding.`,
+      `No post-incident review → the same incident recurs.`,
+    ],
+    why: `The IR lifecycle is foundational — "walk me through your IR process" expects these phases, with Preparation first and Lessons Learned feeding back.`,
+    keyPoints: [
+      "NIST phases: Preparation → Detection&Analysis → Containment/Eradication/Recovery → Post-Incident.",
+      "Preparation (done before) makes the rest work.",
+      "Lessons learned loop back into preparation.",
+    ],
+    references: [
+      { title: "NIST SP 800-61r2 — Computer Security Incident Handling", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+      { title: "SANS — Incident Handler's Handbook (PICERL)", url: "https://www.sans.org/white-papers/33901/" },
+    ],
     story: `🧭 Under pressure, a process keeps you from making it worse.`,
     concept: `The <b>NIST incident response lifecycle</b>: <b>Preparation → Detection &amp; Analysis → Containment, Eradication &amp; Recovery → Post-Incident Activity</b> (lessons learned). Preparation (plans, tooling, access) done <i>before</i> an incident is what makes the rest work.`,
     task: `Which is the correct high-level IR order?`,
@@ -3155,6 +3289,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n74", world: "w16", title: "Contain Before Eradicate", xp: 100, kind: "quiz",
+    deepDive: `<b>Containment</b> (isolate the host, disable the account, block the C2) comes <b>before eradication</b> (remove malware, rebuild). Containing first stops the spread and <b>preserves evidence</b>; eradicating prematurely destroys forensics and can tip off a sophisticated attacker to burn access or detonate.
+<p>Capture <b>volatile evidence</b> (memory) during/just after containment, before wiping.</p>`,
+    examples: [
+      `<b>Right order:</b> network-isolate the compromised server (contain) → image memory/disk → then wipe/rebuild (eradicate) → restore (recover).`,
+      `<b>Short vs long containment:</b> quick isolation now, then a planned fuller containment.`,
+    ],
+    pitfalls: [
+      `Wiping first destroys the evidence you need to understand scope and root cause.`,
+      `Noisy containment can alert an advanced adversary — coordinate timing for sophisticated intrusions.`,
+      `Over-containment of critical prod can be worse than the incident — weigh business impact.`,
+    ],
+    why: `"Contain or eradicate first, and why?" is a staple IR question. Contain-first (stop spread, preserve evidence) weighed against business impact is the expected answer.`,
+    keyPoints: [
+      "Contain before eradicate: stop spread, preserve evidence.",
+      "Capture volatile memory before wiping.",
+      "Weigh business impact; mind tipping off the adversary.",
+    ],
+    references: [
+      { title: "NIST SP 800-61r2 — Containment/Eradication/Recovery", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+      { title: "CISA — Incident response playbooks", url: "https://www.cisa.gov/resources-tools/resources/federal-government-cybersecurity-incident-and-vulnerability-response-playbooks" },
+    ],
     story: `Order of operations in a live incident matters enormously.`,
     concept: `<b>Containment</b> (isolate the host, disable the account, block the C2) comes <b>before eradication</b> (remove malware, rebuild). Containing first stops the bleeding and spread while you still preserve evidence; eradicating prematurely can tip off the attacker and destroy forensics.`,
     task: `You find an actively compromised server. What do you do first?`,
@@ -3171,6 +3326,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n75", world: "w16", title: "Chain of Custody", xp: 100, kind: "quiz",
+    deepDive: `<b>Chain of custody</b> documents who collected/handled each piece of evidence, when, and how — proving it wasn't altered (critical if it reaches court). The technical backbone is a cryptographic <b>hash</b> (SHA-256) taken at collection and re-verified later; always work from a <b>forensic copy</b>, never the original.
+<pre>hash(image) at collection == hash(image) now  -> integrity proven</pre>`,
+    examples: [
+      `<b>Prove integrity:</b> record the disk image's SHA-256 at acquisition; re-hash before analysis to show it's unchanged.`,
+      `<b>Documentation:</b> timestamped log of every handoff and action on the evidence.`,
+    ],
+    pitfalls: [
+      `Analyzing the original instead of a verified copy contaminates evidence.`,
+      `Gaps in the custody log (unaccounted handoffs) can make evidence inadmissible.`,
+      `Using a broken hash (MD5) for legal integrity — prefer SHA-256.`,
+    ],
+    why: `Evidence handling / chain of custody is core forensics and a common IR question. Hash-at-collection + work-on-copies + documented handoffs is the expected answer.`,
+    keyPoints: [
+      "Chain of custody proves evidence integrity and handling.",
+      "Hash at collection (SHA-256), re-verify; work on copies.",
+      "Document every handoff; gaps can void admissibility.",
+    ],
+    references: [
+      { title: "NIST SP 800-86 — Forensics into IR", url: "https://csrc.nist.gov/pubs/sp/800/86/final" },
+      { title: "SANS — Digital forensics", url: "https://www.sans.org/cyber-security-courses/advanced-incident-response-threat-hunting/" },
+    ],
     story: `Evidence that can't be trusted is useless — especially if it ends up in court.`,
     concept: `<b>Chain of custody</b> documents who collected/handled evidence, when, and how, and proves it wasn't altered — typically by recording cryptographic <b>hashes</b> (e.g., SHA-256) of images at collection and verifying them later. Always work from a <b>copy</b>, never the original.`,
     task: `How do you prove a disk image wasn't tampered with after collection?`,
@@ -3187,6 +3363,29 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n76", world: "w16", title: "Order of Volatility", xp: 110, kind: "quiz",
+    deepDive: `Collect the most <b>ephemeral</b> evidence first, before it vanishes. The <b>order of volatility</b> (RFC 3227):
+<pre>1. CPU registers/cache  2. RAM (processes, connections, keys)
+3. Disk  4. Remote logs/archives  5. Physical config/backups</pre>
+<p>Pulling the plug or imaging disk first destroys live memory evidence — running malware, network connections, and encryption keys that may never touch disk.</p>`,
+    examples: [
+      `<b>Memory first:</b> capture RAM (volatile) before disk — it holds live process/network/key artifacts.`,
+      `<b>Fileless malware:</b> may exist only in memory, so a disk-only image misses it entirely.`,
+    ],
+    pitfalls: [
+      `Powering off or reimaging disk first destroys volatile memory evidence forever.`,
+      `Running lots of tools on the live host changes its state — minimize footprint, document actions.`,
+      `Clock skew across systems scrambles correlation — record and normalize time.`,
+    ],
+    why: `Order of volatility (RFC 3227) is a classic forensics question. "Capture RAM before disk" and knowing fileless malware lives in memory is the depth.`,
+    keyPoints: [
+      "Collect most-volatile first: memory before disk before archives.",
+      "Fileless threats live in RAM — don't power off first.",
+      "Minimize footprint on the live host; document everything.",
+    ],
+    references: [
+      { title: "RFC 3227 — Evidence collection & archiving", url: "https://datatracker.ietf.org/doc/html/rfc3227" },
+      { title: "NIST SP 800-86 — Forensic techniques", url: "https://csrc.nist.gov/pubs/sp/800/86/final" },
+    ],
     story: `Collect the evidence that disappears fastest, first.`,
     concept: `<b>Order of volatility</b>: capture the most ephemeral data first — CPU registers/cache, then <b>RAM</b> (running processes, network connections, keys), then disk, then logs/archives. Pulling the plug or imaging disk first destroys volatile memory evidence forever.`,
     task: `Which should you capture FIRST in forensics?`,
@@ -3203,6 +3402,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n77", world: "w16", title: "Measure the Response", xp: 100, kind: "quiz",
+    deepDive: `IR effectiveness is measured in time:
+<ul>
+<li><b>Dwell time</b> — how long the attacker was present before detection.</li>
+<li><b>MTTD</b> — mean time to detect; <b>MTTR</b> — mean time to respond/remediate.</li>
+</ul>
+<p>Lower is better — reducing dwell time directly shrinks the damage an intruder can do. These metrics justify investment in detection and automation (SOAR).</p>`,
+    examples: [
+      `<b>Dwell time:</b> breach on day 1, detected day 30 → 30-day dwell (industry historically measured in weeks/months).`,
+      `<b>Drive improvement:</b> faster detection (better rules) + faster response (SOAR) cut dwell/MTTR.`,
+    ],
+    pitfalls: [
+      `Optimizing MTTR by closing tickets fast (not actually resolving) games the metric.`,
+      `Ignoring dwell time makes a "contained quickly" story hide months of prior access.`,
+      `Metrics without context (severity, asset) mislead.`,
+    ],
+    why: `Dwell time / MTTD / MTTR are the KPIs leadership asks about. Knowing dwell time = undetected attacker residence, and that reducing it limits damage, is the point.`,
+    keyPoints: [
+      "Dwell time = attacker's undetected residence time.",
+      "MTTD/MTTR measure detect/respond speed; lower is better.",
+      "These metrics justify detection + SOAR investment.",
+    ],
+    references: [
+      { title: "Mandiant M-Trends (dwell time reporting)", url: "https://www.mandiant.com/m-trends" },
+      { title: "NIST SP 800-61r2 — Incident handling", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+    ],
     story: `You can't improve what you don't measure.`,
     concept: `<b>Dwell time</b> is how long an attacker is present before detection; <b>MTTD/MTTR</b> are mean time to detect/respond. Lower is better — reducing dwell time shrinks the damage an intruder can do. These metrics drive detection-engineering and IR investment.`,
     task: `"Dwell time" refers to:`,
@@ -3219,6 +3443,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n78", world: "w16", title: "Learn From It", xp: 100, kind: "quiz",
+    deepDive: `The incident isn't over when the fire's out. <b>Post-incident activity</b> — a <b>blameless post-mortem</b> — finds the <b>root cause</b> and turns it into concrete improvements (new detections, hardening, process fixes) that feed back into Preparation. <b>Tabletop exercises</b> rehearse the plan before a real incident.
+<p>Blameless = focus on systems/process, not individuals, so people share facts openly.</p>`,
+    examples: [
+      `<b>Root-cause → action:</b> "phishing bypassed MFA" → roll out phishing-resistant FIDO2 + a new detection.`,
+      `<b>Tabletop:</b> walk through a ransomware scenario to find gaps before it's real.`,
+    ],
+    pitfalls: [
+      `Blame culture makes people hide facts — keep it blameless to learn the truth.`,
+      `A post-mortem with no owned, tracked action items changes nothing.`,
+      `Skipping lessons-learned guarantees the same incident recurs.`,
+    ],
+    why: `Post-incident review / blameless post-mortems are a maturity marker. "What happens after containment?" → root-cause + tracked improvements feeding back into prep.`,
+    keyPoints: [
+      "Blameless post-mortem → root cause → tracked improvements.",
+      "Feeds back into Preparation; tabletops rehearse the plan.",
+      "Blameless culture surfaces the real facts.",
+    ],
+    references: [
+      { title: "Google SRE — Postmortem culture", url: "https://sre.google/sre-book/postmortem-culture/" },
+      { title: "NIST SP 800-61r2 — Post-incident activity", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+    ],
     story: `The incident isn't over when the fire's out.`,
     concept: `<b>Post-incident activity</b> — a blameless <b>post-mortem / lessons-learned</b> — identifies root cause and concrete improvements (new detections, hardening, process fixes) and feeds them back into Preparation. <b>Tabletop exercises</b> rehearse the plan before a real incident.`,
     task: `What's the main goal of the post-incident (lessons-learned) phase?`,
@@ -3237,6 +3482,32 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W17: IAM & KMS DEEP-DIVE ================= */
   {
     id: "n79", world: "w17", title: "Roles over Keys", xp: 100, kind: "quiz",
+    deepDive: `Long-lived <b>access keys</b> are the most leaked cloud credential (repos, laptops, logs). Prefer <b>IAM roles</b> — temporary, auto-rotating credentials assumed at runtime:
+<ul>
+<li>Workloads: instance roles / IRSA / workload identity.</li>
+<li>Humans: SSO + short-lived sessions, not static users.</li>
+<li>Pipelines: OIDC federation (no stored secret).</li>
+</ul>
+<p>Fewer standing secrets = far less to leak.</p>`,
+    examples: [
+      `<b>EC2 app:</b> attach an instance role → the SDK gets temporary creds automatically; no stored key.`,
+      `<b>CI:</b> GitHub OIDC assumes a role for 15 minutes instead of storing an AWS access key.`,
+    ],
+    pitfalls: [
+      `Creating static IAM user access keys "because it's easy" — they live forever until someone rotates them.`,
+      `Over-broad role trust policies let the wrong principals assume powerful roles.`,
+      `Not monitoring/rotating the few long-lived keys that genuinely must exist.`,
+    ],
+    why: `"Most secure way for a workload to call cloud APIs?" → assume a role (temporary creds), not a long-lived key. OIDC for CI is the modern best practice.`,
+    keyPoints: [
+      "Prefer roles (temporary creds) over long-lived access keys.",
+      "Workload identity / IRSA for apps; OIDC for pipelines; SSO for humans.",
+      "Fewer standing secrets = smaller attack surface.",
+    ],
+    references: [
+      { title: "AWS — IAM roles", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html" },
+      { title: "AWS — Best practices (use roles, not long-lived keys)", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html" },
+    ],
     story: `🔐 Long-lived access keys are the most leaked credential in the cloud.`,
     concept: `Prefer <b>IAM roles</b> (temporary, auto-expiring credentials assumed at runtime) over long-lived <b>access keys</b>. For workloads use instance roles / IRSA / workload identity; for humans use SSO + short-lived sessions. Fewer standing secrets = less to leak.`,
     task: `What's the most secure way for an EC2 app to call AWS APIs?`,
@@ -3253,6 +3524,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n80", world: "w17", title: "Guardrails: Boundaries & SCPs", xp: 110, kind: "quiz",
+    deepDive: `Even a correct policy needs a ceiling it can't exceed. <b>Permission boundaries</b> (per-principal) and <b>Service Control Policies</b> (org/account-wide) define the <b>maximum</b> permissions possible — a guardrail. Effective access = granted policies <b>intersected</b> with these caps.
+<p>So even if someone attaches an over-broad policy, the boundary/SCP still limits the blast radius.</p>`,
+    examples: [
+      `<b>SCP:</b> deny leaving the allowed regions or disabling CloudTrail, org-wide — no account can override it.`,
+      `<b>Boundary:</b> a delegated admin can create roles, but none more powerful than their own boundary allows.`,
+    ],
+    pitfalls: [
+      `Guardrails cap, they don't grant — you still need the actual allow policies.`,
+      `Overly strict SCPs break legitimate work; test in audit before enforcing.`,
+      `Forgetting SCPs apply even to the root user of member accounts (a feature, sometimes a surprise).`,
+    ],
+    why: `SCPs / permission boundaries are how large orgs enforce least privilege at scale. "What caps the maximum permissions an identity can have?" → boundaries/SCPs.`,
+    keyPoints: [
+      "Boundaries/SCPs set the MAX permissions (a ceiling, not a grant).",
+      "Effective access = granted ∩ guardrails.",
+      "Limit blast radius even when someone over-grants.",
+    ],
+    references: [
+      { title: "AWS — Service control policies (SCPs)", url: "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" },
+      { title: "AWS — Permissions boundaries", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html" },
+    ],
     story: `Even a correct policy needs a ceiling it can't exceed.`,
     concept: `<b>Permission boundaries</b> (per-principal) and <b>Service Control Policies</b> (org-wide) set the <b>maximum</b> permissions an identity or account can ever have — a guardrail. A granted policy is still capped by them, limiting blast radius even if someone attaches an over-broad policy.`,
     task: `What do SCPs / permission boundaries provide?`,
@@ -3269,6 +3561,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n81", world: "w17", title: "Rotate the Keys", xp: 100, kind: "quiz",
+    deepDive: `<b>KMS key rotation</b> periodically generates new cryptographic <b>backing material</b> while keeping the same key ID — so old ciphertext still decrypts and rotation is transparent to apps. It limits how much data any single key version protects (crypto hygiene / defense in depth).
+<p>Automatic rotation (e.g., yearly in AWS KMS) is a one-setting win for symmetric keys.</p>`,
+    examples: [
+      `<b>Enable:</b> turn on automatic rotation; old data keeps decrypting, new data uses new material.`,
+      `<b>Compliance:</b> CIS/PCI check that CMK rotation is enabled.`,
+    ],
+    pitfalls: [
+      `Rotation ≠ re-encryption — existing ciphertext isn't re-encrypted (fine, but know it).`,
+      `Imported key material / some asymmetric keys don't auto-rotate — plan manual rotation.`,
+      `Rotation doesn't help if the key policy is over-broad (who can use the key matters more).`,
+    ],
+    why: `Key rotation is a routine crypto-hygiene/compliance item. Knowing it's transparent (same key ID) and that it doesn't re-encrypt old data is the nuance.`,
+    keyPoints: [
+      "Rotation adds new backing material; same key ID, old data still decrypts.",
+      "Limits per-version exposure (crypto hygiene).",
+      "Not re-encryption; imported/asymmetric keys may need manual rotation.",
+    ],
+    references: [
+      { title: "AWS — Rotating KMS keys", url: "https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html" },
+      { title: "NIST SP 800-57 — Key management", url: "https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final" },
+    ],
     story: `KMS protects data, but keys themselves need lifecycle care.`,
     concept: `Enabling <b>automatic key rotation</b> in KMS periodically generates new cryptographic material while keeping the same key ID (old data still decrypts). It limits how much data is protected by any single key version — defense in depth for your encryption.`,
     task: `Why enable automatic KMS key rotation?`,
@@ -3285,6 +3598,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n82", world: "w17", title: "Key Policy vs IAM", xp: 110, kind: "quiz",
+    deepDive: `In AWS KMS, using a key requires permission in <b>both</b> the key's <b>key policy</b> and the caller's <b>IAM</b> — but a key policy with <code>Principal: "*"</code> or broad account/cross-account access can make a key usable far too widely. Audit <b>key policies</b>, not just IAM, or "encrypted at rest" means little.`,
+    examples: [
+      `<b>Over-shared:</b> a key policy granting <code>kms:Decrypt</code> to <code>"*"</code> lets anyone (with any IAM allow) decrypt.`,
+      `<b>Tighten:</b> scope the key policy to the specific roles/services that must use the key.`,
+    ],
+    pitfalls: [
+      `Reviewing IAM but ignoring the key policy misses the real exposure.`,
+      `Cross-account key grants are easy to forget and widen blast radius.`,
+      `Encryption with an open key policy gives a false sense of protection.`,
+    ],
+    why: `"KMS access is governed by what?" → key policy AND IAM. Auditing who can use the key (not just that encryption is on) is the senior cloud-crypto insight.`,
+    keyPoints: [
+      "KMS usage needs key policy AND IAM permission.",
+      "Over-broad key policies undermine the encryption.",
+      "Audit key policies + cross-account grants, not just IAM.",
+    ],
+    references: [
+      { title: "AWS — KMS key policies", url: "https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html" },
+      { title: "AWS — Determining access to a KMS key", url: "https://docs.aws.amazon.com/kms/latest/developerguide/determining-access.html" },
+    ],
     story: `KMS access is governed by two layers — misread them and you over-share.`,
     concept: `Using a KMS key requires permission in <b>both</b> the key's <b>key policy</b> and the caller's IAM — but a key policy with <code>Principal: "*"</code> (or broad account access) can make a key usable far too widely. Audit key policies, not just IAM.`,
     task: `A KMS key's key policy grants <code>Principal: "*"</code> with <code>kms:Decrypt</code>. The risk is:`,
@@ -3301,6 +3634,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n83", world: "w17", title: "Find Unused Permissions", xp: 110, kind: "quiz",
+    deepDive: `Least privilege isn't one-and-done — permissions accumulate as roles change ("privilege creep"). Right-size continuously using evidence:
+<ul>
+<li><b>Last-accessed</b> data shows which granted permissions were never used.</li>
+<li><b>IAM Access Analyzer</b> flags external/public access and can <b>generate least-privilege policies</b> from CloudTrail activity.</li>
+</ul>
+<p>Prune what's unused on a schedule to keep real-world least privilege.</p>`,
+    examples: [
+      `<b>Prune:</b> a role granted <code>s3:*</code> but only ever used <code>GetObject</code> → tighten to just that.`,
+      `<b>Detect exposure:</b> Access Analyzer finds a role/bucket shared outside the account.`,
+    ],
+    pitfalls: [
+      `Granting broad "just in case" permissions that never get reviewed.`,
+      `Pruning without a safety window can break rarely-used but legitimate automation — stage changes.`,
+      `Reviewing humans but not roles/service accounts, which often hold the broadest access.`,
+    ],
+    why: `"How do you keep least privilege over time?" → last-accessed data + Access Analyzer to prune unused permissions continuously. Continuous right-sizing is the mature answer.`,
+    keyPoints: [
+      "Use last-accessed data + Access Analyzer to find unused/excess access.",
+      "Prune continuously (privilege creep is constant).",
+      "Include roles/service accounts, not just humans.",
+    ],
+    references: [
+      { title: "AWS — IAM Access Analyzer", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" },
+      { title: "AWS — Refine permissions using last-accessed data", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html" },
+    ],
     story: `Least privilege isn't one-and-done — permissions drift and accumulate.`,
     concept: `Tools like <b>IAM Access Analyzer</b> and last-accessed data reveal <b>unused permissions and roles</b> so you can prune them. Right-sizing continuously (remove what's never used) keeps real-world least privilege as the environment changes.`,
     task: `How do you keep IAM least-privilege over time?`,
