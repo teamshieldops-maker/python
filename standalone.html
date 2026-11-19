@@ -4132,6 +4132,28 @@ else:
   /* ================= WORLD 15: SECRETS MANAGEMENT ================= */
   {
     id: "l73", world: "w15", title: "Find Stale Secrets", xp: 120,
+    deepDive: `A credential that never rotates is a growing liability — the longer it lives, the more places it's been copied and the bigger the window if it leaks. Audit a vault for age:
+<pre>stale = [s["name"] for s in vault.list_secrets() if s["age_days"] > 90]</pre>
+<p>Real vaults (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) track creation/rotation timestamps and can report or auto-rotate on a schedule.</p>`,
+    examples: [
+      `<b>90-day policy:</b> flag any secret older than the rotation window.`,
+      `<b>Dynamic secrets:</b> the ideal is secrets that auto-expire in minutes so "stale" can't happen.`,
+    ],
+    pitfalls: [
+      `Age alone isn't risk — a widely-shared 60-day secret may beat a locked-down 200-day one; weight by exposure.`,
+      `Rotating without updating every consumer breaks things — inventory who uses each secret first.`,
+      `Some "secrets" (root keys) are high-blast-radius; rotate those most carefully, with a rollback plan.`,
+    ],
+    why: `Rotation policy is a baseline control (PCI/SOC 2 ask about it). "How do you manage secret lifecycle?" → inventory, age, rotate, and ideally dynamic/short-lived secrets.`,
+    keyPoints: [
+      "Older secrets = larger leak window; audit by age.",
+      "Weight risk by exposure, not just age.",
+      "Dynamic/short-lived secrets remove the staleness problem.",
+    ],
+    references: [
+      { title: "HashiCorp Vault — Secrets & rotation", url: "https://developer.hashicorp.com/vault/docs/secrets" },
+      { title: "AWS — Rotate Secrets Manager secrets", url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets.html" },
+    ],
     story: `🔑 A secrets vault is available as <code>vault</code>. Credentials that haven't rotated in ages are a standing risk — find them.`,
     concept: `<pre>for s in vault.list_secrets():
     s["name"], s["age_days"], s["rotated"], s["revoked"]</pre>
@@ -4151,6 +4173,30 @@ else:
   },
   {
     id: "l74", world: "w15", title: "Rotate Everything Old", xp: 130,
+    deepDive: `Rotation replaces a secret's value and resets its clock, shrinking the useful life of any leaked copy:
+<pre>for s in vault.list_secrets():
+    if s["age_days"] > 90:
+        vault.rotate(s["name"])   # new value, age reset</pre>
+<p>Automated, scheduled rotation (ideally zero-downtime with overlapping validity) is the goal — manual rotation gets skipped under pressure.</p>`,
+    examples: [
+      `<b>Bulk rotate:</b> rotate every secret past the policy age in one pass.`,
+      `<b>Zero-downtime:</b> issue the new credential, deploy it, <i>then</i> revoke the old — so nothing breaks mid-rotation.`,
+    ],
+    pitfalls: [
+      `Rotating a secret still referenced by running apps causes outages — coordinate (dual-valid window).`,
+      `"Rotated" but consumers still cache the old value — ensure propagation.`,
+      `Manual rotation doesn't scale or stay consistent — automate it.`,
+    ],
+    why: `Automated rotation is a hallmark of mature secret management and a frequent design question. The zero-downtime (overlap-then-revoke) detail signals real operational experience.`,
+    keyPoints: [
+      "Rotation caps a leaked secret's useful life.",
+      "Automate on a schedule; prefer zero-downtime overlap.",
+      "Coordinate with consumers to avoid outages.",
+    ],
+    references: [
+      { title: "AWS — How rotation works", url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotate-secrets_how.html" },
+      { title: "HashiCorp Vault — Dynamic secrets", url: "https://developer.hashicorp.com/vault/docs/secrets/databases" },
+    ],
     story: `Don't just report — rotate. Automated rotation shrinks the window a leaked key is useful.`,
     concept: `<pre>for s in vault.list_secrets():
     if s["age_days"] > 90:
@@ -4169,6 +4215,28 @@ else:
   },
   {
     id: "l75", world: "w15", title: "Leak Response", xp: 130,
+    deepDive: `When a secret leaks (public repo, log, screenshot), <b>rotation isn't enough</b> — the old value is already in attacker hands. You must <b>revoke</b> it so the old value stops working:
+<pre>vault.revoke("legacy-token")   # the old value is now dead</pre>
+<p>Correct order: <b>revoke/disable → rotate/replace → investigate usage</b> (check logs for whether it was already abused). Treat any exposed secret as compromised.</p>`,
+    examples: [
+      `<b>Revoke first:</b> disabling the leaked key immediately cuts off the attacker, even before the new one is wired up.`,
+      `<b>Then hunt:</b> search access logs for use of that credential from unexpected IPs/times.`,
+    ],
+    pitfalls: [
+      `Deleting the commit/log but not revoking — the secret was scraped the instant it was public.`,
+      `Rotating without revoking leaves the old value valid in parallel.`,
+      `Skipping the log review misses that the leak may have already been used.`,
+    ],
+    why: `"A key just leaked — what do you do?" is a very common incident question. "Revoke, then rotate, then investigate — assume compromise" is the answer that shows real IR instinct.`,
+    keyPoints: [
+      "Exposed = compromised: revoke the old value immediately.",
+      "Order: revoke → rotate → investigate usage.",
+      "Deleting the commit/log is not remediation.",
+    ],
+    references: [
+      { title: "GitHub — Remediating a leaked secret", url: "https://docs.github.com/en/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/remediating-a-leaked-secret" },
+      { title: "NIST SP 800-61 — Incident handling", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+    ],
     story: `A secret just leaked in a public repo. Rotation isn't enough — you must <b>revoke</b> it immediately so the old value is dead.`,
     concept: `<pre>vault.revoke("legacy-token")   # old value no longer valid</pre>
 Assume any exposed credential is compromised: revoke, then rotate, then audit usage.`,
@@ -4190,6 +4258,33 @@ else:
   },
   {
     id: "l76", world: "w15", title: "BOSS: Secrets Hygiene", xp: 260,
+    deepDive: `Combine the lifecycle into one automated job: rotate everything stale, revoke anything known-leaked, and report what you did.
+<pre>def secrets_hygiene(vault, leaked):
+    stale = sorted(s["name"] for s in vault.list_secrets() if s["age_days"] > 90)
+    for name in stale:
+        vault.rotate(name)
+    vault.revoke(leaked)
+    return {"rotated": stale, "revoked": leaked}</pre>
+<p>This is "secrets management as code" — scheduled, auditable, and repeatable, instead of manual one-offs.</p>`,
+    examples: [
+      `<b>Scheduled job:</b> run nightly to keep all secrets within policy age automatically.`,
+      `<b>Event-driven revoke:</b> wire the <code>revoke</code> path to a secret-scanner alert for instant leak response.`,
+    ],
+    pitfalls: [
+      `Mass rotation without consumer coordination = outages; stage with overlap windows.`,
+      `A report that isn't persisted/audited can't prove compliance — log every action.`,
+      `Revoking the wrong secret (typo in id) breaks prod — validate the target.`,
+    ],
+    why: `"Automate our secret lifecycle" is a real platform-security deliverable. Rotate + revoke + report, scheduled and audited, is exactly the mature design.`,
+    keyPoints: [
+      "Automate the full lifecycle: rotate stale, revoke leaked, report.",
+      "Schedule it and persist an audit log.",
+      "Coordinate rotation to avoid outages.",
+    ],
+    references: [
+      { title: "HashiCorp Vault docs", url: "https://developer.hashicorp.com/vault/docs" },
+      { title: "AWS Secrets Manager — Best practices", url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/best-practices.html" },
+    ],
     story: `🏆 Write the secrets-hygiene job: find stale secrets, rotate them all, and revoke a known-leaked one — then report what you did.`,
     concept: `<pre>def secrets_hygiene(vault, leaked):
     stale = sorted(s["name"] for s in vault.list_secrets() if s["age_days"] > 90)
@@ -4228,6 +4323,29 @@ else:
   /* ================= WORLD 16: INCIDENT RESPONSE & FORENSICS ================= */
   {
     id: "l77", world: "w16", title: "Build the Timeline", xp: 120,
+    deepDive: `The first analytical step in any investigation is ordering events into a <b>timeline</b> — it turns scattered logs into a story of what happened when:
+<pre>ordered = sorted(events, key=lambda e: e["ts"])
+timeline = [e["id"] for e in ordered]</pre>
+<p><code>sorted(..., key=...)</code> sorts by any field without mutating the source. In real IR you normalize timestamps to <b>UTC</b> first so logs from different systems line up.</p>`,
+    examples: [
+      `<b>Order by time:</b> sort events by <code>ts</code> to reconstruct the sequence.`,
+      `<b>Super timeline:</b> tools like Plaso/log2timeline merge disk, log, and memory artifacts into one ordered view.`,
+    ],
+    pitfalls: [
+      `Mixed time zones / clock skew scramble the order — normalize to UTC and account for drift.`,
+      `Second-granularity timestamps hide ordering within the same second — use sub-second where available.`,
+      `Sorting in place with <code>.sort()</code> mutates the original; <code>sorted()</code> returns a new list.`,
+    ],
+    why: `"Walk me through investigating an incident" always starts with building a timeline. Mentioning UTC normalization and clock skew shows real forensic practice.`,
+    keyPoints: [
+      "Order events by timestamp to reconstruct the story.",
+      "Normalize to UTC; beware clock skew and sub-second order.",
+      "sorted(key=...) returns a new, unmutated list.",
+    ],
+    references: [
+      { title: "Plaso / log2timeline", url: "https://plaso.readthedocs.io/en/latest/" },
+      { title: "SANS — Incident handling", url: "https://www.sans.org/cyber-security-courses/hacker-techniques-incident-handling/" },
+    ],
     story: `🧭 First move in any investigation: order the events. A timeline turns chaos into a story.`,
     concept: `Sort by a key with <code>sorted(..., key=...)</code>:
 <pre>ordered = sorted(events, key=lambda e: e["ts"])</pre>`,
@@ -4246,6 +4364,28 @@ else:
   },
   {
     id: "l78", world: "w16", title: "Scope the Blast Radius", xp: 130,
+    deepDive: `Before you contain, you must <b>scope</b>: which hosts, accounts, and data are involved? Pivot on an indicator to pull everything related:
+<pre>pc1_users = sorted({e["user"] for e in events if e["host"] == "PC1"})</pre>
+<p>Scoping prevents two failures: containing too little (attacker persists elsewhere) or too much (needless outage). You iterate — each new indicator (a user, IP, hash) expands the picture.</p>`,
+    examples: [
+      `<b>Pivot on a host:</b> all users/processes seen on a compromised host.`,
+      `<b>Pivot chain:</b> host → the accounts used there → other hosts those accounts touched → ...`,
+    ],
+    pitfalls: [
+      `Under-scoping leaves attacker footholds; over-scoping takes down unaffected systems.`,
+      `Stopping at the first indicator — real scoping iterates across users, hosts, IPs, and hashes.`,
+      `Scoping only from one data source misses lateral movement visible in another.`,
+    ],
+    why: `Scoping is the judgment-heavy core of IR. "How do you determine blast radius?" → pivot on indicators across data sources, iteratively — is the senior answer.`,
+    keyPoints: [
+      "Scope = identify all affected hosts/accounts/data before acting.",
+      "Pivot on indicators and iterate; one isn't enough.",
+      "Balance under- vs over-containment.",
+    ],
+    references: [
+      { title: "NIST SP 800-61r2 — Incident handling guide", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+      { title: "MITRE ATT&CK — Lateral Movement", url: "https://attack.mitre.org/tactics/TA0008/" },
+    ],
     story: `When a host is implicated, pull everything that happened on it to understand the scope.`,
     concept: `Filter events by host and collect the distinct users involved.`,
     task: `For compromised host <code>"PC1"</code>, build <code>pc1_users</code> — the distinct users seen in events on PC1 (expect <code>['alice']</code>).`,
@@ -4263,6 +4403,29 @@ else:
   },
   {
     id: "l79", world: "w16", title: "Extract IOCs", xp: 130,
+    deepDive: `<b>Indicators of compromise</b> extracted from one incident let you hunt for the same attacker everywhere else:
+<pre>iocs = sorted({e["name"] for e in events
+               if e["type"]=="process" and e["name"] in KNOWN_BAD_PROCESSES})</pre>
+<p>IOCs (hashes, IPs, domains, tool names) are tactical and short-lived. Higher up the "pyramid of pain" are TTPs — behaviors that are far costlier for an attacker to change.</p>`,
+    examples: [
+      `<b>Collect indicators:</b> the malicious process names/hashes/IPs seen in this incident.`,
+      `<b>Sweep the fleet:</b> feed the IOCs to EDR/SIEM to find every other host that saw them.`,
+    ],
+    pitfalls: [
+      `IOCs are easily changed (new hash/IP per campaign) — don't rely on them alone; hunt TTPs too.`,
+      `Sharing IOCs without context (when/where/confidence) causes false positives downstream.`,
+      `Stale IOC feeds generate noise — expire/age them.`,
+    ],
+    why: `IOC extraction + the "pyramid of pain" (IOCs cheap to change, TTPs costly) is core threat-hunting knowledge and a common interview topic.`,
+    keyPoints: [
+      "Extract IOCs to hunt the same attacker elsewhere.",
+      "IOCs are tactical/short-lived; TTPs are more durable.",
+      "Share with context; expire stale indicators.",
+    ],
+    references: [
+      { title: "David Bianco — The Pyramid of Pain", url: "https://detect-respond.blogspot.com/2013/03/the-pyramid-of-pain.html" },
+      { title: "CrowdStrike — Indicators of Compromise", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/threat-intelligence/indicators-of-compromise-ioc/" },
+    ],
     story: `Pull indicators of compromise from the evidence so you can hunt for them everywhere else.`,
     concept: `Indicators here are the malicious process names seen in events (matched against <code>KNOWN_BAD_PROCESSES</code>).`,
     task: `Build <code>iocs</code> — sorted distinct known-bad process names observed (expect <code>['mimikatz.exe']</code>).`,
@@ -4280,6 +4443,28 @@ else:
   },
   {
     id: "l80", world: "w16", title: "Decide Containment", xp: 140,
+    deepDive: `<b>Containment</b> stops the spread while you preserve evidence. Decide the set to isolate by unioning everything implicated:
+<pre>isolate = sorted(malware_hosts | compromised_login_hosts)</pre>
+<p>Containment comes <i>before</i> eradication: isolate the host (network quarantine), disable the account, block the C2 — but capture volatile evidence (memory) first, and avoid tipping off a sophisticated attacker prematurely.</p>`,
+    examples: [
+      `<b>Union the sources:</b> hosts running malware + hosts of compromised logins → the isolation list.`,
+      `<b>Action:</b> EDR network-contain the hosts, disable the accounts, blackhole the C2 domain/IP.`,
+    ],
+    pitfalls: [
+      `Wiping/rebuilding before capturing memory destroys forensic evidence — contain, collect, then eradicate.`,
+      `Over-containment (isolating critical prod) can be worse than the incident — weigh business impact.`,
+      `Noisy containment can alert an advanced adversary to burn access or detonate — coordinate timing.`,
+    ],
+    why: `"Contain vs eradicate — what first, and why?" is a staple IR question. Contain-first (preserve evidence, stop spread), measured against business impact, is the expected answer.`,
+    keyPoints: [
+      "Containment stops spread and precedes eradication.",
+      "Capture volatile evidence (memory) before wiping.",
+      "Weigh business impact; mind tipping off the adversary.",
+    ],
+    references: [
+      { title: "NIST SP 800-61r2 — Containment/Eradication/Recovery", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+      { title: "CISA — Incident response playbooks", url: "https://www.cisa.gov/resources-tools/resources/federal-government-cybersecurity-incident-and-vulnerability-response-playbooks" },
+    ],
     story: `Containment = which hosts to isolate right now. Pull in both malware hosts AND hosts of compromised accounts.`,
     concept: `Union two sets:
 <pre>isolate = malware_hosts | compromised_login_hosts</pre>`,
@@ -4302,6 +4487,34 @@ else:
   },
   {
     id: "l81", world: "w16", title: "BOSS: Incident Report", xp: 300,
+    deepDive: `The capstone assembles the investigation into one structured report leadership and responders can act on:
+<pre>def incident_report(events):
+    return {
+        "events": len(events),                 # scale
+        "iocs": [...],                          # hunt elsewhere
+        "compromised_users": [...],             # who
+        "isolate": [...],                       # containment set
+    }</pre>
+<p>A good report answers <b>what happened, scope, impact, and actions</b> — concise, factual, timestamped — and feeds the post-incident review.</p>`,
+    examples: [
+      `<b>Machine + human:</b> the dict drives automation (isolate these hosts) and summarizes for a human write-up.`,
+      `<b>Metrics:</b> capture detection time, dwell time, and MTTR to drive improvement.`,
+    ],
+    pitfalls: [
+      `Blame or speculation in a report erodes trust — stick to evidence and timestamps.`,
+      `No actions/owners means nothing changes after — every finding needs a follow-up.`,
+      `Skipping the blameless post-mortem means the same incident recurs.`,
+    ],
+    why: `Producing a crisp, actionable incident report (what/scope/impact/actions + metrics) is a senior skill and a common "walk me through your IR write-up" prompt.`,
+    keyPoints: [
+      "Report = what happened, scope, impact, actions — factual and timestamped.",
+      "Drives both automation and the human write-up.",
+      "Capture dwell time/MTTR and run a blameless post-mortem.",
+    ],
+    references: [
+      { title: "NIST SP 800-61r2 — Post-incident activity", url: "https://csrc.nist.gov/pubs/sp/800/61/r2/final" },
+      { title: "Google SRE — Postmortem culture", url: "https://sre.google/sre-book/postmortem-culture/" },
+    ],
     story: `🏆 Final boss of the whole curriculum. Produce a complete incident report: timeline length, IOCs, compromised users, and containment list — the artifact you hand to leadership.`,
     concept: `Assemble everything you've built:
 <pre>def incident_report(events):
@@ -4335,6 +4548,28 @@ else:
   /* ================= WORLD 17: IAM & KMS DEEP-DIVE ================= */
   {
     id: "l82", world: "w17", title: "Keys Without Rotation", xp: 120,
+    deepDive: `KMS encryption keys should rotate automatically so no single key version protects too much data for too long. Audit for keys with rotation disabled:
+<pre>no_rotation = [k["id"] for k in aws.list_keys() if not k["rotation"]]</pre>
+<p>AWS KMS automatic rotation generates new <b>backing material</b> yearly while keeping the same key ID, so old ciphertext still decrypts — rotation is transparent to apps.</p>`,
+    examples: [
+      `<b>Find gaps:</b> list keys where <code>rotation</code> is False.`,
+      `<b>Enable:</b> one API call turns on annual rotation; old data remains decryptable.`,
+    ],
+    pitfalls: [
+      `Imported key material and some asymmetric keys don't support automatic rotation — plan manual rotation for those.`,
+      `Rotation limits per-version exposure but doesn't help if the <b>key policy</b> is too open (next lessons).`,
+      `Rotating the key ≠ re-encrypting old data; that's a separate backfill if required.`,
+    ],
+    why: `Crypto key lifecycle is a compliance staple (CIS/PCI). "Is key rotation enabled?" is a routine audit check; knowing it's transparent (same key ID) is the detail.`,
+    keyPoints: [
+      "Audit for KMS keys with automatic rotation off.",
+      "Rotation is transparent — same key ID, old data still decrypts.",
+      "Rotation ≠ re-encryption; imported/asymmetric keys differ.",
+    ],
+    references: [
+      { title: "AWS — Rotating KMS keys", url: "https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html" },
+      { title: "CIS AWS Foundations Benchmark", url: "https://www.cisecurity.org/benchmark/amazon_web_services" },
+    ],
     story: `🔐 The <code>aws</code> client now exposes KMS keys and IAM users. Encryption keys should auto-rotate — find the ones that don't.`,
     concept: `<pre>for k in aws.list_keys():
     k["id"], k["rotation"], k["public"]
@@ -4355,6 +4590,30 @@ else:
   },
   {
     id: "l83", world: "w17", title: "Turn On Rotation", xp: 120,
+    deepDive: `Remediate the audit: enable automatic rotation on every key that lacks it.
+<pre>for k in aws.list_keys():
+    if not k["rotation"]:
+        aws.enable_key_rotation(k["id"])</pre>
+<p>Even better than remediating after the fact: make rotation the <b>default</b> via organization policy / IaC guardrails so new keys are born compliant.</p>`,
+    examples: [
+      `<b>Remediate all:</b> after the loop, no key has rotation off.`,
+      `<b>Prevent drift:</b> a Config rule / SCP flags or blocks keys created without rotation.`,
+    ],
+    pitfalls: [
+      `Skipping keys that can't auto-rotate (imported material) — handle those with a manual schedule.`,
+      `Remediation without prevention means findings reappear on the next new key.`,
+      `Assume rotation fixes exposure — it doesn't if the key policy is open.`,
+    ],
+    why: `"Detect and remediate, then prevent" is the arc interviewers want. Making rotation the default via guardrails (not just fixing today) is the mature step.`,
+    keyPoints: [
+      "Enable rotation on all non-rotating keys.",
+      "Make it the default via IaC/Config/SCP guardrails.",
+      "Handle non-rotatable keys with a manual schedule.",
+    ],
+    references: [
+      { title: "AWS Config — Managed rules (cmk rotation)", url: "https://docs.aws.amazon.com/config/latest/developerguide/cmk-backing-key-rotation-enabled.html" },
+      { title: "AWS — Rotating KMS keys", url: "https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html" },
+    ],
     story: `Remediate: enable automatic rotation on every key that lacks it.`,
     concept: `<pre>for k in aws.list_keys():
     if not k["rotation"]:
@@ -4373,6 +4632,28 @@ else:
   },
   {
     id: "l84", world: "w17", title: "Over-Shared Keys", xp: 130,
+    deepDive: `Encryption only protects data if <b>few</b> principals can use the key. A key policy that grants usage broadly (<code>Principal: "*"</code> or whole-account/cross-account access) undermines the encryption entirely:
+<pre>public_keys = [k["id"] for k in aws.list_keys() if k["public"]]</pre>
+<p>In AWS, using a key requires permission in <b>both</b> the key policy and IAM — but an over-broad key policy can make the key usable far too widely. Audit key policies, not just IAM.</p>`,
+    examples: [
+      `<b>Flag over-sharing:</b> keys whose policy is world/broadly accessible.`,
+      `<b>Tighten:</b> scope <code>kms:Decrypt</code> to the specific roles that genuinely need it.`,
+    ],
+    pitfalls: [
+      `Reviewing IAM but not the <b>key policy</b> misses the real exposure — KMS access is governed by both.`,
+      `Cross-account grants are easy to forget and widen blast radius.`,
+      `"Encrypted at rest" on a report means little if everyone can decrypt.`,
+    ],
+    why: `"Our data is KMS-encrypted" is only as strong as the key policy. Auditing <i>who can use the key</i> (not just that encryption is on) is the senior cloud-security insight.`,
+    keyPoints: [
+      "Encryption strength = how few principals can use the key.",
+      "KMS access = key policy AND IAM — audit both.",
+      "Watch cross-account and wildcard key-policy grants.",
+    ],
+    references: [
+      { title: "AWS — Key policies in KMS", url: "https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html" },
+      { title: "AWS — KMS best practices", url: "https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html" },
+    ],
     story: `A KMS key whose policy allows everyone to use it undoes the encryption. Flag them.`,
     concept: `The <code>public</code> flag means the key policy grants usage broadly (e.g., Principal <code>*</code>).`,
     task: `Build <code>public_keys</code> — ids of keys where <code>public</code> is True (expect <code>['key-legacy']</code>).`,
@@ -4390,6 +4671,29 @@ else:
   },
   {
     id: "l85", world: "w17", title: "Admins Without MFA", xp: 140,
+    deepDive: `A privileged account without MFA is the softest, highest-value target in the environment — a single phished password owns everything:
+<pre>admins_no_mfa = [u["name"] for u in aws.list_users()
+                 if u["admin"] and not u["mfa"]]</pre>
+<p>Enforce MFA on all users (phishing-resistant FIDO2/passkeys for admins), and prefer <b>short-lived role assumption</b> over standing admin access.</p>`,
+    examples: [
+      `<b>Highest-priority fix:</b> admin AND no MFA → remediate first.`,
+      `<b>Go further:</b> just-in-time elevation (assume an admin role for an hour) beats permanent admin even with MFA.`,
+    ],
+    pitfalls: [
+      `SMS/TOTP MFA is better than none but phishable — admins should use FIDO2/passkeys.`,
+      `The <b>root</b>/break-glass account is the ultimate target — MFA it, lock it away, and alert on any use.`,
+      `Service accounts can't do interactive MFA — use workload identity/roles, not human-style creds.`,
+    ],
+    why: `MFA on privileged accounts is the single highest-impact identity control. "How do you secure admin access?" → MFA (phishing-resistant) + JIT elevation + protect root is the complete answer.`,
+    keyPoints: [
+      "Admin without MFA = top-priority fix.",
+      "Phishing-resistant MFA (FIDO2) for admins; protect root.",
+      "Prefer short-lived JIT role assumption over standing admin.",
+    ],
+    references: [
+      { title: "AWS — MFA in IAM", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_mfa.html" },
+      { title: "CISA — Phishing-resistant MFA", url: "https://www.cisa.gov/resources-tools/resources/implementing-phishing-resistant-mfa" },
+    ],
     story: `A privileged account without MFA is the softest target in the account. Find them.`,
     concept: `Combine two conditions: admin AND no MFA.`,
     task: `Build <code>admins_no_mfa</code> — names of IAM users who are <code>admin</code> but have <code>mfa</code> False (expect <code>['root-ops']</code>).`,
@@ -4407,6 +4711,37 @@ else:
   },
   {
     id: "l86", world: "w17", title: "BOSS: IAM/KMS Posture", xp: 280,
+    deepDive: `The capstone audits identity + crypto posture in one pass and remediates the safe item (key rotation):
+<pre>def iam_kms_audit(aws):
+    no_rot   = sorted(k["id"] for k in aws.list_keys() if not k["rotation"])
+    public   = sorted(k["id"] for k in aws.list_keys() if k["public"])
+    wildcard = sorted(p["name"] for p in aws.list_policies()
+                      if any("*" in a for a in p["actions"]))
+    admins   = sorted(u["name"] for u in aws.list_users()
+                      if u["admin"] and not u["mfa"])
+    for k in aws.list_keys():
+        aws.enable_key_rotation(k["id"])
+    return {"no_rotation": no_rot, "public_keys": public,
+            "wildcard_policies": wildcard, "admins_no_mfa": admins}</pre>`,
+    examples: [
+      `<b>One report:</b> non-rotating keys + over-shared keys + wildcard IAM + admins without MFA.`,
+      `<b>Safe auto-fix:</b> enable rotation everywhere; leave policy/MFA changes for reviewed remediation.`,
+    ],
+    pitfalls: [
+      `Auto-detaching wildcard policies or forcing MFA blindly can lock people out — those need review, unlike rotation.`,
+      `Capture findings before remediating for the audit record.`,
+      `A point-in-time audit misses drift — run continuously.`,
+    ],
+    why: `IAM + KMS are the identity and crypto backbone of cloud security. A posture scan that reports all four and safely auto-fixes rotation is exactly a senior cloud-security deliverable.`,
+    keyPoints: [
+      "Audit identity + crypto posture together, report all findings.",
+      "Auto-fix only safe items (rotation); gate risky changes.",
+      "Run continuously to catch drift.",
+    ],
+    references: [
+      { title: "AWS — IAM best practices", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html" },
+      { title: "AWS — KMS best practices", url: "https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html" },
+    ],
     story: `🏆 Write the IAM/KMS posture scan: report non-rotating keys, over-shared keys, wildcard IAM policies, and admins without MFA — then remediate the key rotation.`,
     concept: `Collect findings, then fix rotation:
 <pre>def iam_kms_audit(aws):
