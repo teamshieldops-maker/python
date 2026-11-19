@@ -3266,6 +3266,33 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W18: THREAT MODELING & SECURE DESIGN ================= */
   {
     id: "n84", world: "w18", title: "STRIDE", xp: 100, kind: "quiz",
+    deepDive: `<b>STRIDE</b> enumerates six threat classes, each with a counter-control:
+<pre>S poofing              -> Authentication
+T ampering             -> Integrity (hashes/signatures)
+R epudiation           -> Logging / audit
+I nformation disclosure-> Confidentiality (encryption)
+D enial of service     -> Availability (rate limits, redundancy)
+E levation of privilege-> Authorization (least privilege)</pre>
+<p>Applied to each component/flow in a data-flow diagram, STRIDE turns "what could go wrong?" into a structured checklist.</p>`,
+    examples: [
+      `<b>Map threat→control:</b> Spoofing→MFA/mTLS; Tampering→signing; Info disclosure→TLS/at-rest encryption.`,
+      `<b>Per element:</b> walk each process/data store/flow and ask which STRIDE letters apply.`,
+    ],
+    pitfalls: [
+      `Listing threats without assigning owners/mitigations — a model that drives nothing.`,
+      `Confusing authentication (Spoofing) with authorization (Elevation).`,
+      `One-time modeling; re-threat-model when the design changes.`,
+    ],
+    why: `STRIDE is the most common threat-modeling framework in design reviews/interviews. Mapping each letter to a control (Spoofing→auth, etc.) is the structured answer.`,
+    keyPoints: [
+      "STRIDE = 6 threat classes, each mapped to a control.",
+      "Apply per component/flow in a data-flow diagram.",
+      "Turn findings into owned, tracked mitigations.",
+    ],
+    references: [
+      { title: "Microsoft — STRIDE threat model", url: "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats" },
+      { title: "OWASP — Threat Modeling Process", url: "https://owasp.org/www-community/Threat_Modeling_Process" },
+    ],
     story: `🧩 A structured way to ask "what can go wrong?" early in design.`,
     concept: `<b>STRIDE</b> enumerates threat classes: <b>S</b>poofing (auth), <b>T</b>ampering (integrity), <b>R</b>epudiation (logging), <b>I</b>nformation disclosure (confidentiality), <b>D</b>enial of service (availability), <b>E</b>levation of privilege (authorization). Each maps to a control.`,
     task: `In STRIDE, which threat is countered primarily by strong <b>authentication</b>?`,
@@ -3277,6 +3304,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n85", world: "w18", title: "Trust Boundaries", xp: 100, kind: "quiz",
+    deepDive: `In a data-flow diagram, a <b>trust boundary</b> is where data crosses between zones of differing trust (internet→app, app→database, user→kernel, browser→server). Threats <b>concentrate at these crossings</b>, so that's where you place validation, authN/Z, and encryption.
+<p>Threat modeling = draw the data flows, mark the boundaries, then enumerate what can go wrong at each crossing (e.g., with STRIDE).</p>`,
+    examples: [
+      `<b>Boundary controls:</b> at internet→app, validate input + authenticate; at app→db, use least-privilege creds + parameterized queries.`,
+      `<b>DFD:</b> external entities, processes, data stores, and the trust boundaries between them.`,
+    ],
+    pitfalls: [
+      `Modeling components but not the <i>flows</i> between them misses where threats actually live.`,
+      `Treating internal hops as "trusted" (flat trust) ignores lateral-movement risk.`,
+      `Too-coarse diagrams hide boundary crossings.`,
+    ],
+    why: `Trust boundaries are central to threat modeling / data-flow diagrams. "Where do you focus controls?" → at the boundaries where trust changes.`,
+    keyPoints: [
+      "Trust boundary = where data crosses trust levels.",
+      "Threats concentrate at crossings — put controls there.",
+      "Model the flows, not just the components.",
+    ],
+    references: [
+      { title: "OWASP — Threat Modeling", url: "https://owasp.org/www-community/Threat_Modeling" },
+      { title: "Microsoft — Threat Modeling Tool", url: "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool" },
+    ],
     story: `Threats cluster where data crosses from less-trusted to more-trusted zones.`,
     concept: `In a data-flow diagram, a <b>trust boundary</b> is where data moves between zones of differing trust (internet→app, app→database, user→kernel). These crossings are where you concentrate validation, authn/z, and encryption — most vulnerabilities live at boundaries.`,
     task: `Why identify trust boundaries when threat modeling?`,
@@ -3293,6 +3341,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n86", world: "w18", title: "Shrink the Attack Surface", xp: 100, kind: "quiz",
+    deepDive: `The <b>attack surface</b> is every point an attacker can try: exposed ports/services, endpoints/APIs, inputs, accounts, installed packages, and dependencies. <b>Reduction</b> means removing what you don't need: disable unused services/ports, remove default accounts, minimize endpoints and installed software, close unneeded network paths.
+<p>Less exposed = fewer ways in and less to patch.</p>`,
+    examples: [
+      `<b>Harden a host:</b> close unused ports, remove default creds, uninstall unneeded packages, restrict egress.`,
+      `<b>Minimal images:</b> distroless containers carry far fewer exploitable components.`,
+    ],
+    pitfalls: [
+      `Enabling optional features/services "just in case" expands surface you then must defend.`,
+      `Forgetting non-obvious surface: admin panels, debug endpoints, old API versions, dependencies.`,
+      `Reducing surface once, then letting it creep back with new deployments.`,
+    ],
+    why: `Attack-surface reduction is a core hardening principle (CIS benchmarks). "How do you reduce attack surface?" → disable/remove the unused, minimize exposure.`,
+    keyPoints: [
+      "Attack surface = all points an attacker can target.",
+      "Reduce by disabling/removing the unused; minimize exposure.",
+      "Watch hidden surface: debug/admin endpoints, old APIs, deps.",
+    ],
+    references: [
+      { title: "CIS Benchmarks (hardening)", url: "https://www.cisecurity.org/cis-benchmarks" },
+      { title: "OWASP — Attack Surface Analysis Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Attack_Surface_Analysis_Cheat_Sheet.html" },
+    ],
     story: `Every exposed feature is a door an attacker can try.`,
     concept: `<b>Attack surface reduction</b>: disable unused services/ports, remove default accounts, minimize exposed endpoints and installed packages, and close unneeded network paths. Less exposed = fewer ways in.`,
     task: `Which action reduces attack surface?`,
@@ -3309,6 +3378,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n87", world: "w18", title: "Secure Defaults & Fail Closed", xp: 110, kind: "quiz",
+    deepDive: `<b>Secure by default</b> means the out-of-the-box state is the safe one: deny by default, encryption on, least privilege, no default passwords. <b>Fail closed</b> means that when a security decision <i>can't</i> be made (a check errors or a dependency is down), the system <b>denies</b> rather than allows.
+<pre>authz service times out -> fail closed -> deny the request</pre>`,
+    examples: [
+      `<b>Fail closed:</b> if the authorization service is unreachable, reject the request (don't default to allow).`,
+      `<b>Secure default:</b> new resources are private; features are off until explicitly enabled.`,
+    ],
+    pitfalls: [
+      `Failing <b>open</b> for availability (allow on error) is how auth bypasses happen under load/outage.`,
+      `Sometimes safety (fail closed) conflicts with availability — decide deliberately per system, don't default to open.`,
+      `Shipping insecure defaults (open ports, default creds) and relying on users to harden.`,
+    ],
+    why: `"Fail open vs fail closed?" and "secure by default?" are classic design questions. For security decisions, fail closed; ship safe defaults — is the expected stance.`,
+    keyPoints: [
+      "Secure by default: deny-by-default, encryption on, no default creds.",
+      "Fail closed: deny when a security decision can't be made.",
+      "Failing open for availability causes auth bypasses.",
+    ],
+    references: [
+      { title: "OWASP — Secure Design Principles", url: "https://cheatsheetseries.owasp.org/cheatsheets/Secure_Product_Design_Cheat_Sheet.html" },
+      { title: "Saltzer & Schroeder — Fail-safe defaults", url: "https://www.cs.virginia.edu/~evans/cs551/saltzer/" },
+    ],
     story: `What happens when something breaks decides whether you're safe or wide open.`,
     concept: `<b>Secure by default</b> means the out-of-the-box configuration is the safe one (deny by default, encryption on, least privilege). <b>Fail closed</b> means on error the system denies access rather than allowing it — e.g., if the authz service is down, reject requests.`,
     task: `An authorization service times out. A "fail closed" design will:`,
@@ -3325,6 +3415,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n88", world: "w18", title: "Defense in Depth", xp: 100, kind: "quiz",
+    deepDive: `<b>Defense in depth</b> layers multiple <b>independent</b> controls so that if one fails, others still protect you — no single point of failure. Example stack: network segmentation + WAF + authN/Z + input validation + encryption + monitoring + EDR.
+<p>It assumes any single control <i>will</i> eventually fail (zero-day, misconfig, bypass), so redundancy limits the damage.</p>`,
+    examples: [
+      `<b>Layered web app:</b> WAF + parameterized queries + least-privilege DB user + monitoring — SQLi must beat all four.`,
+      `<b>Assume breach:</b> perimeter + segmentation + EDR + logging so one failure isn't fatal.`,
+    ],
+    pitfalls: [
+      `Relying on a single "strong" control (just a firewall / just a WAF) = single point of failure.`,
+      `Layers that aren't <i>independent</i> (all fail the same way) don't add real depth.`,
+      `More layers add cost/complexity — balance, don't just pile on.`,
+    ],
+    why: `Defense in depth is a bedrock principle. "Why not rely on one control?" → it will eventually fail; independent layers contain the damage.`,
+    keyPoints: [
+      "Layer independent controls; assume any one fails.",
+      "No single point of failure; redundancy limits damage.",
+      "Layers must be genuinely independent to help.",
+    ],
+    references: [
+      { title: "NSA/CISA — Defense in depth", url: "https://www.cisa.gov/news-events/news/defense-depth" },
+      { title: "NIST SP 800-53 — Control families", url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final" },
+    ],
     story: `No single control is perfect — so don't rely on one.`,
     concept: `<b>Defense in depth</b> layers independent controls (network segmentation + WAF + authn/z + input validation + monitoring) so that if one fails, others still protect you. A single perimeter firewall is a single point of failure.`,
     task: `What does defense in depth mean?`,
@@ -3341,6 +3452,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n89", world: "w18", title: "Least Privilege by Design", xp: 110, kind: "quiz",
+    deepDive: `<b>Least privilege</b> — every user, service, and process gets only the access it needs, for only as long as it needs it — is the throughline of every world in this quest. It limits blast radius everywhere: IAM policies, network ACLs, K8s RBAC, API scopes, secret access, DB grants.
+<p>Pair it with <b>separation of duties</b> (no one person owns a whole sensitive process) and <b>just-in-time</b> elevation.</p>`,
+    examples: [
+      `<b>Scoped grant:</b> a microservice that reads one table gets read-only on just that table — not DB admin.`,
+      `<b>JIT:</b> assume an admin role for one hour with approval, instead of standing admin.`,
+    ],
+    pitfalls: [
+      `"Grant broad to avoid tickets" trades a one-time convenience for permanent risk.`,
+      `Least privilege erodes over time (privilege creep) — review and prune continuously.`,
+      `Forgetting non-human identities (services/roles), which often hold the broadest access.`,
+    ],
+    why: `Least privilege is the single most-cited security principle and appears in every framework. Being able to apply it across IAM/network/K8s/API shows cohesive design thinking.`,
+    keyPoints: [
+      "Minimum access, minimum time — everywhere (IAM/ACL/RBAC/scopes).",
+      "Pair with separation of duties and JIT elevation.",
+      "Fight privilege creep with continuous review.",
+    ],
+    references: [
+      { title: "NIST — Least privilege (AC-6)", url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final" },
+      { title: "CISA — Zero trust / least privilege", url: "https://www.cisa.gov/zero-trust-maturity-model" },
+    ],
     story: `The design principle that shows up in every other topic you've learned.`,
     concept: `<b>Least privilege</b> — every user, service, and process gets only the access it needs, for only as long as it needs it. It limits blast radius everywhere: IAM, network ACLs, K8s RBAC, API scopes, secrets access. It's the throughline of secure design.`,
     task: `A microservice only needs to read one table. Least privilege says:`,
@@ -3359,6 +3491,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W19: WEB EXPLOITATION ================= */
   {
     id: "n90", world: "w19", title: "CSRF", xp: 100, kind: "quiz",
+    deepDive: `<b>CSRF</b> abuses a victim's <i>existing session</i>: a malicious page makes the victim's browser send a state-changing request (transfer money, change email) that rides their session cookie. Defenses:
+<ul>
+<li><b>Anti-CSRF tokens</b> — a secret per-session value the attacker can't know.</li>
+<li><b>SameSite cookies</b> (Lax/Strict) — the session cookie isn't sent on cross-site requests.</li>
+<li>Check <b>Origin/Referer</b>; keep state changes off GET.</li>
+</ul>`,
+    examples: [
+      `<b>Attack:</b> an image/form on evil.com auto-submits <code>POST /transfer</code> to your bank using your cookie.`,
+      `<b>Defense:</b> require a CSRF token + SameSite=Lax cookies.`,
+    ],
+    pitfalls: [
+      `State changes on GET requests are inherently CSRF-prone — use POST/PUT/DELETE.`,
+      `A CSRF token stored in a readable cookie and echoed can be defeated by XSS — bind it to the session.`,
+      `SameSite alone isn't complete (some flows/old browsers) — layer token + SameSite.`,
+    ],
+    why: `CSRF is a classic web vuln; "token + SameSite + no-state-on-GET" is the expected fix. Knowing XSS can undermine CSRF defenses shows how vulns chain.`,
+    keyPoints: [
+      "CSRF rides the victim's session to force state changes.",
+      "Defend with anti-CSRF tokens + SameSite cookies.",
+      "Keep state changes off GET; check Origin/Referer.",
+    ],
+    references: [
+      { title: "OWASP — CSRF Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" },
+      { title: "MDN — SameSite cookies", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite" },
+    ],
     story: `🕷️ The web-exploitation world. First: tricking a logged-in user's browser into acting for the attacker.`,
     concept: `<b>CSRF</b> (Cross-Site Request Forgery) abuses a user's existing session: a malicious page makes the victim's browser submit a state-changing request. Defenses: <b>anti-CSRF tokens</b> and <b>SameSite cookies</b> (plus checking Origin/Referer).`,
     task: `Which pair best defends against CSRF?`,
@@ -3375,6 +3532,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n91", world: "w19", title: "IDOR", xp: 100, kind: "quiz",
+    deepDive: `<b>IDOR</b> (Insecure Direct Object Reference), aka BOLA, is a missing <b>authorization</b> check: the app trusts a user-supplied object id without verifying the requester owns/may access it. Changing <code>/orders/123</code> → <code>/orders/124</code> leaks another user's data.
+<p>Fix: enforce <b>per-object authorization server-side</b> on every access — don't rely on unguessable IDs.</p>`,
+    examples: [
+      `<b>Exploit:</b> incrementing an account/document/order id returns someone else's record.`,
+      `<b>Fix:</b> <code>if resource.owner != current_user: 403</code> on fetch/update/delete.`,
+    ],
+    pitfalls: [
+      `UUIDs instead of sequential IDs are obscurity, not access control — still authorize.`,
+      `Checking list endpoints but not detail/update/delete leaves gaps.`,
+      `Trusting a client-supplied tenant/owner id without verifying it belongs to the caller.`,
+    ],
+    why: `IDOR/BOLA tops the OWASP API Top 10 and is behind many real breaches. "Enforce per-object server-side authorization" is the answer.`,
+    keyPoints: [
+      "IDOR = missing per-object authorization.",
+      "Authorize server-side on every object operation.",
+      "Random IDs ≠ access control.",
+    ],
+    references: [
+      { title: "OWASP — IDOR", url: "https://owasp.org/www-community/attacks/Insecure_Direct_Object_Reference" },
+      { title: "OWASP API1 — Broken Object Level Authorization", url: "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/" },
+    ],
     story: `Change the id in the URL, get someone else's data.`,
     concept: `<b>IDOR</b> (Insecure Direct Object Reference) is a missing <b>authorization</b> check: the app trusts a user-supplied object id without verifying ownership. Fix: enforce per-object access control server-side (don't rely on unguessable ids alone).`,
     task: `The fix for IDOR is primarily:`,
@@ -3391,6 +3569,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n92", world: "w19", title: "Open Redirect", xp: 100, kind: "quiz",
+    deepDive: `An <b>open redirect</b> occurs when a redirect destination comes from user input without validation (<code>/login?next=https://evil.com</code>). Attackers use it for convincing phishing (the link starts on your trusted domain) and to abuse OAuth <code>redirect_uri</code>. Fix: only allow <b>relative same-site paths</b> or an <b>allowlist</b> of destinations.`,
+    examples: [
+      `<b>Phishing:</b> <code>https://trusted.com/go?url=https://evil.com</code> looks safe but lands on evil.com.`,
+      `<b>Fix:</b> validate that the redirect target is a relative path (not <code>//</code> or absolute), or on an allowlist.`,
+    ],
+    pitfalls: [
+      `Protocol-relative (<code>//evil.com</code>), backslash, and encoded bypasses defeat naive checks — normalize or allowlist.`,
+      `Open redirects weaken OAuth — validate <code>redirect_uri</code> strictly against registered values.`,
+      `Treating it as "low severity" ignores its phishing/token-theft impact.`,
+    ],
+    why: `Open redirect is a common phishing enabler and OAuth pitfall. "Allow only relative same-site paths or an allowlist" is the expected fix.`,
+    keyPoints: [
+      "User-controlled redirect targets enable phishing/token theft.",
+      "Allow only relative same-site paths or an allowlist.",
+      "Validate OAuth redirect_uri strictly.",
+    ],
+    references: [
+      { title: "OWASP — Unvalidated Redirects & Forwards Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html" },
+      { title: "CWE-601 — Open Redirect", url: "https://cwe.mitre.org/data/definitions/601.html" },
+    ],
     story: `A trusted link that quietly bounces users to an attacker's site.`,
     concept: `An <b>open redirect</b> happens when a redirect target comes from user input without validation (<code>/login?next=https://evil.com</code>). Defense: allow only <b>relative, same-site</b> paths or an allowlist of destinations — never redirect to arbitrary absolute URLs.`,
     task: `How do you prevent open redirects?`,
@@ -3407,6 +3605,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n93", world: "w19", title: "Clickjacking", xp: 100, kind: "quiz",
+    deepDive: `<b>Clickjacking</b> frames your site invisibly over an attacker page so the victim's clicks land on hidden buttons (e.g., "delete account", "authorize"). Defense: control who may frame your pages with <b>CSP <code>frame-ancestors</code></b> (modern) or the legacy <b>X-Frame-Options: DENY/SAMEORIGIN</b>.`,
+    examples: [
+      `<b>Attack:</b> a transparent iframe of your settings page over a "Click to win!" button.`,
+      `<b>Defense:</b> <code>Content-Security-Policy: frame-ancestors 'none'</code> (or 'self').`,
+    ],
+    pitfalls: [
+      `Relying only on legacy X-Frame-Options — prefer CSP frame-ancestors (more flexible, standard).`,
+      `Allowing framing by <code>*</code> defeats the control.`,
+      `Sensitive actions should also require re-authentication / confirmation, not just anti-framing.`,
+    ],
+    why: `Clickjacking defense (frame-ancestors / X-Frame-Options) is standard web hardening and a common headers question.`,
+    keyPoints: [
+      "Clickjacking tricks clicks via invisible framing.",
+      "Defend with CSP frame-ancestors (or X-Frame-Options).",
+      "Add confirmation/re-auth for sensitive actions.",
+    ],
+    references: [
+      { title: "OWASP — Clickjacking Defense Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html" },
+      { title: "MDN — frame-ancestors", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/frame-ancestors" },
+    ],
     story: `Your page, invisibly framed over a trap, hijacks the user's clicks.`,
     concept: `<b>Clickjacking</b> frames your site in a transparent overlay so clicks hit hidden buttons. Defense: <code>X-Frame-Options: DENY/SAMEORIGIN</code> or, better, CSP <code>frame-ancestors</code> to control who may embed your pages.`,
     task: `Which header defends against clickjacking?`,
@@ -3423,6 +3641,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n94", world: "w19", title: "Security Headers", xp: 100, kind: "quiz",
+    deepDive: `A few HTTP response headers harden a web app cheaply:
+<ul>
+<li><b>Content-Security-Policy (CSP)</b> — restricts which scripts/resources can load → mitigates XSS.</li>
+<li><b>Strict-Transport-Security (HSTS)</b> — forces HTTPS, prevents downgrade/SSL-strip.</li>
+<li><b>X-Content-Type-Options: nosniff</b>, <b>frame-ancestors</b> (anti-clickjacking), <b>Referrer-Policy</b>.</li>
+</ul>`,
+    examples: [
+      `<b>CSP:</b> <code>default-src 'self'</code> blocks inline/injected scripts from running — a strong XSS backstop.`,
+      `<b>HSTS:</b> after the first visit, the browser refuses plain HTTP to your domain.`,
+    ],
+    pitfalls: [
+      `A too-permissive CSP (<code>'unsafe-inline'</code>, <code>*</code>) provides little protection — tighten it.`,
+      `HSTS is sticky (max-age) — test before enabling preload, or you can lock yourself out of HTTP.`,
+      `Headers harden the browser side; they don't fix server-side bugs.`,
+    ],
+    why: `Security headers (especially CSP for XSS, HSTS for HTTPS) are standard web-hardening and a common "how would you reduce XSS impact?" answer.`,
+    keyPoints: [
+      "CSP restricts script/resource origins → mitigates XSS.",
+      "HSTS forces HTTPS; nosniff/frame-ancestors/Referrer-Policy add more.",
+      "Avoid permissive CSP ('unsafe-inline', *).",
+    ],
+    references: [
+      { title: "MDN — Content Security Policy", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP" },
+      { title: "OWASP — Secure Headers Project", url: "https://owasp.org/www-project-secure-headers/" },
+    ],
     story: `A few response headers harden a web app for free.`,
     concept: `<b>CSP</b> (Content-Security-Policy) restricts which scripts/resources load, mitigating XSS. <b>HSTS</b> (Strict-Transport-Security) forces HTTPS. Together with secure cookies and frame-ancestors, they're baseline web hardening.`,
     task: `Which header most directly mitigates XSS by controlling allowed script sources?`,
@@ -3439,6 +3682,32 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n95", world: "w19", title: "Cookie Flags", xp: 100, kind: "quiz",
+    deepDive: `Session cookies are credentials — flag them properly:
+<ul>
+<li><b>HttpOnly</b> — JavaScript can't read the cookie, so XSS can't steal the session.</li>
+<li><b>Secure</b> — sent only over HTTPS.</li>
+<li><b>SameSite</b> (Lax/Strict) — not sent on cross-site requests → mitigates CSRF.</li>
+</ul>
+<p>Missing flags are a common, easily-exploited gap.</p>`,
+    examples: [
+      `<b>HttpOnly saves you:</b> even with an XSS bug, injected JS can't read <code>document.cookie</code>.`,
+      `<b>Set-Cookie:</b> <code>session=...; HttpOnly; Secure; SameSite=Lax</code>.`,
+    ],
+    pitfalls: [
+      `Omitting HttpOnly turns any XSS into instant session theft.`,
+      `No Secure flag → the cookie can leak over an accidental HTTP request.`,
+      `SameSite=None without Secure is rejected by modern browsers.`,
+    ],
+    why: `Cookie security flags are a quick-win hardening item and a common question. HttpOnly (anti-XSS-theft) + Secure + SameSite (anti-CSRF) is the trio to name.`,
+    keyPoints: [
+      "HttpOnly (no JS access), Secure (HTTPS only), SameSite (anti-CSRF).",
+      "Missing HttpOnly turns XSS into session theft.",
+      "Treat session cookies as credentials.",
+    ],
+    references: [
+      { title: "OWASP — Session Management Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html" },
+      { title: "MDN — Set-Cookie", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie" },
+    ],
     story: `Session cookies carry the keys to the kingdom — flag them properly.`,
     concept: `Session cookies should be <b>HttpOnly</b> (no JS access → limits XSS theft), <b>Secure</b> (HTTPS only), and <b>SameSite</b> (Lax/Strict → limits CSRF). Missing these is a common, easy-to-exploit gap.`,
     task: `Which cookie flag best prevents JavaScript from stealing a session cookie during an XSS?`,
@@ -3452,6 +3721,30 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W20: COMPLIANCE & GOVERNANCE ================= */
   {
     id: "n96", world: "w20", title: "SOC 2", xp: 100, kind: "quiz",
+    deepDive: `<b>SOC 2</b> is an independent attestation (by a CPA firm) that a service org's controls meet the AICPA <b>Trust Services Criteria</b>: Security (required), plus optionally Availability, Confidentiality, Processing Integrity, and Privacy.
+<ul>
+<li><b>Type I</b> — controls designed appropriately at a point in time.</li>
+<li><b>Type II</b> — controls operated effectively over a period (months) — the one customers want.</li>
+</ul>`,
+    examples: [
+      `<b>Customer ask:</b> enterprises require a SOC 2 Type II report before buying a SaaS.`,
+      `<b>Evidence:</b> access reviews, change management, monitoring, incident response — demonstrated over the period.`,
+    ],
+    pitfalls: [
+      `Confusing Type I (design) with Type II (operating effectiveness over time).`,
+      `Thinking SOC 2 certifies the product is secure/bug-free — it attests controls, not code quality.`,
+      `Treating it as a one-time push rather than continuous control operation.`,
+    ],
+    why: `SOC 2 is the attestation SaaS vendors are constantly asked for. Knowing Trust Services Criteria + Type I vs II is the expected GRC literacy.`,
+    keyPoints: [
+      "SOC 2 attests controls vs the Trust Services Criteria.",
+      "Type I = design (point in time); Type II = operating effectiveness (period).",
+      "It's about controls, not product bug-freeness.",
+    ],
+    references: [
+      { title: "AICPA — SOC 2 / Trust Services", url: "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services" },
+      { title: "AICPA — Trust Services Criteria", url: "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022" },
+    ],
     story: `📋 The report customers ask SaaS vendors for.`,
     concept: `<b>SOC 2</b> is an attestation (by a CPA firm) that a service org's controls meet the AICPA <b>Trust Services Criteria</b> — Security (required), plus optionally Availability, Confidentiality, Processing Integrity, Privacy. <b>Type II</b> tests controls over a period, not just a point in time.`,
     task: `What does a SOC 2 report demonstrate?`,
@@ -3468,6 +3761,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n97", world: "w20", title: "ISO 27001", xp: 100, kind: "quiz",
+    deepDive: `<b>ISO/IEC 27001</b> is the international standard for an <b>ISMS</b> (Information Security Management System) — a risk-based framework of policies, processes, and controls with <b>continual improvement</b> (Plan-Do-Check-Act). <b>Annex A</b> lists reference controls; you select those your risk assessment justifies (documented in a Statement of Applicability).
+<p>It certifies that you <i>manage</i> security systematically, not that any one product is secure.</p>`,
+    examples: [
+      `<b>ISMS:</b> risk assessment → select Annex A controls → implement → audit → improve.`,
+      `<b>Certification:</b> an accredited body audits and certifies the ISMS (recertified periodically).`,
+    ],
+    pitfalls: [
+      `Thinking ISO 27001 is a product cert — it certifies the management system.`,
+      `Copy-pasting all Annex A controls without a risk basis (bloated, unmaintained).`,
+      `Treating it as a one-off audit instead of continual improvement.`,
+    ],
+    why: `ISO 27001 vs SOC 2 is a common GRC comparison (international ISMS standard vs US attestation). Knowing it's a risk-based ISMS with Annex A controls is the point.`,
+    keyPoints: [
+      "ISO 27001 certifies a risk-based ISMS (PDCA, continual improvement).",
+      "Annex A = reference controls, selected via risk (SoA).",
+      "Management system, not a product certification.",
+    ],
+    references: [
+      { title: "ISO/IEC 27001", url: "https://www.iso.org/standard/27001" },
+      { title: "ISO — Information security management", url: "https://www.iso.org/isoiec-27001-information-security.html" },
+    ],
     story: `The international standard for running security as a system.`,
     concept: `<b>ISO/IEC 27001</b> certifies an <b>ISMS</b> (Information Security Management System) — a risk-based framework of policies, controls, and continual improvement (Annex A controls). It's about <i>managing</i> security systematically, not a one-time checklist.`,
     task: `ISO 27001 is centered on:`,
@@ -3484,6 +3798,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n98", world: "w20", title: "GDPR", xp: 100, kind: "quiz",
+    deepDive: `<b>GDPR</b> protects EU residents' <b>personal data</b> and applies to anyone processing it (extraterritorial). Key obligations: a <b>lawful basis</b> for processing, <b>data-subject rights</b> (access, rectification, erasure/"right to be forgotten", portability), <b>data minimization</b> & storage limitation, privacy by design, and <b>~72-hour breach notification</b> to the supervisory authority. Fines reach up to 4% of global turnover.`,
+    examples: [
+      `<b>Erasure request:</b> a user asks you to delete their data — you must comply (incl. backups/processors), barring legal holds.`,
+      `<b>Breach:</b> notify the regulator within 72 hours of becoming aware (and affected users if high risk).`,
+    ],
+    pitfalls: [
+      `Assuming GDPR only applies to EU companies — it's based on the data subject's residency, not your HQ.`,
+      `Personal data is broad (name, email, IP, device/location IDs) — not just obvious identifiers.`,
+      `"Deleted" must include backups/replicas and data shared with processors.`,
+    ],
+    why: `GDPR is the benchmark privacy law with global reach and real fines. Data-subject rights + 72-hour breach notice + extraterritoriality are the must-know points.`,
+    keyPoints: [
+      "Protects EU residents' personal data; extraterritorial reach.",
+      "Data-subject rights (incl. erasure) + 72-hour breach notice.",
+      "Data minimization/storage limitation; fines up to 4% turnover.",
+    ],
+    references: [
+      { title: "GDPR — Full text / info", url: "https://gdpr-info.eu/" },
+      { title: "EU — Data protection rules", url: "https://commission.europa.eu/law/law-topic/data-protection_en" },
+    ],
     story: `Europe's privacy law with global reach and real fines.`,
     concept: `<b>GDPR</b> protects EU residents' <b>personal data</b>: lawful basis for processing, <b>data-subject rights</b> (access, erasure/"right to be forgotten", portability), <b>data minimization</b>, and <b>72-hour breach notification</b> to regulators. Applies to anyone processing EU residents' data.`,
     task: `Which is a core GDPR requirement?`,
@@ -3500,6 +3834,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n99", world: "w20", title: "PCI DSS", xp: 100, kind: "quiz",
+    deepDive: `<b>PCI DSS</b> governs handling of <b>cardholder data</b> (anyone who stores/processes/transmits it). A central strategy is <b>scope reduction</b>: don't store the PAN, <b>tokenize</b> it, and <b>segment</b> the cardholder-data environment (CDE) so fewer systems fall under the (demanding) requirements.
+<p>Never store sensitive authentication data (CVV, full track) after authorization.</p>`,
+    examples: [
+      `<b>Reduce scope:</b> use a payment processor/tokenization so your systems never see raw card numbers.`,
+      `<b>Segment:</b> isolate the CDE so only a small, tightly-controlled zone is in scope.`,
+    ],
+    pitfalls: [
+      `Storing full PAN/CVV "for convenience" massively expands scope and risk (and CVV storage is prohibited).`,
+      `A flat network drags everything into PCI scope — segment the CDE.`,
+      `Treating PCI as annual paperwork rather than continuous control.`,
+    ],
+    why: `PCI DSS and scope reduction (tokenize + segment) are standard if you touch payments. "How do you reduce PCI burden?" → minimize stored card data and segment the CDE.`,
+    keyPoints: [
+      "PCI DSS governs cardholder data handling.",
+      "Reduce scope: tokenize/don't store PAN; segment the CDE.",
+      "Never store CVV/track data after authorization.",
+    ],
+    references: [
+      { title: "PCI Security Standards Council", url: "https://www.pcisecuritystandards.org/" },
+      { title: "PCI — Document library (PCI DSS)", url: "https://www.pcisecuritystandards.org/document_library/" },
+    ],
     story: `If you touch card numbers, this one's mandatory.`,
     concept: `<b>PCI DSS</b> governs handling of <b>cardholder data</b>. A key strategy is <b>scope reduction</b> — don't store card numbers, tokenize them, and segment the cardholder-data environment so fewer systems are "in scope" for the (demanding) requirements.`,
     task: `What's the smartest way to reduce PCI DSS burden?`,
@@ -3516,6 +3871,26 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n100", world: "w20", title: "Classify & Retain", xp: 100, kind: "quiz",
+    deepDive: `You can't protect data consistently without knowing its sensitivity. <b>Data classification</b> (public / internal / confidential / restricted) drives the controls applied — encryption, access, logging, DLP. <b>Retention policies</b> define how long to keep each class and when to securely delete; keeping data past need adds breach risk and can violate GDPR storage limitation.`,
+    examples: [
+      `<b>Classify → control:</b> "restricted" data gets encryption + strict access + audit; "public" needs none of that.`,
+      `<b>Retain → delete:</b> logs kept 1 year then purged; PII deleted when no longer needed (barring legal holds).`,
+    ],
+    pitfalls: [
+      `No classification → everything treated the same (over-spend on trivial data, under-protect the crown jewels).`,
+      `Retention as a max only — some data has a legally-required <i>minimum</i> too.`,
+      `"Deleted" must include backups/replicas to actually reduce risk.`,
+    ],
+    why: `Classification + retention underpin proportionate controls and are explicit GDPR/governance requirements. Knowing classification drives controls (and retention is max AND sometimes min) is the depth.`,
+    keyPoints: [
+      "Classification drives which controls/retention apply.",
+      "Keep per-class retention; delete securely (incl. backups).",
+      "Retention is a max — and sometimes a legal minimum.",
+    ],
+    references: [
+      { title: "NIST — Data classification / categorization (FIPS 199)", url: "https://csrc.nist.gov/pubs/fips/199/final" },
+      { title: "GDPR — Storage limitation (Art. 5)", url: "https://gdpr-info.eu/art-5-gdpr/" },
+    ],
     story: `You can't protect data consistently if you don't label it.`,
     concept: `<b>Data classification</b> (public / internal / confidential / restricted) drives the controls applied (encryption, access, logging). <b>Retention policies</b> define how long to keep each class and when to securely delete — keeping data past need adds risk and can breach GDPR/retention rules.`,
     task: `Why classify data?`,
@@ -3532,6 +3907,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n101", world: "w20", title: "Separation of Duties", xp: 110, kind: "quiz",
+    deepDive: `<b>Separation of duties (SoD)</b> splits a sensitive process so no single person can both perform and approve a critical action — preventing fraud and catching errors. In security/DevOps: the person who writes code shouldn't be the sole approver and deployer to prod; whoever requests privileged access shouldn't also grant it.
+<p>Related: <b>dual control / four-eyes</b> for the most sensitive operations (key management, production changes).</p>`,
+    examples: [
+      `<b>DevOps SoD:</b> developer writes code → a different reviewer approves → protected pipeline deploys.`,
+      `<b>Finance analogy:</b> the person who creates a payment can't also approve it.`,
+    ],
+    pitfalls: [
+      `Small teams struggle with strict SoD — compensate with logging, alerting, and break-glass review.`,
+      `SoD on paper but shared admin accounts in practice defeats it — use individual, attributable identities.`,
+      `Over-rigid SoD can stall work; balance with automation and clear roles.`,
+    ],
+    why: `Separation of duties is a named control in SOC 2/ISO/PCI and a core governance principle. "Why can't one person own a whole sensitive process?" → fraud/error prevention via SoD.`,
+    keyPoints: [
+      "SoD: no single person performs AND approves a sensitive action.",
+      "Prevents fraud, catches errors; dual control for the most sensitive ops.",
+      "Small teams compensate with logging/alerting/review.",
+    ],
+    references: [
+      { title: "NIST — Separation of Duties (AC-5)", url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final" },
+      { title: "OWASP — Access Control", url: "https://owasp.org/www-community/Access_Control" },
+    ],
     story: `No single person should be able to commit and conceal fraud.`,
     concept: `<b>Separation of duties</b> splits sensitive processes so one person can't both perform and approve a critical action (e.g., the developer who writes code shouldn't solely approve and deploy it to prod). It's a core governance control against fraud and error.`,
     task: `Separation of duties primarily prevents:`,
