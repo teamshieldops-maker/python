@@ -4783,6 +4783,28 @@ else:
   /* ================= WORLD 18: THREAT MODELING ================= */
   {
     id: "l87", world: "w18", title: "Spoofing Risk", xp: 120,
+    deepDive: `<b>STRIDE</b> is a threat-modeling framework — six threat classes, each countered by a control. First letter: <b>S</b>poofing (pretending to be someone/something else), countered by <b>authentication</b>.
+<pre>spoofing = [c["name"] for c in components if not c["authenticated"]]</pre>
+<p>You model the system as components with security properties, then flag which are exposed to each STRIDE threat. A component lacking authentication can be impersonated.</p>`,
+    examples: [
+      `<b>Flag unauthenticated:</b> any component without authentication is spoofable.`,
+      `<b>Controls:</b> mutual TLS between services, signed tokens, verified identities close spoofing gaps.`,
+    ],
+    pitfalls: [
+      `"Public" endpoints still need to authenticate <i>actions</i> that matter — unauthenticated ≠ automatically fine.`,
+      `Authentication isn't authorization (that's Elevation) — a component can authenticate yet over-permit.`,
+      `Modeling at the wrong granularity (too coarse) hides boundary-crossing threats.`,
+    ],
+    why: `STRIDE is the most common threat-modeling framework in interviews and design reviews. Mapping each letter to a control (Spoofing→auth) is the structured thinking they look for.`,
+    keyPoints: [
+      "STRIDE = 6 threat classes, each with a counter-control.",
+      "Spoofing is countered by authentication.",
+      "Model components + properties, then flag exposures.",
+    ],
+    references: [
+      { title: "Microsoft — The STRIDE threat model", url: "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats" },
+      { title: "OWASP — Threat Modeling", url: "https://owasp.org/www-community/Threat_Modeling" },
+    ],
     story: `🧩 Threat modeling with STRIDE. Each component in <code>components</code> has security attributes — flag the ones open to each threat. Start with Spoofing (missing authentication).`,
     concept: `<b>S</b>poofing is countered by <b>authentication</b>. A component with <code>authenticated=False</code> is exposed to identity spoofing.
 <pre>for c in components:
@@ -4802,6 +4824,28 @@ else:
   },
   {
     id: "l88", world: "w18", title: "Tampering & Disclosure", xp: 120,
+    deepDive: `STRIDE's <b>T</b>ampering (unauthorized modification) and <b>I</b>nformation disclosure (unauthorized reading) are both addressed by <b>encryption + integrity</b> — in transit (TLS) and at rest.
+<pre>unencrypted = [c["name"] for c in components if not c["encrypted"]]</pre>
+<p>Encryption gives confidentiality (anti-disclosure); integrity checks (HMAC, signatures, TLS) give anti-tampering. A component moving data unencrypted is exposed to both.</p>`,
+    examples: [
+      `<b>Flag plaintext:</b> components without encryption are open to eavesdropping and modification.`,
+      `<b>Controls:</b> TLS in transit, encryption at rest, signed messages / checksums for integrity.`,
+    ],
+    pitfalls: [
+      `Encryption gives confidentiality but not integrity by itself — use authenticated encryption (AEAD) or add a signature/MAC.`,
+      `Encrypting in transit but leaving data plaintext at rest (or in logs/backups) still leaks.`,
+      `Integrity without authentication of the signer is meaningless — tie it to a trusted key.`,
+    ],
+    why: `Confidentiality vs integrity (and that encryption alone isn't integrity) is a classic crypto/design nuance interviewers probe. STRIDE ties each to a concrete control.`,
+    keyPoints: [
+      "Tampering ↔ integrity; Disclosure ↔ confidentiality.",
+      "Encrypt in transit AND at rest; cover logs/backups.",
+      "Use AEAD or add a MAC/signature for integrity.",
+    ],
+    references: [
+      { title: "OWASP — Transport Layer Security Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html" },
+      { title: "OWASP — Cryptographic Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html" },
+    ],
     story: `<b>T</b>ampering and <b>I</b>nformation disclosure are both countered by encryption (integrity + confidentiality in transit/at rest).`,
     concept: `A component with <code>encrypted=False</code> is exposed to tampering and eavesdropping.`,
     task: `Build <code>unencrypted</code> — names of components where <code>encrypted</code> is False (expect <code>['legacy-admin']</code>).`,
@@ -4819,6 +4863,28 @@ else:
   },
   {
     id: "l89", world: "w18", title: "Elevation via Injection", xp: 130,
+    deepDive: `STRIDE's <b>E</b>levation of privilege often enters through unvalidated input — injection (SQLi, command, template) that tricks the system into running attacker intent with higher rights.
+<pre>injectable = [c["name"] for c in components if not c["validates_input"]]</pre>
+<p>Counter it with <b>input validation</b> (allowlist), <b>parameterized</b> queries/commands, least-privilege execution, and output encoding.</p>`,
+    examples: [
+      `<b>Flag unvalidated:</b> components that don't validate input are injection-prone.`,
+      `<b>Controls:</b> parameterized SQL, no shell string-building, allowlist validation, drop privileges.`,
+    ],
+    pitfalls: [
+      `Validation ≠ parameterization — even validated input belongs in parameterized queries, not string concatenation.`,
+      `Blocklist "sanitizing" misses encodings/variants; allowlist the valid shape.`,
+      `Elevation can also come from authorization flaws (missing checks), not only injection.`,
+    ],
+    why: `Injection remains an OWASP Top 10 mainstay, and "how does injection lead to privilege escalation?" is a strong design question. Parameterize + validate + least privilege is the answer.`,
+    keyPoints: [
+      "Elevation often enters via injection from unvalidated input.",
+      "Parameterize queries/commands; allowlist-validate input.",
+      "Run with least privilege so a breach gains little.",
+    ],
+    references: [
+      { title: "OWASP — Injection", url: "https://owasp.org/Top10/A03_2021-Injection/" },
+      { title: "OWASP — Input Validation Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html" },
+    ],
     story: `<b>E</b>levation of privilege often rides in through unvalidated input (injection). Flag components that don't validate input.`,
     concept: `Missing input validation (<code>validates_input=False</code>) opens injection → potential privilege escalation.`,
     task: `Build <code>injectable</code> — names of components where <code>validates_input</code> is False (expect <code>['legacy-admin', 'payment-svc']</code>).`,
@@ -4836,6 +4902,28 @@ else:
   },
   {
     id: "l90", world: "w18", title: "Repudiation Gaps", xp: 120,
+    deepDive: `STRIDE's <b>R</b>epudiation = a user can deny an action because there's no reliable record. The control is <b>logging and audit</b> (tamper-evident, attributable):
+<pre>no_logging = [c["name"] for c in components if not c["logs"]]</pre>
+<p>(The sixth letter, <b>D</b>enial of service, is countered by availability controls — rate limits, quotas, autoscaling, redundancy.)</p>`,
+    examples: [
+      `<b>Flag silent components:</b> no logging = no accountability or forensic trail.`,
+      `<b>Controls:</b> centralized, append-only/immutable logs with identity, timestamps, and integrity protection.`,
+    ],
+    pitfalls: [
+      `Logs that the actor can edit/delete don't prevent repudiation — make them tamper-evident and off-box.`,
+      `Logging sensitive data (passwords, tokens, PII) creates a new disclosure risk — log events, not secrets.`,
+      `No time sync (UTC/NTP) undermines the evidentiary value of logs.`,
+    ],
+    why: `Repudiation/audit and the availability (DoS) leg round out STRIDE. Non-repudiation via tamper-evident logs is also a compliance requirement (audit trails).`,
+    keyPoints: [
+      "Repudiation ↔ logging/audit (attributable, tamper-evident).",
+      "Keep logs off-box and immutable; sync clocks (UTC).",
+      "DoS ↔ availability controls (rate limits, redundancy).",
+    ],
+    references: [
+      { title: "OWASP — Logging Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" },
+      { title: "OWASP — Security Logging & Monitoring Failures", url: "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/" },
+    ],
     story: `<b>R</b>epudiation — "I didn't do it" — is countered by logging/audit. Find components that don't log.`,
     concept: `No logging (<code>logs=False</code>) means no accountability or forensic trail.`,
     task: `Build <code>no_logging</code> — names of components where <code>logs</code> is False (expect <code>['legacy-admin']</code>).`,
@@ -4853,6 +4941,37 @@ else:
   },
   {
     id: "l91", world: "w18", title: "BOSS: STRIDE Threat Model", xp: 300,
+    deepDive: `The capstone produces a full STRIDE model: per-threat exposure lists plus a per-component <b>risk score</b> (how many controls it's missing).
+<pre>def threat_model(components):
+    return {
+        "spoofing":   [... not authenticated ...],
+        "tampering":  [... not encrypted ...],
+        "injection":  [... not validating input ...],
+        "repudiation":[... not logging ...],
+        "risk": {c["name"]: [c["authenticated"], c["encrypted"],
+                 c["validates_input"], c["logs"]].count(False)
+                 for c in components},
+    }</pre>
+<p>Counting missing controls turns qualitative threats into a ranked remediation list — model, then prioritize.</p>`,
+    examples: [
+      `<b>Risk score:</b> a component missing all four controls scores 4 (fix first); a fully-controlled one scores 0.`,
+      `<b>Prioritize:</b> sort components by score to decide remediation order.`,
+    ],
+    pitfalls: [
+      `Equal weighting is a simplification — in reality weight by data sensitivity and exposure, not just a raw count.`,
+      `A threat model is living — re-run it when the design changes, not once at the start.`,
+      `Modeling without follow-through (tracked fixes) is theater; tie findings to work items.`,
+    ],
+    why: `"Threat model this design" is a senior interview/design-review staple. A STRIDE pass that yields a prioritized, scored remediation list (not just a list of fears) is exactly the deliverable.`,
+    keyPoints: [
+      "Map each component to the STRIDE threats it's exposed to.",
+      "Score by missing controls to prioritize remediation.",
+      "Keep the model living; weight by sensitivity in reality.",
+    ],
+    references: [
+      { title: "Microsoft — Threat Modeling Tool & STRIDE", url: "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool" },
+      { title: "OWASP — Threat Modeling Process", url: "https://owasp.org/www-community/Threat_Modeling_Process" },
+    ],
     story: `🏆 The grand finale. Produce a full STRIDE threat model: for each threat class, list the exposed components, and give each component a risk score (number of controls it's missing).`,
     concept: `Map every STRIDE-relevant gap and score risk:
 <pre>def threat_model(components):
@@ -4898,6 +5017,29 @@ else:
   /* ================= WORLD 19: WEB EXPLOITATION ================= */
   {
     id: "l92", world: "w19", title: "Catch IDOR", xp: 130,
+    deepDive: `<b>IDOR</b> (Insecure Direct Object Reference) / BOLA is the web's #1 access-control bug: the app trusts a user-supplied object id without checking the requester <i>owns</i> it. Detect/deny by comparing requester to owner:
+<pre>idor = [r["path"] for r in requests if r["user"] != r["owner"]]
+# fix: server-side check — reject if request.user != resource.owner</pre>
+<p>Changing <code>/orders/123</code> to <code>/orders/124</code> leaks another user's data when the ownership check is missing.</p>`,
+    examples: [
+      `<b>Flag cross-owner access:</b> requests where <code>user != owner</code> are IDOR.`,
+      `<b>Fix:</b> enforce <code>if resource.owner != current_user: deny()</code> on every object fetch.`,
+    ],
+    pitfalls: [
+      `Unguessable IDs (UUIDs) are <b>not</b> access control — still check ownership server-side.`,
+      `Checking at the list endpoint but not the detail/update/delete endpoints leaves gaps.`,
+      `Client-side hiding of IDs does nothing; the check must be server-side.`,
+    ],
+    why: `BOLA/IDOR tops the OWASP API Top 10 and appears constantly in real breaches and interviews. "Per-object server-side authorization" is the answer.`,
+    keyPoints: [
+      "IDOR = missing per-object ownership check.",
+      "Enforce authorization server-side on every object operation.",
+      "Random IDs are not a substitute for an access check.",
+    ],
+    references: [
+      { title: "OWASP API1 — Broken Object Level Authorization", url: "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/" },
+      { title: "OWASP — Access Control Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html" },
+    ],
     story: `🕷️ The web-exploit labs. First: IDOR (Insecure Direct Object Reference) — the server returns an object without checking you own it. Detect it in the request log.`,
     concept: `Each request names the requesting <code>user</code> and the resource's <code>owner</code>. If they differ and it's allowed, that's IDOR.`,
     task: `Build <code>idor</code> — the <code>path</code>s where <code>user</code> ≠ <code>owner</code> (expect <code>['/orders/2', '/orders/4']</code>).`,
@@ -4915,6 +5057,32 @@ else:
   },
   {
     id: "l93", world: "w19", title: "Block SSRF", xp: 140,
+    deepDive: `<b>SSRF</b> (Server-Side Request Forgery) tricks your server into fetching an attacker-chosen URL — most dangerously internal targets like cloud metadata (<code>169.254.169.254</code>), localhost, or private ranges. Validate before fetching:
+<pre>def is_safe_url(url):
+    low = url.lower()
+    blocked = ["169.254.169.254","localhost","127.0.0.1",
+               "://10.","://192.168.","://172.16."]
+    if any(b in low for b in blocked): return False
+    return low.startswith("http://") or low.startswith("https://")</pre>`,
+    examples: [
+      `<b>Block metadata/internal:</b> reject the cloud metadata IP, localhost, and RFC1918 ranges.`,
+      `<b>Allow public:</b> a normal <code>https://api.example.com</code> passes.`,
+    ],
+    pitfalls: [
+      `<b>DNS rebinding / redirects:</b> a hostname can resolve to an internal IP, or a 302 can redirect to one — validate the <i>resolved IP</i> and disable redirects.`,
+      `Blocklists miss encodings (decimal/hex IPs, IPv6, <code>0.0.0.0</code>) — prefer an allowlist of destinations.`,
+      `Enforce <b>IMDSv2</b> and block egress to the metadata IP as defense-in-depth.`,
+    ],
+    why: `SSRF is a top cloud-era vuln (it fueled major breaches via metadata credential theft). Knowing DNS-rebinding and "validate the resolved IP + IMDSv2" shows real depth.`,
+    keyPoints: [
+      "SSRF = server fetches attacker URL; internal targets are worst.",
+      "Allowlist destinations; validate the resolved IP; no redirects.",
+      "Defense-in-depth: IMDSv2 + block metadata egress.",
+    ],
+    references: [
+      { title: "OWASP — Server-Side Request Forgery", url: "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" },
+      { title: "OWASP — SSRF Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html" },
+    ],
     story: `SSRF tricks your server into requesting internal URLs (cloud metadata, localhost, private ranges). Write the URL allow-check.`,
     concept: `Reject internal/metadata targets; allow normal public http(s):
 <pre>blocked = ["169.254.169.254", "localhost", "127.0.0.1",
@@ -4939,6 +5107,29 @@ else:
   },
   {
     id: "l94", world: "w19", title: "Stop Open Redirects", xp: 120,
+    deepDive: `An <b>open redirect</b> lets a trusted link bounce users to an attacker site (<code>/login?next=https://evil.com</code>) — great for phishing and sometimes OAuth token theft. Only allow same-site relative paths:
+<pre>def safe_redirect(target):
+    return target.startswith("/") and not target.startswith("//")</pre>
+<p><code>//evil.com</code> is <b>protocol-relative</b> (goes off-site) and an absolute <code>https://evil.com</code> is off-site — both must be rejected.</p>`,
+    examples: [
+      `<b>Allow:</b> <code>/dashboard</code>. <b>Reject:</b> <code>//evil.com</code>, <code>https://evil.com</code>.`,
+      `<b>Allowlist approach:</b> map a short code to an approved destination instead of taking a raw URL.`,
+    ],
+    pitfalls: [
+      `Forgetting the <code>//</code> (protocol-relative) case — <code>startswith("/")</code> alone lets <code>//evil.com</code> through.`,
+      `Backslash and encoded tricks (<code>/\\evil.com</code>, <code>%2F%2F</code>) bypass naive checks — normalize first or allowlist.`,
+      `Open redirects also weaken OAuth <code>redirect_uri</code> — validate those strictly.`,
+    ],
+    why: `Open redirect is a common phishing enabler and an OAuth pitfall. "Only same-site relative paths or an allowlist" is the expected fix.`,
+    keyPoints: [
+      "Only allow relative same-site paths (reject // and absolute URLs).",
+      "Watch backslash/encoding bypasses; normalize or allowlist.",
+      "Validate OAuth redirect_uri strictly too.",
+    ],
+    references: [
+      { title: "OWASP — Unvalidated Redirects & Forwards Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html" },
+      { title: "CWE-601 — Open Redirect", url: "https://cwe.mitre.org/data/definitions/601.html" },
+    ],
     story: `Open redirects send users to attacker sites via a trusted link. Only allow same-site relative paths.`,
     concept: `A safe redirect target is a relative path starting with a single <code>/</code> — not <code>//evil.com</code> (protocol-relative) and not an absolute <code>http(s)://</code> URL.`,
     task: `Write <code>safe_redirect(target)</code>: True only for a path starting with <code>/</code> but not <code>//</code>.`,
@@ -4960,6 +5151,29 @@ else:
   },
   {
     id: "l95", world: "w19", title: "Verify the CSRF Token", xp: 120,
+    deepDive: `<b>CSRF</b> abuses a victim's existing session: a malicious page makes their browser submit a state-changing request. The defense is a secret the attacker can't know — an anti-CSRF token tied to the session:
+<pre>def csrf_ok(session_token, form_token):
+    return bool(form_token) and form_token == session_token</pre>
+<p>Modern apps also set <code>SameSite</code> cookies (Lax/Strict) so the session cookie isn't sent on cross-site requests — defense in depth.</p>`,
+    examples: [
+      `<b>Reject mismatches/empties:</b> only a present, matching token passes.`,
+      `<b>Layered defense:</b> anti-CSRF token + SameSite cookies + checking Origin/Referer.`,
+    ],
+    pitfalls: [
+      `Comparing tokens non-constant-time can leak via timing — use a constant-time compare (<code>hmac.compare_digest</code>) in real code.`,
+      `Putting the token in a cookie the JS reads (then echoing it) can be defeated by XSS — bind it to the server session.`,
+      `GET requests shouldn't change state; CSRF protection assumes state changes are POST/PUT/DELETE.`,
+    ],
+    why: `CSRF is a classic web vuln; "token + SameSite" is the expected fix. Mentioning constant-time comparison and "state changes aren't GET" signals depth.`,
+    keyPoints: [
+      "Require a present, matching, session-bound anti-CSRF token.",
+      "Add SameSite cookies; check Origin/Referer.",
+      "Use constant-time compare; keep state changes off GET.",
+    ],
+    references: [
+      { title: "OWASP — CSRF Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html" },
+      { title: "Python docs — hmac.compare_digest", url: "https://docs.python.org/3/library/hmac.html#hmac.compare_digest" },
+    ],
     story: `CSRF forces a logged-in user's browser to submit a forged request. The defense: a secret token the attacker can't know.`,
     concept: `The submitted form token must be present AND match the session token:
 <pre>return bool(form_token) and form_token == session_token</pre>`,
@@ -4982,6 +5196,35 @@ else:
   },
   {
     id: "l96", world: "w19", title: "BOSS: Request Firewall", xp: 280,
+    deepDive: `The capstone composes every web defense into one gate that returns a verdict <i>and</i> the reasons — like an application-layer firewall / middleware:
+<pre>def gate(req):
+    reasons = []
+    if req["user"] != req["owner"]: reasons.append("idor")
+    if not is_safe_url(req["url"]): reasons.append("ssrf")
+    if not (req["redirect"].startswith("/") and not req["redirect"].startswith("//")):
+        reasons.append("redirect")
+    if not (req["csrf_form"] and req["csrf_form"] == req["csrf_session"]):
+        reasons.append("csrf")
+    return {"allowed": not reasons, "reasons": sorted(reasons)}</pre>`,
+    examples: [
+      `<b>Explainable block:</b> a malicious request returns <code>allowed: False</code> with every reason it failed.`,
+      `<b>Middleware pattern:</b> run such checks centrally (one place) rather than scattered per-handler.`,
+    ],
+    pitfalls: [
+      `A central gate is good, but it must not replace per-handler authorization (object-level checks still belong near the data).`,
+      `Returning only "blocked" without reasons makes debugging and tuning impossible — emit structured reasons.`,
+      `Defense-in-depth: a WAF/gate complements, not replaces, secure coding in each component.`,
+    ],
+    why: `Composing IDOR/SSRF/redirect/CSRF checks into explainable middleware shows you think in layered, centralized defenses — exactly the senior application-security mindset.`,
+    keyPoints: [
+      "Centralize common checks into explainable middleware.",
+      "Return a verdict + structured reasons for tuning/debugging.",
+      "Gate complements (doesn't replace) per-handler authorization.",
+    ],
+    references: [
+      { title: "OWASP — Application Security Verification Standard (ASVS)", url: "https://owasp.org/www-project-application-security-verification-standard/" },
+      { title: "OWASP Top 10 (2021)", url: "https://owasp.org/Top10/" },
+    ],
     story: `🏆 Combine every web defense into one request gate that returns a verdict and the exact reasons it blocked — an application-layer guard.`,
     concept: `Check all four classes and collect reasons:
 <pre>def gate(req):
@@ -5016,6 +5259,29 @@ else:
   /* ================= WORLD 20: COMPLIANCE & GOVERNANCE ================= */
   {
     id: "l97", world: "w20", title: "Detect PII", xp: 130,
+    deepDive: `Privacy compliance (GDPR, CCPA, PCI) starts with <b>knowing where personal data is</b>. A PII scanner greps content for patterns like emails and SSNs:
+<pre>import re
+re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", text)</pre>
+<p>Classification feeds everything else — retention, access rules, encryption, and data-subject requests all depend on knowing what's sensitive and where it lives.</p>`,
+    examples: [
+      `<b>Flag records with PII:</b> keep lines matching an email or SSN pattern.`,
+      `<b>Real tooling:</b> Microsoft Purview, AWS Macie, and DLP tools do pattern + ML classification at scale.`,
+    ],
+    pitfalls: [
+      `Regex alone over/under-matches (valid emails are complex; SSNs have rules) — combine patterns with context/validation.`,
+      `PII is broader than email/SSN — names, phone, IP, device IDs, location can all be personal data under GDPR.`,
+      `Scanning content but not metadata/filenames/backups misses copies.`,
+    ],
+    why: `"How would you find PII across the estate?" is a core privacy/compliance question. Pattern + context classification feeding retention/access is the mature answer.`,
+    keyPoints: [
+      "Compliance starts with data discovery/classification.",
+      "PII is broader than email/SSN (names, IPs, device IDs...).",
+      "Classification drives retention, access, encryption, DSARs.",
+    ],
+    references: [
+      { title: "AWS Macie — Sensitive data discovery", url: "https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html" },
+      { title: "GDPR — What is personal data?", url: "https://commission.europa.eu/law/law-topic/data-protection/reform/what-personal-data_en" },
+    ],
     story: `📋 Compliance automation. GDPR/PCI start with knowing where personal data lives. Scan records for emails and SSNs.`,
     concept: `Use regex alternation to match either pattern:
 <pre>import re
@@ -5035,6 +5301,28 @@ else:
   },
   {
     id: "l98", world: "w20", title: "Retention Policy", xp: 120,
+    deepDive: `Keeping data longer than needed is both a compliance violation (GDPR storage limitation) and extra breach risk. Enforce retention by flagging what's past its window:
+<pre>expired = sorted(r["id"] for r in records if r["age_days"] > 365)</pre>
+<p>"Collect minimally, keep briefly, delete securely" — data you don't hold can't be stolen or subpoenaed.</p>`,
+    examples: [
+      `<b>Purge candidates:</b> records older than the retention window (e.g., 365 days).`,
+      `<b>Automate:</b> lifecycle rules (S3 lifecycle, DB TTLs) delete/expire data on schedule.`,
+    ],
+    pitfalls: [
+      `Legal holds / regulatory minimums can <i>require</i> keeping some data — retention is both a max and sometimes a min.`,
+      `"Delete" must be real (including backups and replicas), not just hiding the row.`,
+      `Different data classes have different windows — one global rule is usually wrong.`,
+    ],
+    why: `Data minimization and retention are explicit GDPR principles and common audit findings. Knowing retention is a max (and sometimes a legally-required min) shows real governance understanding.`,
+    keyPoints: [
+      "Flag and purge data past its retention window.",
+      "Minimize collection; delete securely (incl. backups).",
+      "Respect legal holds / regulatory minimums; per-class windows.",
+    ],
+    references: [
+      { title: "GDPR — Principles (storage limitation)", url: "https://gdpr-info.eu/art-5-gdpr/" },
+      { title: "AWS — S3 Lifecycle / expiration", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html" },
+    ],
     story: `Keeping data longer than policy is a compliance violation (and extra breach risk). Find records to purge.`,
     concept: `A retention policy caps age. Anything older must go.`,
     task: `Build <code>expired</code> — ids of records older than 365 days (expect <code>[1, 3]</code>).`,
@@ -5052,6 +5340,29 @@ else:
   },
   {
     id: "l99", world: "w20", title: "Access Review", xp: 140,
+    deepDive: `Permissions drift as people change roles ("privilege creep"). Periodic <b>access reviews</b> (access certification) catch entitlements beyond what a role should have — set subtraction finds the excess:
+<pre>over = sorted(u["name"] for u in users
+              if set(u["scopes"]) - ROLE_SCOPES[u["role"]])</pre>
+<p>SOC 2 / ISO 27001 / PCI all require recurring access recertification — and it directly enforces least privilege.</p>`,
+    examples: [
+      `<b>Flag excess:</b> a user whose granted scopes exceed their role's allowed set.`,
+      `<b>Joiner-Mover-Leaver:</b> reviews catch "mover" leftovers — access accumulated from a previous role.`,
+    ],
+    pitfalls: [
+      `Reviews that rubber-stamp ("looks fine") add no value — require justification for retained access.`,
+      `Only reviewing humans misses service accounts/tokens, which often hold the broadest access.`,
+      `Point-in-time reviews miss drift between cycles — pair with continuous analyzers.`,
+    ],
+    why: `Access recertification is a named control in every major framework and a real audit deliverable. Tying it to least privilege and Joiner-Mover-Leaver is the governance-savvy answer.`,
+    keyPoints: [
+      "Access review finds entitlements beyond the role (excess).",
+      "Required by SOC 2/ISO/PCI; enforces least privilege.",
+      "Include service accounts; justify retained access.",
+    ],
+    references: [
+      { title: "NIST — Access control (AC) family", url: "https://csrc.nist.gov/projects/risk-management/sp800-53-controls/release-search#!/families" },
+      { title: "Microsoft Entra — Access reviews", url: "https://learn.microsoft.com/en-us/entra/id-governance/access-reviews-overview" },
+    ],
     story: `Periodic access reviews catch permission creep. Find users holding scopes beyond their role.`,
     concept: `Set subtraction finds the excess:
 <pre>set(user_scopes) - ROLE_SCOPES[role]   # non-empty = too much access</pre>`,
@@ -5070,6 +5381,28 @@ else:
   },
   {
     id: "l100", world: "w20", title: "Control Gap Analysis", xp: 120,
+    deepDive: `An audit compares <b>required</b> controls to what's <b>implemented</b> and reports the gaps — set difference:
+<pre>missing = sorted(REQUIRED - implemented)</pre>
+<p>This is the heart of a readiness assessment against a framework (SOC 2 TSC, ISO 27001 Annex A, CIS): map each required control to evidence, flag the ones with none.</p>`,
+    examples: [
+      `<b>Gap list:</b> required controls not yet implemented become the remediation backlog.`,
+      `<b>Evidence mapping:</b> each control links to a policy, config, or log that proves it's in place.`,
+    ],
+    pitfalls: [
+      `"Implemented" without <b>evidence</b> won't pass an audit — controls must be demonstrable.`,
+      `A control existing on paper but not operating effectively is still a gap (design vs operating effectiveness).`,
+      `Frameworks overlap — map once to a common control set to avoid duplicate work.`,
+    ],
+    why: `Gap analysis is the core of SOC 2 / ISO readiness and a frequent GRC task. Knowing "evidence, and design vs operating effectiveness" is what separates real audit prep from a checklist.`,
+    keyPoints: [
+      "Gap = required controls minus implemented (with evidence).",
+      "Controls need demonstrable evidence, operating effectively.",
+      "Map once to a common control set across frameworks.",
+    ],
+    references: [
+      { title: "AICPA — SOC 2 / Trust Services Criteria", url: "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services" },
+      { title: "ISO/IEC 27001", url: "https://www.iso.org/standard/27001" },
+    ],
     story: `An audit compares required controls to what's implemented. Report the gaps.`,
     concept: `Set difference again — required minus implemented:
 <pre>sorted(REQUIRED - implemented)</pre>`,
@@ -5088,6 +5421,34 @@ else:
   },
   {
     id: "l101", world: "w20", title: "BOSS: Compliance Report", xp: 300,
+    deepDive: `The final Python capstone unifies governance checks into one automated report with an overall verdict:
+<pre>def compliance_scan(records, users, role_scopes, required, implemented):
+    expired = [...over-retained...]
+    over    = [...over-privileged...]
+    missing = sorted(required - implemented)
+    return {"expired": expired, "over_privileged": over,
+            "missing_controls": missing,
+            "compliant": not (expired or over or missing)}</pre>
+<p>"Compliant" is True only when every check is clean — continuous, automated compliance (compliance-as-code) instead of a once-a-year scramble.</p>`,
+    examples: [
+      `<b>One verdict:</b> retention + access + control gaps → a single pass/fail plus the detail to fix.`,
+      `<b>Continuous:</b> run it in CI / on a schedule so drift is caught immediately, not at audit time.`,
+    ],
+    pitfalls: [
+      `A boolean verdict hides nuance — always include the detail so teams know <i>what</i> to fix.`,
+      `Automated checks cover technical controls; many framework controls are process/people (training, policies) — don't claim 100% from code alone.`,
+      `Compliant ≠ secure — frameworks are a floor, not a ceiling.`,
+    ],
+    why: `Compliance-as-code (continuous, automated evidence) is where GRC is heading and a strong thing to demonstrate. The nuance "compliant isn't secure; code can't cover people-controls" is the senior take.`,
+    keyPoints: [
+      "Unify governance checks into one automated, continuous report.",
+      "Give a verdict AND the detail to remediate.",
+      "Compliance is a floor, not security; code can't cover people-controls.",
+    ],
+    references: [
+      { title: "AWS — Compliance as code (Config conformance packs)", url: "https://docs.aws.amazon.com/config/latest/developerguide/conformance-packs.html" },
+      { title: "NIST — OSCAL (compliance as code)", url: "https://pages.nist.gov/OSCAL/" },
+    ],
     story: `🏆 The final world's boss. Produce an automated compliance report: over-retained records, over-privileged users, and missing controls — with an overall pass/fail.`,
     concept: `Combine the three checks and compute compliance:
 <pre>def compliance_scan(records, users, role_scopes, required, implemented):
