@@ -16,6 +16,7 @@ const WORLDS = [
   { id: "w8", name: "Advanced Python",    emoji: "🧠", blurb: "Generators, decorators, dataclasses, regex & exceptions." },
   { id: "w9", name: "API Security",       emoji: "🔑", blurb: "JWTs, OAuth, scopes & input validation in Python." },
   { id: "w10", name: "CI/CD & Automation", emoji: "⚙️", blurb: "Tests, retries, secret scanning & dependency checks." },
+  { id: "w11", name: "Log Analytics",     emoji: "📊", blurb: "Counter, parsing & detecting attacks in log data." },
 ];
 
 const LESSONS = [
@@ -1123,5 +1124,109 @@ else:
       "passed = not vulnerable and not secrets",
     ],
     solution: `import re\ninstalled = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123"\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1"}\n\ndef pipeline_gate(installed, config, known_vuln):\n    vulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in known_vuln)\n    secrets = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]\n    return {"vulnerable": vulnerable, "secrets": len(secrets), "passed": not vulnerable and not secrets}\n\nreport = pipeline_gate(installed, config, KNOWN_VULN)\nprint(report)`,
+  },
+
+  /* ================= WORLD 11: LOG ANALYTICS ================= */
+  {
+    id: "l51", world: "w11", title: "Count with Counter", xp: 120,
+    story: `📊 Security = finding the needle in millions of log lines. <code>collections.Counter</code> tallies things instantly.`,
+    concept: `<pre>from collections import Counter
+counts = Counter(["ok", "fail", "ok"])
+counts["ok"]     # 2
+counts["fail"]   # 1</pre>`,
+    task: `From <code>statuses</code>, build a <code>Counter</code> and store how many are <code>"failed"</code> in <code>failed_count</code> (expect 3).`,
+    starter: `from collections import Counter\nstatuses = ["ok", "failed", "ok", "failed", "failed"]\n\n# failed_count = ?\n`,
+    check: `
+if 'failed_count' not in globals():
+    _feedback = "Create failed_count."
+elif failed_count == 3:
+    _passed = True; _feedback = "Counter tallies in one pass — the workhorse of log analysis. 📊"
+else:
+    _feedback = f"Expected 3, got {failed_count}. Try Counter(statuses)['failed']."
+`,
+    hints: ["Wrap the list: Counter(statuses)", "Index it: counts['failed']", "failed_count = Counter(statuses)['failed']"],
+    solution: `from collections import Counter\nstatuses = ["ok", "failed", "ok", "failed", "failed"]\n\nfailed_count = Counter(statuses)["failed"]\nprint(failed_count)`,
+  },
+  {
+    id: "l52", world: "w11", title: "Top Talker", xp: 130,
+    story: `Which source IP is hammering you hardest? <code>most_common</code> ranks them for you.`,
+    concept: `<pre>Counter(ips).most_common(1)   # [('10.0.0.9', 4)]
+Counter(ips).most_common(1)[0][0]   # '10.0.0.9'</pre>`,
+    task: `From <code>ips</code>, find the single most frequent source into <code>top_ip</code> (expect <code>"10.0.0.9"</code>).`,
+    starter: `from collections import Counter\nips = ["10.0.0.9", "10.0.0.2", "10.0.0.9", "10.0.0.9", "192.168.1.5", "10.0.0.2"]\n\n# top_ip = ?\n`,
+    check: `
+if 'top_ip' not in globals():
+    _feedback = "Create top_ip."
+elif top_ip == "10.0.0.9":
+    _passed = True; _feedback = "Top talker identified — first move in triaging noisy logs. 📡"
+else:
+    _feedback = f"Expected '10.0.0.9', got {top_ip}. Use Counter(ips).most_common(1)[0][0]."
+`,
+    hints: ["Counter(ips).most_common(1) gives a list of (value, count).", "Grab [0][0] for the value.", "top_ip = Counter(ips).most_common(1)[0][0]"],
+    solution: `from collections import Counter\nips = ["10.0.0.9", "10.0.0.2", "10.0.0.9", "10.0.0.9", "192.168.1.5", "10.0.0.2"]\n\ntop_ip = Counter(ips).most_common(1)[0][0]\nprint(top_ip)`,
+  },
+  {
+    id: "l53", world: "w11", title: "Parse & Tally", xp: 140,
+    story: `Real logs are text. Split each line, then count what matters — failed logins per user.`,
+    concept: `<pre>for line in log_lines:
+    user, status = line.split()
+    if status == "FAIL":
+        fails[user] += 1</pre>`,
+    task: `Each line in <code>log_lines</code> is <code>"user STATUS"</code>. Count FAILs per user and build <code>repeat_offenders</code> — users with 3+ fails (expect <code>["alice"]</code>).`,
+    starter: `from collections import Counter\nlog_lines = ["alice FAIL", "bob OK", "alice FAIL", "alice FAIL", "bob OK"]\n\n# repeat_offenders = users with >= 3 FAILs\n`,
+    check: `
+if 'repeat_offenders' not in globals():
+    _feedback = "Create repeat_offenders."
+elif sorted(repeat_offenders) == ["alice"]:
+    _passed = True; _feedback = "Parsed and aggregated — now you can detect patterns, not just read lines. 🧮"
+else:
+    _feedback = f"Expected ['alice'], got {repeat_offenders}. Count FAILs per user, keep those >= 3."
+`,
+    hints: ["Split each line: user, status = line.split()", "Tally fails in a Counter when status == 'FAIL'.", "repeat_offenders = [u for u, n in fails.items() if n >= 3]"],
+    solution: `from collections import Counter\nlog_lines = ["alice FAIL", "bob OK", "alice FAIL", "alice FAIL", "bob OK"]\n\nfails = Counter()\nfor line in log_lines:\n    user, status = line.split()\n    if status == "FAIL":\n        fails[user] += 1\nrepeat_offenders = [u for u, n in fails.items() if n >= 3]\nprint(repeat_offenders)`,
+  },
+  {
+    id: "l54", world: "w11", title: "Top-N Report", xp: 130,
+    story: `A good report shows the top offenders, ranked. Build one.`,
+    concept: `<code>most_common(n)</code> returns the top n as <code>(value, count)</code> tuples, already sorted:
+<pre>Counter(events).most_common(2)
+# [('login', 5), ('logout', 3)]</pre>`,
+    task: `From <code>events</code>, build <code>report</code> = the top 2 most common events as a list of (event, count) tuples.`,
+    starter: `from collections import Counter\nevents = ["login", "login", "logout", "login", "error", "logout"]\n\n# report = top 2\n`,
+    check: `
+if 'report' not in globals():
+    _feedback = "Create report."
+elif list(report) == [("login", 3), ("logout", 2)]:
+    _passed = True; _feedback = "A ranked report in one call — ready to hand to the SOC lead. 📋"
+else:
+    _feedback = f"Expected [('login',3),('logout',2)], got {report}. Use Counter(events).most_common(2)."
+`,
+    hints: ["Counter(events).most_common(2)", "It's already sorted by count, descending.", "report = Counter(events).most_common(2)"],
+    solution: `from collections import Counter\nevents = ["login", "login", "logout", "login", "error", "logout"]\n\nreport = Counter(events).most_common(2)\nprint(report)`,
+  },
+  {
+    id: "l55", world: "w11", title: "BOSS: Brute-Force Detector", xp: 300,
+    story: `🏆 Final boss of analytics. Scan an auth log and flag any source IP with 5+ failed logins — a real brute-force detection you could run against production logs tomorrow.`,
+    concept: `Each line is <code>"IP user RESULT"</code>. Parse, count FAILs per IP, flag the noisy ones:
+<pre>ip, user, result = line.split()
+if result == "FAIL":
+    fails[ip] += 1
+flagged = sorted(ip for ip, n in fails.items() if n >= 5)</pre>`,
+    task: `From <code>log_lines</code>, build <code>flagged</code> — sorted list of IPs with 5 or more FAILs (expect <code>["10.0.0.9"]</code>).`,
+    starter: `from collections import Counter\nlog_lines = [\n    "10.0.0.9 alice FAIL", "10.0.0.9 alice FAIL", "10.0.0.9 bob FAIL",\n    "10.0.0.9 bob FAIL", "10.0.0.9 carol FAIL",\n    "10.0.0.2 dave OK", "10.0.0.2 dave FAIL", "192.168.1.5 eve OK",\n]\n\n# flagged = IPs with >= 5 FAILs\n`,
+    check: `
+if 'flagged' not in globals():
+    _feedback = "Create flagged."
+elif sorted(flagged) == ["10.0.0.9"]:
+    _passed = True; _feedback = "🏆 BOSS DEFEATED. You built a brute-force detector from raw logs — parsing, aggregation, thresholds. You're interview-ready."
+else:
+    _feedback = f"Expected ['10.0.0.9'], got {flagged}. Count FAILs per IP (first token) and keep those >= 5."
+`,
+    hints: [
+      "Split three tokens: ip, user, result = line.split()",
+      "Tally only when result == 'FAIL', keyed by ip.",
+      "flagged = sorted(ip for ip, n in fails.items() if n >= 5)",
+    ],
+    solution: `from collections import Counter\nlog_lines = [\n    "10.0.0.9 alice FAIL", "10.0.0.9 alice FAIL", "10.0.0.9 bob FAIL",\n    "10.0.0.9 bob FAIL", "10.0.0.9 carol FAIL",\n    "10.0.0.2 dave OK", "10.0.0.2 dave FAIL", "192.168.1.5 eve OK",\n]\n\nfails = Counter()\nfor line in log_lines:\n    ip, user, result = line.split()\n    if result == "FAIL":\n        fails[ip] += 1\nflagged = sorted(ip for ip, n in fails.items() if n >= 5)\nprint(flagged)`,
   },
 ];

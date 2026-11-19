@@ -408,6 +408,7 @@ const WORLDS = [
   { id: "w9", name: "API Security",      emoji: "🔑", blurb: "AuthN/Z, RBAC, JWT & the OWASP API Top 10." },
   { id: "w10", name: "CI/CD & Supply Chain", emoji: "⚙️", blurb: "Secrets, SAST/DAST/SCA, signing & pipeline hardening." },
   { id: "w11", name: "Advanced Networking", emoji: "🛰️", blurb: "mTLS, DDoS, cloud NSG/NACL & DNS tunneling." },
+  { id: "w12", name: "Cloud Security",   emoji: "☁️", blurb: "IAM least privilege, S3/bucket exposure, KMS & SSRF." },
 ];
 
 const LESSONS = [
@@ -1149,6 +1150,105 @@ Path traversal (<code>../</code>) tries to escape the web root to read files lik
     explanation: "Long random subdomains + heavy TXT to one domain = classic DNS tunneling.",
     hints: ["Why would one domain get thousands of weird subdomains?", "DNS can carry hidden payloads."],
     solutionText: "DNS tunneling (exfiltration or C2)",
+  },
+
+  /* ================= W12: CLOUD SECURITY ================= */
+  {
+    id: "n48", world: "w12", title: "Least Privilege IAM", xp: 100, kind: "quiz",
+    story: `☁️ Cloud breaches usually trace back to over-permissive IAM. Grant the minimum.`,
+    concept: `<b>Least privilege</b> means a policy grants only the specific actions on the specific resources needed. Wildcards like <code>Action:"*"</code> and <code>Resource:"*"</code> are the opposite — one leaked credential then owns everything.`,
+    task: `Which IAM policy statement best follows least privilege?`,
+    options: [
+      'Allow Action "*" on Resource "*"',
+      'Allow Action "s3:GetObject" on Resource "arn:aws:s3:::reports/*"',
+      'Allow Action "s3:*" on Resource "*"',
+      'Allow Action "iam:*" on Resource "*"',
+    ],
+    answer: 1,
+    explanation: "A single specific action scoped to one resource ARN is least privilege; the others use dangerous wildcards.",
+    hints: ["Wildcards (*) are the red flag.", "Narrow action + narrow resource = least privilege."],
+    solutionText: 'Allow "s3:GetObject" on a specific bucket ARN',
+  },
+  {
+    id: "n49", world: "w12", title: "Write an IAM Policy", xp: 150, kind: "l7", defaultAction: "block",
+    story: `The policy simulator now models cloud API calls (<code>action</code> + <code>resource</code>). Deny-by-default: grant an analyst read-only on the reports bucket, and nothing on secrets.`,
+    concept: `Rules can match any attribute — here <code>action</code> and <code>resource</code>:
+<pre>allow when action eq s3:GetObject
+block when resource eq secrets-bucket</pre>
+Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>allow</b> wins.`,
+    task: `Allow <code>s3:GetObject</code> on <code>reports-bucket</code> only. Block any action on <code>secrets-bucket</code>, and block non-read actions (like DeleteBucket).`,
+    starter: `# deny by default; grant read-only on reports, protect secrets\n`,
+    requests: [
+      { method: "IAM", path: "s3:GetObject → reports-bucket", action: "s3:GetObject", resource: "reports-bucket", desc: "Analyst reads reports", expect: "allow" },
+      { method: "IAM", path: "s3:DeleteBucket → reports-bucket", action: "s3:DeleteBucket", resource: "reports-bucket", desc: "Delete the bucket", expect: "block" },
+      { method: "IAM", path: "s3:GetObject → secrets-bucket", action: "s3:GetObject", resource: "secrets-bucket", desc: "Read the secrets bucket", expect: "block" },
+    ],
+    hints: [
+      "Protect secrets first: block when resource eq secrets-bucket",
+      "Then grant read: allow when action eq s3:GetObject",
+      "Default-block drops DeleteBucket automatically.",
+    ],
+    solution: `block when resource eq secrets-bucket\nallow when action eq s3:GetObject`,
+    solutionText: `block when resource eq secrets-bucket\nallow when action eq s3:GetObject`,
+  },
+  {
+    id: "n50", world: "w12", title: "The Public Bucket", xp: 100, kind: "quiz",
+    story: `The classic cloud leak: an object store accidentally opened to the world.`,
+    concept: `A bucket policy with <code>Principal: "*"</code> allowing <code>s3:GetObject</code> on <code>arn:aws:s3:::bucket/*</code> means <b>anyone on the internet</b> can read every object — the root cause of countless data leaks.`,
+    task: `A bucket policy sets <code>Principal: "*"</code> + <code>Allow s3:GetObject</code> on <code>bucket/*</code>. What does it mean?`,
+    options: [
+      "Only your account can read the objects",
+      "Every object is publicly readable by anyone on the internet",
+      "The bucket is encrypted at rest",
+      "Access requires MFA",
+    ],
+    answer: 1,
+    explanation: "Principal \"*\" = anonymous/anyone; this exposes all objects publicly. Block public access instead.",
+    hints: ["What does Principal \"*\" mean?", "Think of the famous open-bucket leaks."],
+    solutionText: "Every object is publicly readable by anyone",
+  },
+  {
+    id: "n51", world: "w12", title: "Keys Behind the Encryption", xp: 100, kind: "quiz",
+    story: `Encryption at rest is only as strong as who can use the key.`,
+    concept: `Server-side encryption with <b>KMS</b> protects data at rest, but a permissive <b>key policy / IAM</b> (who may call <code>kms:Decrypt</code>) can undo it — if everyone can use the key, the encryption adds little against an insider or stolen role.`,
+    task: `You enable KMS encryption on a bucket. What most determines whether it actually protects the data?`,
+    options: [
+      "The color of the AWS console theme",
+      "Who is allowed to use the key (key policy / IAM kms:Decrypt)",
+      "The bucket's name",
+      "The region's time zone",
+    ],
+    answer: 1,
+    explanation: "Access to the key (key policy/IAM) decides real protection; over-broad kms:Decrypt undermines encryption.",
+    hints: ["Encryption shifts the problem to key access.", "Who can call kms:Decrypt?"],
+    solutionText: "Who is allowed to use the key (key policy / IAM)",
+  },
+  {
+    id: "n52", world: "w12", title: "SSRF to Metadata", xp: 120, kind: "quiz",
+    story: `A server fetching user-supplied URLs is a gift to attackers in the cloud.`,
+    concept: `In <b>SSRF</b>, an attacker makes the server request <code>http://169.254.169.254/...</code> (the instance metadata service) to steal role credentials. Mitigations: enforce <b>IMDSv2</b> (token-required), block egress to the metadata IP, and validate/allowlist outbound URLs.`,
+    task: `Your app fetches user-provided URLs; an attacker targets <code>169.254.169.254</code>. Best mitigation?`,
+    options: [
+      "Return a prettier error page",
+      "Enforce IMDSv2 and block app egress to the metadata IP + validate URLs",
+      "Increase the server's RAM",
+      "Switch from HTTPS to HTTP",
+    ],
+    answer: 1,
+    explanation: "IMDSv2 + blocking metadata egress + URL allowlisting defends against SSRF credential theft.",
+    hints: ["169.254.169.254 is the metadata endpoint.", "Think IMDSv2 + egress control."],
+    solutionText: "Enforce IMDSv2, block metadata egress, validate URLs",
+  },
+  {
+    id: "n53", world: "w12", title: "Who Did What?", xp: 90, kind: "quiz",
+    story: `Incident response in the cloud lives or dies on your audit trail.`,
+    concept: `<b>CloudTrail</b> records a log of API calls (who did what, when, from where) across the account — essential for investigations and detections. (VPC Flow Logs capture network traffic, not API calls.)`,
+    task: `Which service gives an audit trail of all management API calls in an AWS account?`,
+    options: ["VPC Flow Logs", "CloudTrail", "Route 53", "Auto Scaling"],
+    answer: 1,
+    explanation: "CloudTrail logs API activity (identity, action, time, source) for audit and detection.",
+    hints: ["API calls, not packets.", "It 'trails' everything done in the account."],
+    solutionText: "CloudTrail",
   },
 ];
 
