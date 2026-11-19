@@ -1989,6 +1989,32 @@ else:
   /* ================= WORLD 9: API SECURITY ================= */
   {
     id: "l41", world: "w9", title: "Decode a JWT", xp: 130,
+    deepDive: `A <b>JWT</b> (JSON Web Token) is three base64url parts joined by dots: <code>header.payload.signature</code>.
+<pre>eyJhbGci...   .   eyJzdWIi...   .   c2lnbmF0dXJl
+  header            payload            signature</pre>
+<p>The <b>payload</b> is just base64-encoded JSON holding <b>claims</b> — <code>sub</code> (subject), <code>exp</code> (expiry), <code>aud</code> (audience), <code>iss</code> (issuer), roles/scopes. Decode it with base64 (fixing padding to a multiple of 4):</p>
+<pre>part = token.split(".")[1]
+part += "=" * (-len(part) % 4)
+claims = json.loads(base64.urlsafe_b64decode(part))</pre>`,
+    examples: [
+      `<b>Read a claim:</b> after decoding, <code>claims["role"]</code> or <code>claims["exp"]</code>.`,
+      `<b>Anyone can read it:</b> paste a token into jwt.io and see the payload — JWTs are encoded, NOT encrypted. Never put secrets in a JWT payload.`,
+    ],
+    pitfalls: [
+      `base64url needs padding fixed (<code>+= "=" * (-len(p) % 4)</code>) or decode fails.`,
+      `The payload is readable by anyone — it's not confidential.`,
+      `Decoding tells you what the token <i>claims</i>, not that it's genuine (next lesson).`,
+    ],
+    why: `"What's inside a JWT and how do you read it?" is a standard API-auth question. Knowing it's three base64 parts and the payload isn't secret is the baseline.`,
+    keyPoints: [
+      "JWT = header.payload.signature (base64url).",
+      "Payload holds claims: sub/exp/aud/iss/roles.",
+      "Encoded, not encrypted — readable by anyone, no secrets inside.",
+    ],
+    references: [
+      { title: "RFC 7519 — JSON Web Token", url: "https://datatracker.ietf.org/doc/html/rfc7519" },
+      { title: "jwt.io — JWT debugger & intro", url: "https://jwt.io/introduction" },
+    ],
     story: `🔑 APIs hand you a JWT. Its middle segment is just base64 JSON — let's read the claims.`,
     concept: `A JWT is <code>header.payload.signature</code>. Decode the payload (segment 1) — remember base64 needs padding:
 <pre>import base64, json
@@ -2008,6 +2034,35 @@ else:
   },
   {
     id: "l42", world: "w9", title: "Verify, Don't Trust", xp: 130,
+    deepDive: `Decoding ≠ trusting. Before acting on a JWT you must <b>verify</b>:
+<ul>
+<li><b>Signature</b> — recompute it with the issuer's key; a forged payload won't match.</li>
+<li><b>exp / nbf</b> — not expired, not used before valid.</li>
+<li><b>aud</b> — the token is for <i>your</i> API, not another service.</li>
+<li><b>iss</b> — issued by the identity provider you trust.</li>
+</ul>
+<pre>valid = claims["exp"] > now_ts and claims["aud"] == "my-api"
+# real code: use a vetted library that also checks the signature</pre>
+<p>Always use a maintained JWT library — never roll your own crypto.</p>`,
+    examples: [
+      `<b>Expired token:</b> <code>exp</code> in the past → reject, even if the signature is valid.`,
+      `<b>Wrong audience:</b> a token minted for <code>service-b</code> must be rejected by <code>service-a</code>.`,
+    ],
+    pitfalls: [
+      `<b>alg: none / alg-confusion attacks:</b> accepting a token with no/altered algorithm lets attackers forge tokens — pin the expected algorithm.`,
+      `Trusting decoded claims without signature verification is the classic broken-auth bug.`,
+      `Skipping <code>exp</code>/<code>aud</code> checks — a stolen or cross-service token then works.`,
+    ],
+    why: `Broken authentication (OWASP API #2) is a top real-world API flaw. "Decode vs verify" and the alg:none attack are exactly what strong candidates can explain.`,
+    keyPoints: [
+      "Verify signature + exp + aud + iss before trusting a token.",
+      "Pin the algorithm to defeat alg:none / alg-confusion.",
+      "Use a vetted library; never hand-roll JWT crypto.",
+    ],
+    references: [
+      { title: "OWASP API Security Top 10", url: "https://owasp.org/API-Security/editions/2023/en/0x11-t10/" },
+      { title: "Auth0 — JWT best current practices", url: "https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-token-best-practices" },
+    ],
     story: `Decoding a JWT proves nothing — anyone can forge the payload. You must validate claims (and, really, the signature). Start with expiry + audience.`,
     concept: `Never trust an unverified token. At minimum check it hasn't expired and is meant for your API:
 <pre>valid = claims["exp"] > now_ts and claims["aud"] == "intune-api"</pre>`,
@@ -2028,6 +2083,29 @@ else:
   },
   {
     id: "l43", world: "w9", title: "Bearer Token Header", xp: 110,
+    deepDive: `Once you have an access token you present it on each request in the <b>Authorization</b> header using the Bearer scheme:
+<pre>headers = {"Authorization": f"Bearer {token}"}
+requests.get(url, headers=headers)   # real-world</pre>
+<p>"Bearer" means "whoever holds this token can use it" — so the token is a credential. Protect it: send only over <b>TLS</b>, keep it short-lived, and never log it or put it in a URL.</p>`,
+    examples: [
+      `<b>Header shape:</b> <code>{"Authorization": "Bearer eyJhbGci..."}</code>.`,
+      `<b>Refresh pattern:</b> cache the token, reuse until near expiry, then re-authenticate — don't fetch a new token per call.`,
+    ],
+    pitfalls: [
+      `Putting the token in the <b>URL/query string</b> — it lands in logs, history, and referrer headers. Use the header.`,
+      `Logging request headers verbatim leaks the token — redact Authorization in logs.`,
+      `Sending it over plain HTTP — a bearer token on the wire in cleartext is game over.`,
+    ],
+    why: `Every authenticated API call uses this header. Interviewers check you know "Bearer = credential" and the hygiene (TLS only, never log, short-lived).`,
+    keyPoints: [
+      "Authorization: Bearer <token> on each request.",
+      "The token is a credential — TLS only, never in URLs or logs.",
+      "Cache + refresh near expiry; don't re-auth every call.",
+    ],
+    references: [
+      { title: "RFC 6750 — Bearer Token Usage", url: "https://datatracker.ietf.org/doc/html/rfc6750" },
+      { title: "OWASP — Secrets in logs (Logging cheat sheet)", url: "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" },
+    ],
     story: `To call a protected API you attach your token as a Bearer header. Get a token, build the header.`,
     concept: `<pre>token = graph.authenticate(client_id, secret, tenant)
 headers = {"Authorization": f"Bearer {token}"}</pre>`,
@@ -2047,6 +2125,32 @@ else:
   },
   {
     id: "l44", world: "w9", title: "Check the Scope", xp: 120,
+    deepDive: `<b>Authentication</b> (who you are) is not <b>authorization</b> (what you may do). A valid token still must carry the right <b>scope</b>/permission for the action:
+<pre>def require_scope(granted, needed):
+    return needed in granted
+
+# e.g. a read token must NOT be able to delete
+require_scope(token_scopes, "DeviceManagementManagedDevices.ReadWrite.All")</pre>
+<p>Grant the <b>least privilege</b> needed. Scopes (OAuth) and roles (RBAC) both narrow what an authenticated caller can reach.</p>`,
+    examples: [
+      `<b>Read vs write:</b> a token with only <code>...Read.All</code> is rejected for a PATCH that needs <code>...ReadWrite.All</code>.`,
+      `<b>Per-endpoint check:</b> the admin route verifies an <code>admin</code> role/scope before proceeding.`,
+    ],
+    pitfalls: [
+      `Checking only that the token is <i>valid</i> (authn) but not that it's <i>allowed</i> (authz) — that's broken function-level authorization (OWASP API #5).`,
+      `Requesting over-broad scopes "to be safe" — violates least privilege and widens blast radius if leaked.`,
+      `Confusing scopes (what the app may do) with per-object ownership (IDOR/BOLA — a separate check).`,
+    ],
+    why: `"Difference between authentication and authorization?" is a guaranteed question. Enforcing least-privilege scopes per action is the practical answer interviewers want.`,
+    keyPoints: [
+      "Authn ≠ authz — verify the token AND the required scope/role.",
+      "Least privilege: request and require only the needed scope.",
+      "Function-level authz (scope) is distinct from object-level (ownership).",
+    ],
+    references: [
+      { title: "OAuth 2.0 — Scopes", url: "https://oauth.net/2/scope/" },
+      { title: "OWASP API5 — Broken Function Level Authorization", url: "https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/" },
+    ],
     story: `A valid token still shouldn't do everything. Enforce least privilege by checking granted scopes.`,
     concept: `<pre>def require_scope(granted, needed):
     return needed in granted</pre>
@@ -2066,6 +2170,32 @@ else:
   },
   {
     id: "l45", world: "w9", title: "Validate the Input", xp: 140,
+    deepDive: `Never trust client input. Validate with an <b>allowlist</b>: accept only known fields, of the right type, within bounds — reject everything else.
+<pre>ALLOWED = {"name", "os"}
+def validate(payload):
+    if set(payload) - ALLOWED:          # any unexpected key?
+        return False                    # blocks mass assignment
+    return isinstance(payload.get("name"), str)</pre>
+<p>Allowlisting (define what's valid) beats blocklisting (chase what's bad). Real apps use schema validators like <b>pydantic</b> for this.</p>`,
+    examples: [
+      `<b>Mass assignment blocked:</b> a payload sneaking <code>{"isAdmin": true}</code> has an unexpected key → rejected.`,
+      `<b>Type/bounds:</b> reject a <code>port</code> that isn't an int in 1–65535, or a name over N chars.`,
+    ],
+    pitfalls: [
+      `<b>Mass assignment:</b> binding a whole request body onto your object lets attackers set fields they shouldn't (roles, flags).`,
+      `Blocklists always miss a case — allowlist the valid shape instead.`,
+      `Validating format but not <i>authorization</i> (can this user set this field at all?) — do both.`,
+    ],
+    why: `Input validation underpins injection defense and mass-assignment prevention (OWASP API #6). Allowlist + schema validation is the modern, interview-ready answer.`,
+    keyPoints: [
+      "Allowlist fields/types/bounds; reject unexpected keys.",
+      "Allowlisting > blocklisting for untrusted input.",
+      "Prevents mass assignment and feeds injection defense.",
+    ],
+    references: [
+      { title: "OWASP — Input Validation Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html" },
+      { title: "pydantic — Data validation", url: "https://docs.pydantic.dev/latest/" },
+    ],
     story: `Never trust client input. Reject unexpected fields (mass-assignment) and wrong types before acting on a payload.`,
     concept: `Allowlist the fields you accept:
 <pre>ALLOWED = {"name", "os"}
@@ -2095,6 +2225,33 @@ else:
   /* ================= WORLD 10: CI/CD & AUTOMATION ================= */
   {
     id: "l46", world: "w10", title: "Write a Test", xp: 110,
+    deepDive: `Automated tests prove your code does what you claim — and keep it working as it changes. The simplest unit is an <code>assert</code>:
+<pre>def is_strong(pw):
+    return len(pw) >= 12
+
+def test_is_strong():
+    assert is_strong("x" * 12) is True
+    assert is_strong("short") is False</pre>
+<p>Real projects use <b>pytest</b> (just write <code>test_*</code> functions with asserts) or <code>unittest</code>. In CI, a failing assert fails the build and blocks the merge.</p>`,
+    examples: [
+      `<b>Arrange-Act-Assert:</b> set up inputs, call the function, assert the result — one behavior per test.`,
+      `<b>Edge cases:</b> test the boundary (exactly 12 chars), empty input, and the typical case.`,
+    ],
+    pitfalls: [
+      `Testing the happy path only — bugs live in edge cases and error paths.`,
+      `Tests that depend on each other or on external state are flaky; keep them isolated and deterministic.`,
+      `Asserting implementation details instead of observable behavior makes refactoring painful.`,
+    ],
+    why: `"Do you write tests? How?" and "what makes a good test?" are standard. Tests in CI are the gate that makes automation trustworthy — a core professional habit.`,
+    keyPoints: [
+      "assert encodes expected behavior; failing asserts fail CI.",
+      "Arrange-Act-Assert; one behavior per test; cover edge cases.",
+      "Keep tests isolated and deterministic (pytest/unittest).",
+    ],
+    references: [
+      { title: "pytest — Getting started", url: "https://docs.pytest.org/en/stable/getting-started.html" },
+      { title: "Python docs — unittest", url: "https://docs.python.org/3/library/unittest.html" },
+    ],
     story: `⚙️ Automation you don't test is automation you can't trust. Assertions are the simplest tests.`,
     concept: `<pre>assert is_strong("x" * 12) is True
 assert is_strong("short") is False</pre>
@@ -2114,6 +2271,34 @@ else:
   },
   {
     id: "l47", world: "w10", title: "Retry with Backoff", xp: 140,
+    deepDive: `Networks and APIs fail <i>transiently</i>. Resilient automation retries — but intelligently, with <b>exponential backoff</b> and a cap:
+<pre>def fetch_with_retry(url, max_tries=5):
+    for attempt in range(max_tries):
+        resp = graph.flaky_get(url)
+        if resp.status_code == 200:
+            return resp
+        # real: time.sleep((2 ** attempt) + random.random())  # backoff + jitter
+    return resp</pre>
+<p>Only retry <b>retryable</b> errors (429, 503, timeouts) — not a 400/401, which will fail identically every time.</p>`,
+    examples: [
+      `<b>Backoff schedule:</b> wait 1s, 2s, 4s, 8s between attempts, plus a little random jitter.`,
+      `<b>Idempotency matters:</b> safe to retry GET/PUT/DELETE; retrying a non-idempotent POST can double-create.`,
+    ],
+    pitfalls: [
+      `Retrying non-retryable errors (400/401/403) just wastes time — they won't fix themselves.`,
+      `No cap → infinite retries against a down service; always bound attempts.`,
+      `Retrying a non-idempotent write without an idempotency key can duplicate side effects.`,
+    ],
+    why: `Retry/backoff is the difference between a flaky script and production automation, and it's a common system-design discussion. Mentioning jitter and "only retry retryable errors" stands out.`,
+    keyPoints: [
+      "Retry transient failures with exponential backoff + jitter + a cap.",
+      "Don't retry 4xx that won't change (400/401/403).",
+      "Only retry idempotent operations freely.",
+    ],
+    references: [
+      { title: "AWS — Exponential backoff and jitter", url: "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" },
+      { title: "Google SRE — Handling overload / retries", url: "https://sre.google/sre-book/handling-overload/" },
+    ],
     story: `Pipelines hit flaky APIs. Robust automation retries instead of failing. The simulator's <code>graph.flaky_get</code> fails twice, then succeeds.`,
     concept: `<pre>def fetch_with_retry(url, max_tries=5):
     for _ in range(max_tries):
@@ -2136,6 +2321,30 @@ else:
   },
   {
     id: "l48", world: "w10", title: "Scan for Secrets", xp: 140,
+    deepDive: `Hardcoded credentials in code/config are a top breach cause. A secret scanner greps content for tell-tale patterns:
+<pre>import re
+re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", line)
+# AWS access keys start AKIA...; many API keys look like sk_live_...</pre>
+<p>Real tools (<b>gitleaks</b>, <b>trufflehog</b>, GitHub push protection) run these as pre-commit hooks and CI gates, scanning diffs AND full git history.</p>`,
+    examples: [
+      `<b>Flag leaking lines:</b> keep lines where the pattern matches, e.g. an <code>AKIA…</code> AWS key or an <code>sk_live_…</code> token.`,
+      `<b>Shift left:</b> a pre-commit hook blocks the secret <i>before</i> it's ever committed.`,
+    ],
+    pitfalls: [
+      `A committed secret lives in git <b>history</b> forever — scanning only the latest files misses it, and it must be <b>rotated</b>, not just deleted.`,
+      `Pattern-only scanners miss high-entropy/opaque secrets — combine regex with entropy checks (what real tools do).`,
+      `False positives (example keys in docs) need allowlisting so the gate stays trusted.`,
+    ],
+    why: `Secret scanning in CI is a standard control and a frequent "how do you stop credential leaks?" question. Knowing "rotate, don't just delete" is the key nuance.`,
+    keyPoints: [
+      "Regex/entropy-scan content for key patterns (AKIA…, sk_live_…).",
+      "Run as pre-commit + CI gate; scan history too.",
+      "A leaked secret must be rotated, not merely removed.",
+    ],
+    references: [
+      { title: "gitleaks — Secret scanning", url: "https://github.com/gitleaks/gitleaks" },
+      { title: "GitHub — About secret scanning", url: "https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning" },
+    ],
     story: `A hardcoded AWS key or API token in a repo is a breach. Build a mini secret-scanner with regex.`,
     concept: `Match known secret shapes:
 <pre>import re
@@ -2156,6 +2365,29 @@ else:
   },
   {
     id: "l49", world: "w10", title: "Dependency Scan (SCA)", xp: 140,
+    deepDive: `Most code you ship is third-party. <b>SCA</b> (Software Composition Analysis) compares your installed packages against known-vulnerable versions (CVE feeds):
+<pre>vulnerable = [pkg for pkg, ver in installed.items()
+              if f"{pkg}=={ver}" in KNOWN_VULN]</pre>
+<p>Real tools: <b>pip-audit</b>, <b>Dependabot</b>, <b>Snyk</b>, OWASP Dependency-Check. They read your lockfile and flag CVEs so you can upgrade.</p>`,
+    examples: [
+      `<b>Exact match:</b> build <code>"pkg==version"</code> and test membership in the vuln set — Log4Shell was exactly "log4j==2.14.0"-style.`,
+      `<b>Fix:</b> bump to a patched version and re-pin the lockfile.`,
+    ],
+    pitfalls: [
+      `Scanning only direct deps misses <b>transitive</b> ones (dependencies of dependencies) — where many CVEs hide.`,
+      `Floating versions (<code>*</code>/<code>latest</code>) make scans meaningless and builds non-reproducible — pin with a lockfile.`,
+      `A finding without a reachable code path may be low-risk — prioritize, but don't ignore.`,
+    ],
+    why: `Supply-chain security is front-and-center (Log4Shell, SolarWinds). "How do you catch vulnerable dependencies?" → SCA in CI + pinned lockfiles is the expected answer.`,
+    keyPoints: [
+      "SCA matches installed pkg==version against CVE feeds.",
+      "Pin versions (lockfile); scan transitive deps too.",
+      "Run in CI (pip-audit/Dependabot/Snyk); upgrade to patch.",
+    ],
+    references: [
+      { title: "pip-audit — Audit Python environments", url: "https://pypi.org/project/pip-audit/" },
+      { title: "OWASP — Dependency-Check", url: "https://owasp.org/www-project-dependency-check/" },
+    ],
     story: `Most breaches ride in via a vulnerable library. Compare installed packages against a known-vulnerable list — that's SCA.`,
     concept: `<pre>vulnerable = [pkg for pkg, ver in installed.items()
               if f"{pkg}=={ver}" in KNOWN_VULN]</pre>`,
@@ -2174,6 +2406,32 @@ else:
   },
   {
     id: "l50", world: "w10", title: "BOSS: Pipeline Security Gate", xp: 300,
+    deepDive: `A CI <b>security gate</b> blocks a build that fails policy. This capstone combines SCA + secret scanning into one pass/fail check:
+<pre>def pipeline_gate(installed, config, known_vuln):
+    vulnerable = sorted(...SCA...)
+    secrets = [...secret-scan the config...]
+    return {"vulnerable": vulnerable, "secrets": len(secrets),
+            "passed": not vulnerable and not secrets}</pre>
+<p>"Passed" is True only when there are <b>no</b> vulnerable deps and <b>no</b> leaked secrets — otherwise the pipeline stops and the build never ships.</p>`,
+    examples: [
+      `<b>Fail closed:</b> any finding → <code>passed = False</code> → the merge/deploy is blocked until fixed.`,
+      `<b>Layered checks:</b> real gates also run SAST, license checks, and IaC policy — each a potential blocker.`,
+    ],
+    pitfalls: [
+      `Making the gate a warning instead of a hard failure — teams learn to ignore it.`,
+      `Returning pass on partial results (a scanner errored) — treat scan failures as a fail, not a pass.`,
+      `No allowlist/waiver process → one false positive and people disable the gate entirely.`,
+    ],
+    why: `"Design a secure CI pipeline" is a common senior prompt. A gate that fails closed on SCA + secrets (plus SAST/IaC) with a sane waiver process is exactly the answer.`,
+    keyPoints: [
+      "A gate turns findings into a hard pass/fail that blocks shipping.",
+      "Fail closed; a broken scanner = fail, not pass.",
+      "Combine SCA + secrets (+ SAST/IaC) with a waiver process.",
+    ],
+    references: [
+      { title: "OWASP — CI/CD Security Top 10", url: "https://owasp.org/www-project-top-10-ci-cd-security-risks/" },
+      { title: "SLSA — Supply-chain levels", url: "https://slsa.dev/" },
+    ],
     story: `🏆 Final boss. Build the CI/CD gate that fails a build if it finds vulnerable dependencies OR leaked secrets — the capstone of secure automation.`,
     concept: `Combine SCA + secret scanning into one gate that returns a report and a pass/fail:
 <pre>def pipeline_gate(installed, config, known_vuln):
@@ -2207,6 +2465,32 @@ else:
   /* ================= WORLD 11: LOG ANALYTICS ================= */
   {
     id: "l51", world: "w11", title: "Count with Counter", xp: 120,
+    deepDive: `Security analysis = finding signal in volume. <code>collections.Counter</code> tallies occurrences in one pass:
+<pre>from collections import Counter
+c = Counter(["ok", "fail", "ok"])
+c["ok"]            # 2
+c["missing"]       # 0  (no KeyError — defaults to 0)
+c.most_common(3)   # top 3 as (value, count) pairs</pre>
+<p>It's a dict subclass tuned for counting — cleaner and faster than manually incrementing a plain dict.</p>`,
+    examples: [
+      `<b>Count a field:</b> <code>Counter(e["status"] for e in events)</code> → how many of each status.`,
+      `<b>Zero-safe:</b> <code>c["never_seen"]</code> returns 0 instead of raising, so no special-casing.`,
+    ],
+    pitfalls: [
+      `Counting unhashable items (lists/dicts) fails — count a hashable key (a string/tuple) instead.`,
+      `<code>Counter</code> returns 0 for missing keys, which can hide typos in the key name.`,
+      `For huge streams, feed it a generator (not a materialized list) to keep memory flat.`,
+    ],
+    why: `Counting events by type/source/host is the first move in log triage and detection. Reaching for <code>Counter</code> (not a hand-rolled dict) signals fluency.`,
+    keyPoints: [
+      "Counter tallies an iterable in one pass; missing keys = 0.",
+      "most_common(n) ranks the top entries.",
+      "Feed it a generator for large/streaming data.",
+    ],
+    references: [
+      { title: "Python docs — collections.Counter", url: "https://docs.python.org/3/library/collections.html#collections.Counter" },
+      { title: "Python HOWTO — Sorting (for ranking)", url: "https://docs.python.org/3/howto/sorting.html" },
+    ],
     story: `📊 Security = finding the needle in millions of log lines. <code>collections.Counter</code> tallies things instantly.`,
     concept: `<pre>from collections import Counter
 counts = Counter(["ok", "fail", "ok"])
@@ -2227,6 +2511,29 @@ else:
   },
   {
     id: "l52", world: "w11", title: "Top Talker", xp: 130,
+    deepDive: `"Which source is loudest?" answers a lot of security questions (brute force, scanning, exfil, noisy host). <code>most_common</code> ranks for you:
+<pre>Counter(ips).most_common(1)      # [('10.0.0.9', 4)]
+Counter(ips).most_common(1)[0][0]  # '10.0.0.9'  (just the value)</pre>
+<p>It returns <code>(value, count)</code> tuples already sorted high→low — index <code>[0][0]</code> for the top value, <code>[0][1]</code> for its count.</p>`,
+    examples: [
+      `<b>Top source IP:</b> the IP with the most failed logins is your brute-force suspect.`,
+      `<b>Top N:</b> <code>most_common(5)</code> for a "noisiest 5 hosts" dashboard widget.`,
+    ],
+    pitfalls: [
+      `<code>most_common()</code> with no argument returns <i>everything</i> sorted — pass <code>n</code> for just the top.`,
+      `Ties are returned in insertion order, not alphabetical — don't assume a tiebreak.`,
+      `The "top talker" is a lead, not a verdict — enrich before acting.`,
+    ],
+    why: `Ranking by frequency is core triage ("show me the top offenders"). It's also a quick coding-screen task — most_common is the clean one-liner.`,
+    keyPoints: [
+      "most_common(n) returns top n as (value, count), sorted desc.",
+      "[0][0] = top value, [0][1] = its count.",
+      "Top talker = a lead to enrich, not a conclusion.",
+    ],
+    references: [
+      { title: "Python docs — Counter.most_common", url: "https://docs.python.org/3/library/collections.html#collections.Counter.most_common" },
+      { title: "MITRE ATT&CK — Brute Force (T1110)", url: "https://attack.mitre.org/techniques/T1110/" },
+    ],
     story: `Which source IP is hammering you hardest? <code>most_common</code> ranks them for you.`,
     concept: `<pre>Counter(ips).most_common(1)   # [('10.0.0.9', 4)]
 Counter(ips).most_common(1)[0][0]   # '10.0.0.9'</pre>`,
@@ -2245,6 +2552,33 @@ else:
   },
   {
     id: "l53", world: "w11", title: "Parse & Tally", xp: 140,
+    deepDive: `Raw logs are text — you must <b>parse</b> before you can <b>tally</b>. Split each line into fields, then count by the field you care about:
+<pre>fails = Counter()
+for line in log_lines:
+    user, status = line.split()      # structure the line
+    if status == "FAIL":
+        fails[user] += 1
+offenders = [u for u, n in fails.items() if n >= 3]   # threshold</pre>
+<p>Parse → filter → tally → threshold is the skeleton of nearly every detection.</p>`,
+    examples: [
+      `<b>Failed logins per user:</b> split "user STATUS", count FAILs, flag anyone at/over the threshold.`,
+      `<b>Structured logs (JSON):</b> <code>json.loads(line)</code> instead of <code>split()</code> when the log is JSON.`,
+    ],
+    pitfalls: [
+      `<code>split()</code> assumes a consistent format — real logs vary; guard against short/malformed lines.`,
+      `Hard-coding field positions breaks when the log format changes; prefer named fields (regex groups / JSON).`,
+      `Thresholds need tuning — too low = noise, too high = misses.`,
+    ],
+    why: `Turning unstructured logs into counts-with-thresholds is exactly detection engineering. This parse→tally→threshold pattern is what interviewers want to see you reach for.`,
+    keyPoints: [
+      "Parse each line into fields, then tally by the key of interest.",
+      "Parse → filter → tally → threshold = the detection skeleton.",
+      "Prefer named fields (regex/JSON) over fragile positions.",
+    ],
+    references: [
+      { title: "Python docs — str.split", url: "https://docs.python.org/3/library/stdtypes.html#str.split" },
+      { title: "Python docs — json module", url: "https://docs.python.org/3/library/json.html" },
+    ],
     story: `Real logs are text. Split each line, then count what matters — failed logins per user.`,
     concept: `<pre>for line in log_lines:
     user, status = line.split()
@@ -2265,6 +2599,29 @@ else:
   },
   {
     id: "l54", world: "w11", title: "Top-N Report", xp: 130,
+    deepDive: `Reports summarize — the ranked "top N" is the most common shape. <code>most_common(n)</code> gives it directly:
+<pre>Counter(events).most_common(2)
+# [('login', 5), ('logout', 3)]  -> already sorted, ready to render</pre>
+<p>Each entry is a <code>(value, count)</code> tuple, so you can format rows with <code>for value, count in report:</code>.</p>`,
+    examples: [
+      `<b>Top event types:</b> <code>most_common(3)</code> → the three most frequent event categories for a summary.`,
+      `<b>Render:</b> <code>for name, n in report: print(f"{name}: {n}")</code> turns it into report lines.`,
+    ],
+    pitfalls: [
+      `A list of tuples isn't a dict — iterate it as pairs, don't index by key.`,
+      `"Top N by count" can mislead if volumes differ wildly — consider rates/percentages too.`,
+      `Don't re-sort what most_common already sorted (wasteful and can reorder ties).`,
+    ],
+    why: `Executives and tickets want "top offenders/events", not raw dumps. Producing a ranked top-N cleanly is a small but constant reporting skill.`,
+    keyPoints: [
+      "most_common(n) = ready-made ranked report of (value, count).",
+      "Iterate as pairs: for value, count in report.",
+      "Consider rates, not just raw counts, for fairness.",
+    ],
+    references: [
+      { title: "Python docs — collections", url: "https://docs.python.org/3/library/collections.html" },
+      { title: "Python Tutorial — Looping techniques", url: "https://docs.python.org/3/tutorial/datastructures.html#looping-techniques" },
+    ],
     story: `A good report shows the top offenders, ranked. Build one.`,
     concept: `<code>most_common(n)</code> returns the top n as <code>(value, count)</code> tuples, already sorted:
 <pre>Counter(events).most_common(2)
@@ -2284,6 +2641,33 @@ else:
   },
   {
     id: "l55", world: "w11", title: "BOSS: Brute-Force Detector", xp: 300,
+    deepDive: `The capstone assembles the whole pattern into a real detection: parse an auth log, tally failures per source, and flag sources over a threshold.
+<pre>fails = Counter()
+for line in log_lines:
+    ip, user, result = line.split()
+    if result == "FAIL":
+        fails[ip] += 1
+flagged = sorted(ip for ip, n in fails.items() if n >= 5)</pre>
+<p>That's <b>parse → filter → tally → threshold → report</b> end to end — the backbone of a brute-force (and many other) detections.</p>`,
+    examples: [
+      `<b>Threshold 5:</b> an IP with 5+ FAILs is flagged; occasional single failures are ignored as noise.`,
+      `<b>Extend it:</b> add a time window (N fails in 60s) or correlate a flagged IP with a later success (compromise).`,
+    ],
+    pitfalls: [
+      `No time window → a slow attacker spread over weeks evades a raw count; add windowing for real detections.`,
+      `Threshold tuning is everything — validate against normal traffic to avoid flooding analysts.`,
+      `Flagging without enrichment (geo, asset, user) gives analysts a number, not a decision.`,
+    ],
+    why: `Building a brute-force detector from raw logs is a canonical blue-team exercise. Demonstrating the parse→tally→threshold pipeline (and naming its limits) is exactly the senior answer.`,
+    keyPoints: [
+      "Full detection = parse → filter → tally → threshold → report.",
+      "Add time windows and enrichment for production detections.",
+      "Threshold tuning balances noise vs misses.",
+    ],
+    references: [
+      { title: "MITRE ATT&CK — Brute Force (T1110)", url: "https://attack.mitre.org/techniques/T1110/" },
+      { title: "Sigma — Generic detection rules", url: "https://github.com/SigmaHQ/sigma" },
+    ],
     story: `🏆 Final boss of analytics. Scan an auth log and flag any source IP with 5+ failed logins — a real brute-force detection you could run against production logs tomorrow.`,
     concept: `Each line is <code>"IP user RESULT"</code>. Parse, count FAILs per IP, flag the noisy ones:
 <pre>ip, user, result = line.split()
