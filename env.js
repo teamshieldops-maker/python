@@ -201,6 +201,18 @@ class AwsSim:
             {"name": "DeployBot", "actions": ["s3:PutObject", "s3:GetObject"], "resource": "arn:aws:s3:::public-assets/*"},
             {"name": "BackupSvc", "actions": ["s3:*"], "resource": "arn:aws:s3:::customer-backups/*"},
         ]
+        self.kms_keys = [
+            {"id": "key-logs", "rotation": True, "public": False},
+            {"id": "key-backups", "rotation": False, "public": False},
+            {"id": "key-legacy", "rotation": False, "public": True},
+            {"id": "key-app", "rotation": True, "public": False},
+        ]
+        self.iam_users = [
+            {"name": "alice", "mfa": True, "admin": False},
+            {"name": "root-ops", "mfa": False, "admin": True},
+            {"name": "svc-deploy", "mfa": False, "admin": False},
+            {"name": "bob", "mfa": True, "admin": True},
+        ]
         self.audit = []
     def _bucket(self, name):
         for b in self.buckets:
@@ -227,6 +239,17 @@ class AwsSim:
         return b
     def list_policies(self):
         return self.policies
+    def list_keys(self):
+        return self.kms_keys
+    def enable_key_rotation(self, key_id):
+        for k in self.kms_keys:
+            if k["id"] == key_id:
+                k["rotation"] = True
+                self.audit.append("enable_key_rotation " + key_id)
+                return k
+        raise KeyError("No key " + str(key_id))
+    def list_users(self):
+        return self.iam_users
 
 class K8sSim:
     # A tiny Kubernetes cluster for pod-security auditing lessons.

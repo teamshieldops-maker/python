@@ -472,6 +472,18 @@ class AwsSim:
             {"name": "DeployBot", "actions": ["s3:PutObject", "s3:GetObject"], "resource": "arn:aws:s3:::public-assets/*"},
             {"name": "BackupSvc", "actions": ["s3:*"], "resource": "arn:aws:s3:::customer-backups/*"},
         ]
+        self.kms_keys = [
+            {"id": "key-logs", "rotation": True, "public": False},
+            {"id": "key-backups", "rotation": False, "public": False},
+            {"id": "key-legacy", "rotation": False, "public": True},
+            {"id": "key-app", "rotation": True, "public": False},
+        ]
+        self.iam_users = [
+            {"name": "alice", "mfa": True, "admin": False},
+            {"name": "root-ops", "mfa": False, "admin": True},
+            {"name": "svc-deploy", "mfa": False, "admin": False},
+            {"name": "bob", "mfa": True, "admin": True},
+        ]
         self.audit = []
     def _bucket(self, name):
         for b in self.buckets:
@@ -498,6 +510,17 @@ class AwsSim:
         return b
     def list_policies(self):
         return self.policies
+    def list_keys(self):
+        return self.kms_keys
+    def enable_key_rotation(self, key_id):
+        for k in self.kms_keys:
+            if k["id"] == key_id:
+                k["rotation"] = True
+                self.audit.append("enable_key_rotation " + key_id)
+                return k
+        raise KeyError("No key " + str(key_id))
+    def list_users(self):
+        return self.iam_users
 
 class K8sSim:
     # A tiny Kubernetes cluster for pod-security auditing lessons.
@@ -616,6 +639,8 @@ const WORLDS = [
   { id: "w14", name: "Detection Eng",     emoji: "🚨", blurb: "Write SIEM rules: thresholds, correlation & alerts." },
   { id: "w15", name: "Secrets Mgmt",      emoji: "🔑", blurb: "Vault automation: find stale, rotate & revoke leaked." },
   { id: "w16", name: "Incident Response", emoji: "🧭", blurb: "Timeline, IOCs, scoping & a full incident report." },
+  { id: "w17", name: "IAM & KMS",         emoji: "🔐", blurb: "Key rotation, over-shared keys & admins without MFA." },
+  { id: "w18", name: "Threat Modeling",   emoji: "🧩", blurb: "STRIDE: map spoofing/tampering/injection & score risk." },
 ];
 
 const LESSONS = [
@@ -2409,6 +2434,234 @@ else:
       'Return a dict with keys events / iocs / compromised_users / isolate (lists sorted).',
     ],
     solution: `from collections import Counter\n\ndef incident_report(events):\n    fails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\n    compromised = sorted({e["user"] for e in events if e["type"] == "login" and e["result"] == "success" and fails[e["user"]] >= 5})\n    iocs = sorted({e["name"] for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES})\n    malware_hosts = {e["host"] for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES}\n    comp_hosts = {e["host"] for e in events if e["type"] == "login" and e["result"] == "success" and fails[e["user"]] >= 5}\n    return {"events": len(events), "iocs": iocs, "compromised_users": compromised, "isolate": sorted(malware_hosts | comp_hosts)}\n\nreport = incident_report(siem.list_events())\nprint(report)`,
+  },
+
+  /* ================= WORLD 17: IAM & KMS DEEP-DIVE ================= */
+  {
+    id: "l82", world: "w17", title: "Keys Without Rotation", xp: 120,
+    story: `🔐 The <code>aws</code> client now exposes KMS keys and IAM users. Encryption keys should auto-rotate — find the ones that don't.`,
+    concept: `<pre>for k in aws.list_keys():
+    k["id"], k["rotation"], k["public"]
+aws.enable_key_rotation(key_id)
+aws.list_users()   # each: name, mfa, admin</pre>`,
+    task: `Build <code>no_rotation</code> — ids of KMS keys where <code>rotation</code> is False (expect <code>['key-backups', 'key-legacy']</code>).`,
+    starter: `# find KMS keys without rotation\n`,
+    check: `
+if 'no_rotation' not in globals():
+    _feedback = "Create no_rotation."
+elif sorted(no_rotation) == ["key-backups", "key-legacy"]:
+    _passed = True; _feedback = "Non-rotating keys found — a standard crypto hygiene finding. 🔐"
+else:
+    _feedback = f"Expected ['key-backups','key-legacy'], got {no_rotation}."
+`,
+    hints: ["Filter on not k['rotation'].", "no_rotation = [k['id'] for k in aws.list_keys() if not k['rotation']]"],
+    solution: `no_rotation = [k["id"] for k in aws.list_keys() if not k["rotation"]]\nprint(no_rotation)`,
+  },
+  {
+    id: "l83", world: "w17", title: "Turn On Rotation", xp: 120,
+    story: `Remediate: enable automatic rotation on every key that lacks it.`,
+    concept: `<pre>for k in aws.list_keys():
+    if not k["rotation"]:
+        aws.enable_key_rotation(k["id"])</pre>`,
+    task: `Enable rotation on all keys currently missing it. Afterwards every key must have rotation on.`,
+    starter: `# enable rotation where missing\n`,
+    check: `
+_left = [k["id"] for k in aws.list_keys() if not k["rotation"]]
+if not _left:
+    _passed = True; _feedback = "All keys now auto-rotate. 🔄"
+else:
+    _feedback = f"Still not rotating: {_left}. Loop and call aws.enable_key_rotation(id)."
+`,
+    hints: ["Loop the keys.", "if not k['rotation']: aws.enable_key_rotation(k['id'])"],
+    solution: `for k in aws.list_keys():\n    if not k["rotation"]:\n        aws.enable_key_rotation(k["id"])\nprint("rotation enabled")`,
+  },
+  {
+    id: "l84", world: "w17", title: "Over-Shared Keys", xp: 130,
+    story: `A KMS key whose policy allows everyone to use it undoes the encryption. Flag them.`,
+    concept: `The <code>public</code> flag means the key policy grants usage broadly (e.g., Principal <code>*</code>).`,
+    task: `Build <code>public_keys</code> — ids of keys where <code>public</code> is True (expect <code>['key-legacy']</code>).`,
+    starter: `# find over-shared KMS keys\n`,
+    check: `
+if 'public_keys' not in globals():
+    _feedback = "Create public_keys."
+elif sorted(public_keys) == ["key-legacy"]:
+    _passed = True; _feedback = "Over-shared key caught — tighten that key policy. 🗝️"
+else:
+    _feedback = f"Expected ['key-legacy'], got {public_keys}."
+`,
+    hints: ["Filter on k['public'].", "public_keys = [k['id'] for k in aws.list_keys() if k['public']]"],
+    solution: `public_keys = [k["id"] for k in aws.list_keys() if k["public"]]\nprint(public_keys)`,
+  },
+  {
+    id: "l85", world: "w17", title: "Admins Without MFA", xp: 140,
+    story: `A privileged account without MFA is the softest target in the account. Find them.`,
+    concept: `Combine two conditions: admin AND no MFA.`,
+    task: `Build <code>admins_no_mfa</code> — names of IAM users who are <code>admin</code> but have <code>mfa</code> False (expect <code>['root-ops']</code>).`,
+    starter: `# privileged users missing MFA\n`,
+    check: `
+if 'admins_no_mfa' not in globals():
+    _feedback = "Create admins_no_mfa."
+elif sorted(admins_no_mfa) == ["root-ops"]:
+    _passed = True; _feedback = "Privileged + no MFA flagged — the highest-priority IAM fix. 🚨"
+else:
+    _feedback = f"Expected ['root-ops'], got {admins_no_mfa}."
+`,
+    hints: ["Condition: u['admin'] and not u['mfa'].", "admins_no_mfa = [u['name'] for u in aws.list_users() if u['admin'] and not u['mfa']]"],
+    solution: `admins_no_mfa = [u["name"] for u in aws.list_users() if u["admin"] and not u["mfa"]]\nprint(admins_no_mfa)`,
+  },
+  {
+    id: "l86", world: "w17", title: "BOSS: IAM/KMS Posture", xp: 280,
+    story: `🏆 Write the IAM/KMS posture scan: report non-rotating keys, over-shared keys, wildcard IAM policies, and admins without MFA — then remediate the key rotation.`,
+    concept: `Collect findings, then fix rotation:
+<pre>def iam_kms_audit(aws):
+    no_rot = sorted(k["id"] for k in aws.list_keys() if not k["rotation"])
+    public = sorted(k["id"] for k in aws.list_keys() if k["public"])
+    wildcard = sorted(p["name"] for p in aws.list_policies()
+                      if any("*" in a for a in p["actions"]))
+    admins = sorted(u["name"] for u in aws.list_users() if u["admin"] and not u["mfa"])
+    for k in aws.list_keys():
+        aws.enable_key_rotation(k["id"])
+    return {"no_rotation": no_rot, "public_keys": public,
+            "wildcard_policies": wildcard, "admins_no_mfa": admins}</pre>`,
+    task: `Write <code>iam_kms_audit(aws)</code> returning those four sorted lists and enabling rotation on all keys. Call it into <code>report</code>.`,
+    starter: `# define iam_kms_audit(aws); then report = iam_kms_audit(aws)\n`,
+    check: `
+if 'iam_kms_audit' not in globals() or not callable(iam_kms_audit):
+    _feedback = "Define iam_kms_audit(aws)."
+else:
+    _r = globals().get("report")
+    _left = [k["id"] for k in aws.list_keys() if not k["rotation"]]
+    if (isinstance(_r, dict)
+            and sorted(_r.get("no_rotation", [])) == ["key-backups", "key-legacy"]
+            and sorted(_r.get("public_keys", [])) == ["key-legacy"]
+            and sorted(_r.get("wildcard_policies", [])) == ["AdminLegacy", "BackupSvc"]
+            and sorted(_r.get("admins_no_mfa", [])) == ["root-ops"]
+            and not _left):
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. A full IAM/KMS posture audit with remediation. You're interview-ready."
+    else:
+        _feedback = f"Need no_rotation, public_keys, wildcard_policies, admins_no_mfa + all keys rotating. Got {_r}, still non-rotating={_left}."
+`,
+    hints: [
+      "Collect the four finding lists first (before remediating).",
+      "wildcard policies: any('*' in a for a in p['actions']); admins: admin and not mfa.",
+      "Then enable rotation on every key and return the dict.",
+    ],
+    solution: `def iam_kms_audit(aws):\n    no_rot = sorted(k["id"] for k in aws.list_keys() if not k["rotation"])\n    public = sorted(k["id"] for k in aws.list_keys() if k["public"])\n    wildcard = sorted(p["name"] for p in aws.list_policies() if any("*" in a for a in p["actions"]))\n    admins = sorted(u["name"] for u in aws.list_users() if u["admin"] and not u["mfa"])\n    for k in aws.list_keys():\n        aws.enable_key_rotation(k["id"])\n    return {"no_rotation": no_rot, "public_keys": public, "wildcard_policies": wildcard, "admins_no_mfa": admins}\n\nreport = iam_kms_audit(aws)\nprint(report)`,
+  },
+
+  /* ================= WORLD 18: THREAT MODELING ================= */
+  {
+    id: "l87", world: "w18", title: "Spoofing Risk", xp: 120,
+    story: `🧩 Threat modeling with STRIDE. Each component in <code>components</code> has security attributes — flag the ones open to each threat. Start with Spoofing (missing authentication).`,
+    concept: `<b>S</b>poofing is countered by <b>authentication</b>. A component with <code>authenticated=False</code> is exposed to identity spoofing.
+<pre>for c in components:
+    c["name"], c["authenticated"], c["encrypted"], c["validates_input"], c["logs"]</pre>`,
+    task: `Build <code>spoofing</code> — names of components where <code>authenticated</code> is False (expect <code>['legacy-admin', 'public-cdn']</code>).`,
+    starter: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\n# spoofing = components lacking authentication\n`,
+    check: `
+if 'spoofing' not in globals():
+    _feedback = "Create spoofing."
+elif sorted(spoofing) == ["legacy-admin", "public-cdn"]:
+    _passed = True; _feedback = "Spoofing exposure mapped — authentication is the control. 🧩"
+else:
+    _feedback = f"Expected ['legacy-admin','public-cdn'], got {spoofing}."
+`,
+    hints: ["Filter not c['authenticated'].", "spoofing = [c['name'] for c in components if not c['authenticated']]"],
+    solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nspoofing = [c["name"] for c in components if not c["authenticated"]]\nprint(spoofing)`,
+  },
+  {
+    id: "l88", world: "w18", title: "Tampering & Disclosure", xp: 120,
+    story: `<b>T</b>ampering and <b>I</b>nformation disclosure are both countered by encryption (integrity + confidentiality in transit/at rest).`,
+    concept: `A component with <code>encrypted=False</code> is exposed to tampering and eavesdropping.`,
+    task: `Build <code>unencrypted</code> — names of components where <code>encrypted</code> is False (expect <code>['legacy-admin']</code>).`,
+    starter: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\n# unencrypted = components without encryption\n`,
+    check: `
+if 'unencrypted' not in globals():
+    _feedback = "Create unencrypted."
+elif sorted(unencrypted) == ["legacy-admin"]:
+    _passed = True; _feedback = "Tampering/disclosure exposure mapped — encrypt in transit and at rest. 🔏"
+else:
+    _feedback = f"Expected ['legacy-admin'], got {unencrypted}."
+`,
+    hints: ["Filter not c['encrypted'].", "unencrypted = [c['name'] for c in components if not c['encrypted']]"],
+    solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nunencrypted = [c["name"] for c in components if not c["encrypted"]]\nprint(unencrypted)`,
+  },
+  {
+    id: "l89", world: "w18", title: "Elevation via Injection", xp: 130,
+    story: `<b>E</b>levation of privilege often rides in through unvalidated input (injection). Flag components that don't validate input.`,
+    concept: `Missing input validation (<code>validates_input=False</code>) opens injection → potential privilege escalation.`,
+    task: `Build <code>injectable</code> — names of components where <code>validates_input</code> is False (expect <code>['legacy-admin', 'payment-svc']</code>).`,
+    starter: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\n# injectable = components not validating input\n`,
+    check: `
+if 'injectable' not in globals():
+    _feedback = "Create injectable."
+elif sorted(injectable) == ["legacy-admin", "payment-svc"]:
+    _passed = True; _feedback = "Injection surface mapped — validate and sanitize all input. 💉"
+else:
+    _feedback = f"Expected ['legacy-admin','payment-svc'], got {injectable}."
+`,
+    hints: ["Filter not c['validates_input'].", "injectable = [c['name'] for c in components if not c['validates_input']]"],
+    solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\ninjectable = [c["name"] for c in components if not c["validates_input"]]\nprint(injectable)`,
+  },
+  {
+    id: "l90", world: "w18", title: "Repudiation Gaps", xp: 120,
+    story: `<b>R</b>epudiation — "I didn't do it" — is countered by logging/audit. Find components that don't log.`,
+    concept: `No logging (<code>logs=False</code>) means no accountability or forensic trail.`,
+    task: `Build <code>no_logging</code> — names of components where <code>logs</code> is False (expect <code>['legacy-admin']</code>).`,
+    starter: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\n# no_logging = components without logging\n`,
+    check: `
+if 'no_logging' not in globals():
+    _feedback = "Create no_logging."
+elif sorted(no_logging) == ["legacy-admin"]:
+    _passed = True; _feedback = "Repudiation gap mapped — log security-relevant actions. 📜"
+else:
+    _feedback = f"Expected ['legacy-admin'], got {no_logging}."
+`,
+    hints: ["Filter not c['logs'].", "no_logging = [c['name'] for c in components if not c['logs']]"],
+    solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nno_logging = [c["name"] for c in components if not c["logs"]]\nprint(no_logging)`,
+  },
+  {
+    id: "l91", world: "w18", title: "BOSS: STRIDE Threat Model", xp: 300,
+    story: `🏆 The grand finale. Produce a full STRIDE threat model: for each threat class, list the exposed components, and give each component a risk score (number of controls it's missing).`,
+    concept: `Map every STRIDE-relevant gap and score risk:
+<pre>def threat_model(components):
+    return {
+        "spoofing":   sorted(c["name"] for c in components if not c["authenticated"]),
+        "tampering":  sorted(c["name"] for c in components if not c["encrypted"]),
+        "injection":  sorted(c["name"] for c in components if not c["validates_input"]),
+        "repudiation":sorted(c["name"] for c in components if not c["logs"]),
+        "risk": {c["name"]: [c["authenticated"], c["encrypted"],
+                 c["validates_input"], c["logs"]].count(False)
+                 for c in components},
+    }</pre>`,
+    task: `Write <code>threat_model(components)</code> returning the four threat lists (sorted) plus a <code>risk</code> dict of name → count of missing controls. Call it into <code>model</code>.`,
+    starter: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\n# define threat_model(components); then model = threat_model(components)\n`,
+    check: `
+if 'threat_model' not in globals() or not callable(threat_model):
+    _feedback = "Define threat_model(components)."
+else:
+    _m = globals().get("model")
+    _ok = (isinstance(_m, dict)
+           and sorted(_m.get("spoofing", [])) == ["legacy-admin", "public-cdn"]
+           and sorted(_m.get("tampering", [])) == ["legacy-admin"]
+           and sorted(_m.get("injection", [])) == ["legacy-admin", "payment-svc"]
+           and sorted(_m.get("repudiation", [])) == ["legacy-admin"]
+           and isinstance(_m.get("risk"), dict)
+           and _m["risk"].get("legacy-admin") == 4
+           and _m["risk"].get("login-api") == 0
+           and _m["risk"].get("payment-svc") == 1
+           and _m["risk"].get("public-cdn") == 1)
+    if _ok:
+        _passed = True; _feedback = "🏆 FINAL BOSS DEFEATED. A complete STRIDE threat model with risk scoring. You've mastered secure design — go ace that interview. 🎓"
+    else:
+        _feedback = f"Need the four STRIDE lists + a risk dict (missing-control counts: legacy-admin=4, payment-svc=1, public-cdn=1, login-api=0). Got {_m}."
+`,
+    hints: [
+      "Reuse your four filters for the threat lists.",
+      "Risk = count of False among [authenticated, encrypted, validates_input, logs].",
+      'Return a dict with spoofing/tampering/injection/repudiation + a risk sub-dict.',
+    ],
+    solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\ndef threat_model(components):\n    return {\n        "spoofing": sorted(c["name"] for c in components if not c["authenticated"]),\n        "tampering": sorted(c["name"] for c in components if not c["encrypted"]),\n        "injection": sorted(c["name"] for c in components if not c["validates_input"]),\n        "repudiation": sorted(c["name"] for c in components if not c["logs"]),\n        "risk": {c["name"]: [c["authenticated"], c["encrypted"], c["validates_input"], c["logs"]].count(False) for c in components},\n    }\n\nmodel = threat_model(components)\nprint(model)`,
   },
 ];
 
