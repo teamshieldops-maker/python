@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Security Quest 🛡️</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <div class="title">Network Security Quest</div>
+        <div class="subtitle">Learn network security by doing — firewalls, subnets, zero trust & threat detection</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="level-badge"><span class="lv-label">LVL</span><span id="level-num">1</span></div>
+      <div class="xp-wrap">
+        <div class="xp-top"><span>⭐ <b id="xp-total">0</b> XP</span><span id="progress-count" class="muted">0 / 28 quests</span></div>
+        <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
+        <div class="xp-sub"><span id="xp-into">0 / 200</span> to next level</div>
+      </div>
+      <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-title">🗺️ Quest Map</div>
+      <div id="nav"></div>
+    </aside>
+    <main id="lesson" class="lesson-panel"></main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="engine.js"></script>
+  <script src="lessons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
