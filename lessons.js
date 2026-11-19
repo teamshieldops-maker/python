@@ -994,6 +994,30 @@ else:
   /* ================= WORLD 5: INTUNE SIMULATOR ================= */
   {
     id: "l21", world: "w5", title: "Meet the Portal", xp: 90,
+    deepDive: `The simulator hands you an <code>intune</code> object that behaves like a real device-management SDK. Reading inventory is always step one of automation — you can't act on what you haven't enumerated.
+<pre>intune.list_devices()      # -> list of device dicts (the fleet)
+intune.get_device("DEV-001")  # one device by id
+# each device dict: id, name, os, compliant, managed, owner, lastSeen, tags</pre>
+<p>This mirrors Microsoft Graph's <code>deviceManagement/managedDevices</code> collection, where each managed device is a JSON object you read and then act on.</p>`,
+    examples: [
+      `<b>Count the fleet:</b> <code>len(intune.list_devices())</code>.`,
+      `<b>Inspect one:</b> <code>intune.get_device("DEV-001")["compliant"]</code> → its compliance state.`,
+    ],
+    pitfalls: [
+      `<code>list_devices()</code> returns the live objects — mutating a returned dict changes state. Prefer the provided methods (<code>add_tag</code>, etc.) for clean, audited changes.`,
+      `Treat inventory as the <i>system of record</i>: read first, decide, then write.`,
+      `Device <b>id</b> (DEV-001) is the stable handle; the <b>name</b> is for humans and can change.`,
+    ],
+    why: `Every Intune/Graph automation starts by listing devices and filtering. "How would you pull all managed devices and act on a subset?" is the exact interview task this builds toward.`,
+    keyPoints: [
+      "Automation step 1 = enumerate inventory (list_devices).",
+      "Each device is a dict; the id is the stable handle.",
+      "Mirrors Graph deviceManagement/managedDevices.",
+    ],
+    references: [
+      { title: "Microsoft Graph — managedDevice resource", url: "https://learn.microsoft.com/en-us/graph/api/resources/intune-devices-manageddevice" },
+      { title: "Microsoft Graph overview", url: "https://learn.microsoft.com/en-us/graph/overview" },
+    ],
     story: `🖥️ Now it gets real. A live object <code>intune</code> holds your fleet — and the panel below shows it. Let's read it.`,
     concept: `The simulator gives you <code>intune</code>:
 <pre>intune.list_devices()      # list of device dicts
@@ -1016,6 +1040,29 @@ else:
   },
   {
     id: "l22", world: "w5", title: "Apply a Tag (for real)", xp: 110,
+    deepDive: `Reading is safe; <b>writing</b> is where automation earns its keep. <code>add_tag</code> performs a mutation and records it in an audit trail:
+<pre>intune.add_tag("DEV-001", "corporate")   # idempotent: no duplicate tag
+intune.get_device("DEV-001")["tags"]      # -> [..., "corporate"]</pre>
+<p>In real Intune this maps to updating a device's category/attributes via a Graph <code>PATCH</code> (or an assignment). The key property to design for is <b>idempotency</b> — running it twice shouldn't create duplicates or errors.</p>`,
+    examples: [
+      `<b>Apply then verify:</b> add the tag, then read the device back and confirm it's present — the write/verify loop.`,
+      `<b>Idempotent by design:</b> calling <code>add_tag</code> again with the same tag is a no-op, so reruns are safe.`,
+    ],
+    pitfalls: [
+      `Target by <b>id</b>, not display name — names aren't guaranteed unique or stable.`,
+      `Assuming a write succeeded without verifying — check the result or re-read the object.`,
+      `Non-idempotent writes (blind appends) create duplicates when a job re-runs after a failure.`,
+    ],
+    why: `"Write code that applies a tag/category to a device" is a literal Intune interview task. Doing it idempotently and verifying the result is what separates a script from production automation.`,
+    keyPoints: [
+      "Use the SDK method to mutate (audited), not raw dict edits.",
+      "Design writes to be idempotent (safe to re-run).",
+      "Target devices by id; verify the change.",
+    ],
+    references: [
+      { title: "Microsoft Graph — Update managedDevice", url: "https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-update" },
+      { title: "Idempotency (REST)", url: "https://developer.mozilla.org/en-US/docs/Glossary/Idempotent" },
+    ],
     story: `This is the interview moment: write code, run it, and watch the tag <b>appear on the device</b> in the portal below. ✨`,
     concept: `<pre>intune.add_tag("DEV-001", "corporate")</pre>
 After you run it, look at LAPTOP-01 (DEV-001) in the portal — the <code>corporate</code> chip lights up.`,
@@ -1033,6 +1080,30 @@ else:
   },
   {
     id: "l23", world: "w5", title: "Bulk Tag by Rule", xp: 120,
+    deepDive: `Bulk automation = <b>enumerate → filter → act</b>. Loop the fleet, test a condition, call the write for matches:
+<pre>for d in intune.list_devices():
+    if not d["compliant"]:
+        intune.add_tag(d["id"], "review")</pre>
+<p>This same shape scales from 3 to 300,000 devices. In the real world you'd add <b>batching</b> (Graph supports <code>$batch</code>) and <b>throttling</b> awareness so you don't hammer the API.</p>`,
+    examples: [
+      `<b>Rule-based tagging:</b> tag all non-compliant devices "review"; tag all BYOD (unmanaged) "byod".`,
+      `<b>Dry run first:</b> print the devices that <i>would</i> be changed before actually writing — a safe operational habit.`,
+    ],
+    pitfalls: [
+      `Over-broad conditions tag the wrong devices — scope the filter precisely and dry-run it.`,
+      `At real scale, unbatched per-device calls hit rate limits (HTTP 429) — batch and back off (you'll cover 429 in World 6).`,
+      `No logging of what changed makes rollback impossible — record each action.`,
+    ],
+    why: `This <i>is</i> the day-to-day endpoint-automation job and a classic take-home: "tag/remediate every device matching a policy." Interviewers look for precise filtering + scale-awareness.`,
+    keyPoints: [
+      "Pattern: enumerate → filter → act, in a loop.",
+      "Scales unchanged; add batching/throttling at real scale.",
+      "Dry-run and log changes for safety/rollback.",
+    ],
+    references: [
+      { title: "Microsoft Graph — JSON batching ($batch)", url: "https://learn.microsoft.com/en-us/graph/json-batching" },
+      { title: "Microsoft Graph — Throttling guidance", url: "https://learn.microsoft.com/en-us/graph/throttling" },
+    ],
     story: `Nobody tags 10,000 devices by hand. Loop the fleet and tag by a rule.`,
     concept: `Combine a loop + condition + the API:
 <pre>for d in intune.list_devices():
@@ -1056,6 +1127,28 @@ else:
   },
   {
     id: "l24", world: "w5", title: "Remediate Compliance", xp: 110,
+    deepDive: `Detection finds the problem; <b>remediation</b> fixes it. Here you flip a device's state directly:
+<pre>intune.set_compliance("DEV-003", True)</pre>
+<p><b>Real-world nuance (important for interviews):</b> in actual Intune you don't usually "set compliant = true" by hand — compliance is <i>evaluated</i> against compliance policies (encryption on, OS version, passcode, etc.). Remediation means fixing the <i>underlying</i> setting (or triggering a remediation script), after which the device re-evaluates as compliant. The simulator simplifies this to one call so you can focus on the automation flow.</p>`,
+    examples: [
+      `<b>Fix then confirm:</b> set compliance, then read the device back and check the badge flipped to compliant.`,
+      `<b>Remediation script pattern:</b> detect non-compliant → run fix (e.g., enable BitLocker) → re-check — the loop real tools follow.`,
+    ],
+    pitfalls: [
+      `Don't conflate the simulator's direct flip with real Intune — there, state is policy-driven, not directly settable.`,
+      `Remediating the symptom (marking compliant) without fixing the cause is a real-world anti-pattern.`,
+      `Always verify post-remediation state rather than assuming success.`,
+    ],
+    why: `"Walk me through detect-and-remediate" is a core SecOps question. Knowing that Intune compliance is policy-evaluated (not hand-set) shows real platform understanding.`,
+    keyPoints: [
+      "Remediation = fix the cause, then re-evaluate.",
+      "Real Intune compliance is policy-driven, not directly set.",
+      "Verify the state after remediating.",
+    ],
+    references: [
+      { title: "Intune — Device compliance policies", url: "https://learn.microsoft.com/en-us/mem/intune/protect/device-compliance-get-started" },
+      { title: "Intune — Remediations", url: "https://learn.microsoft.com/en-us/mem/intune/fundamentals/remediations" },
+    ],
     story: `IPHONE-22 (DEV-003) got fixed. Flip it to compliant and watch its badge turn green below.`,
     concept: `<pre>intune.set_compliance("DEV-003", True)</pre>`,
     task: `Set device <code>"DEV-003"</code> to compliant (True).`,
@@ -1072,6 +1165,32 @@ else:
   },
   {
     id: "l25", world: "w5", title: "Hunt Stale Devices", xp: 140,
+    deepDive: `Stale devices (not checked in for weeks) are a real risk — lost/forgotten hardware still holding access. Combine <b>date parsing</b> + <b>loop</b> + <b>write</b>:
+<pre>from datetime import datetime
+for d in intune.list_devices():
+    seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()
+    if (NOW - seen).days > 30:
+        intune.add_tag(d["id"], "stale")</pre>
+<p><code>NOW</code> is provided as "today". Parse the stored date string, subtract to get a <code>timedelta</code>, and threshold on <code>.days</code>.</p>`,
+    examples: [
+      `<b>30-day threshold:</b> a device last seen 43 days ago → tagged stale; one seen yesterday → left alone.`,
+      `<b>Escalate by age:</b> >30 days "stale", >90 days "offboard-candidate" — tiered policy via multiple thresholds.`,
+    ],
+    pitfalls: [
+      `<code>strptime</code> format must match the string exactly ("%Y-%m-%d") or it raises ValueError.`,
+      `Timezones: real lastSync is UTC ISO-8601 — normalize before comparing (this sim uses plain dates).`,
+      `Boundary bugs: decide clearly whether "exactly 30 days" counts (use > vs >=).`,
+    ],
+    why: `Stale-device and dormant-account cleanup is a recurring hygiene task and a favorite "automate this" interview prompt — it tests date math + enumeration + action together.`,
+    keyPoints: [
+      "Parse stored dates with strptime, compare to NOW, threshold on .days.",
+      "Real timestamps are UTC ISO-8601 — normalize before math.",
+      "Tier thresholds (30/90 days) for graduated response.",
+    ],
+    references: [
+      { title: "Python docs — datetime", url: "https://docs.python.org/3/library/datetime.html" },
+      { title: "Intune — Filter by last check-in / clean up devices", url: "https://learn.microsoft.com/en-us/mem/intune/remote-actions/devices-wipe" },
+    ],
     story: `Stale devices (not seen in 30+ days) are a security risk. Find and tag them — real date math on live data.`,
     concept: `Each device has <code>lastSeen</code> like <code>"2026-09-15"</code>. Parse it and compare to <code>NOW</code> (already defined as today):
 <pre>from datetime import datetime
@@ -1098,6 +1217,31 @@ else:
   },
   {
     id: "l26", world: "w5", title: "Export a CSV Report", xp: 120,
+    deepDive: `Reporting turns data into something a human (or Excel) consumes. The shape is a header row plus one row per record:
+<pre>report = ["deviceName,compliant"]
+for d in intune.list_devices():
+    report.append(f"{d['name']},{d['compliant']}")
+"\\n".join(report)   # the CSV text</pre>
+<p><b>Production note:</b> hand-joining with commas breaks if a field itself contains a comma or quote. Real code uses the <code>csv</code> module (<code>csv.writer</code>) which handles quoting/escaping correctly.</p>`,
+    examples: [
+      `<b>Manual (fine for simple data):</b> header + <code>f"{name},{compliant}"</code> rows, joined by newlines.`,
+      `<b>Robust:</b> <code>import csv, io; w = csv.writer(buf); w.writerow(["deviceName","compliant"])</code> — safe for any field content.`,
+    ],
+    pitfalls: [
+      `Hand-built CSV corrupts when a value contains <code>,</code> <code>"</code> or a newline — use the <code>csv</code> module for real exports.`,
+      `Forgetting the header row, or column order drifting between rows.`,
+      `Encoding: write files as UTF-8 and open with <code>newline=""</code> to avoid blank lines on Windows.`,
+    ],
+    why: `Exporting inventory/compliance to CSV for management or audit is a constant ask. Knowing when the stdlib <code>csv</code> module is required (quoting) shows production maturity.`,
+    keyPoints: [
+      "CSV = header row + one row per record.",
+      "Use the csv module for anything with commas/quotes/newlines.",
+      "UTF-8 + newline='' when writing files.",
+    ],
+    references: [
+      { title: "Python docs — csv module", url: "https://docs.python.org/3/library/csv.html" },
+      { title: "RFC 4180 — CSV format", url: "https://datatracker.ietf.org/doc/html/rfc4180" },
+    ],
     story: `Management wants a report. Build CSV rows from the live fleet.`,
     concept: `Build a list of lines, header first:
 <pre>report = ["deviceName,compliant"]
@@ -1125,6 +1269,30 @@ else:
   /* ================= WORLD 6: GRAPH API ================= */
   {
     id: "l27", world: "w6", title: "Get a Token", xp: 110,
+    deepDive: `Graph is a REST API protected by OAuth 2.0. For unattended automation you use the <b>client credentials</b> flow: an app registration (with <code>client_id</code>, a <code>client_secret</code> or certificate, and the <code>tenant_id</code>) exchanges those for a short-lived <b>bearer access token</b>.
+<pre>token = graph.authenticate(client_id, client_secret, tenant_id)
+# real: POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token
+#       scope = https://graph.microsoft.com/.default</pre>
+<p>You then send <code>Authorization: Bearer &lt;token&gt;</code> on every request. No token → HTTP 401. Tokens expire (≈1 hour), so long jobs must refresh.</p>`,
+    examples: [
+      `<b>App-only vs delegated:</b> client credentials = <i>app-only</i> (no user, runs headless) with application permissions + admin consent.`,
+      `<b>Scope:</b> app-only uses <code>/.default</code>, which grants the app permissions configured on the registration.`,
+    ],
+    pitfalls: [
+      `<b>Never hardcode the client secret</b> — load from a secrets manager/Key Vault or use a certificate / managed identity.`,
+      `Tokens expire — cache and refresh; don't re-auth on every call, but do handle expiry.`,
+      `Wrong tenant or missing admin consent → auth/permission failures that look like 401/403.`,
+    ],
+    why: `"How does an unattended script authenticate to Graph?" is a standard Intune-automation question. The crisp answer — client credentials flow, bearer token, secret in a vault — signals real experience.`,
+    keyPoints: [
+      "Client credentials flow = app-only, headless auth.",
+      "Exchange client_id/secret/tenant for a short-lived bearer token.",
+      "Secrets live in a vault/cert/managed identity, never in code.",
+    ],
+    references: [
+      { title: "Graph — Get access without a user (client credentials)", url: "https://learn.microsoft.com/en-us/graph/auth-v2-service" },
+      { title: "Microsoft identity platform — OAuth client credentials", url: "https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow" },
+    ],
     story: `🌐 Real Graph calls need auth first (OAuth2 client credentials). No token = 401.`,
     concept: `<pre>token = graph.authenticate(client_id, client_secret, tenant_id)</pre>
 In real life you'd POST to the token endpoint; here <code>graph.authenticate</code> simulates it and stores the token on the client.`,
@@ -1143,6 +1311,32 @@ else:
   },
   {
     id: "l28", world: "w6", title: "Your First GET", xp: 120,
+    deepDive: `A GET retrieves data. Check the status, then parse the JSON body. Graph returns collections under a <code>"value"</code> array:
+<pre>resp = graph.get(url)
+resp.status_code      # 200 OK (401 if unauthenticated)
+data = resp.json()    # dict
+data["value"]         # list of records
+data["value"][0]["deviceName"]</pre>
+<p>This <code>resp.status_code</code> / <code>resp.json()</code> shape is exactly how the popular <code>requests</code> library works, so the skill transfers directly to real code.</p>`,
+    examples: [
+      `<b>First record:</b> <code>data["value"][0]["deviceName"]</code> after a GET on managedDevices.`,
+      `<b>Query shaping (real Graph):</b> <code>?$select=deviceName,complianceState&$filter=complianceState eq 'noncompliant'</code> cuts payload and server-side filters.`,
+    ],
+    pitfalls: [
+      `Not checking <code>status_code</code> before calling <code>.json()</code> — an error body isn't the shape you expect.`,
+      `Assuming the top level is a list — Graph wraps collections in <code>{"value": [...]}</code>.`,
+      `Pulling every field; use <code>$select</code> to request only what you need (faster, cheaper).`,
+    ],
+    why: `Reading Graph/Intune data is the single most common automation task. The status-check + <code>value</code>-array pattern (and $select/$filter) is bread-and-butter interview material.`,
+    keyPoints: [
+      "GET → check status_code → resp.json().",
+      "Graph collections live under the 'value' key.",
+      "Use $select/$filter to shape results server-side.",
+    ],
+    references: [
+      { title: "Graph — Use query parameters ($select, $filter)", url: "https://learn.microsoft.com/en-us/graph/query-parameters" },
+      { title: "requests — Quickstart (status/json)", url: "https://requests.readthedocs.io/en/latest/user/quickstart/" },
+    ],
     story: `Call the managedDevices endpoint and read the JSON — the real Intune-via-Graph pattern.`,
     concept: `<pre>resp = graph.get(url)
 resp.status_code      # 200
@@ -1160,6 +1354,34 @@ else:
   },
   {
     id: "l29", world: "w6", title: "Follow the Pages", xp: 160,
+    deepDive: `Graph returns large collections in <b>pages</b>. A page includes an <code>@odata.nextLink</code> URL if more data exists; you keep requesting it until it's gone:
+<pre>all_names = []
+url = START_URL
+while url:
+    data = graph.get(url).json()
+    for d in data["value"]:
+        all_names.append(d["deviceName"])
+    url = data.get("@odata.nextLink")   # None ends the loop</pre>
+<p>This is <i>the</i> classic trap: naive code reads only the first page and silently misses most of the fleet.</p>`,
+    examples: [
+      `<b>Follow the loop:</b> page 1 returns 3 devices + a nextLink; page 2 returns 3 more + a nextLink; page 3 returns the rest with no nextLink → loop ends with all collected.`,
+      `<b>Real Graph:</b> default page sizes vary by resource; never assume one GET returns everything.`,
+    ],
+    pitfalls: [
+      `<b>Only reading page 1</b> — the #1 real bug; your report is quietly incomplete.`,
+      `Infinite loop if you forget to reassign <code>url = data.get("@odata.nextLink")</code>.`,
+      `Don't hand-build the next URL — always use the server-provided <code>nextLink</code> verbatim.`,
+    ],
+    why: `Pagination is the most common thing engineers get wrong with Graph, so interviewers probe it specifically. Showing the <code>while nextLink</code> loop proves you've worked at real scale.`,
+    keyPoints: [
+      "Loop: GET → collect value → follow @odata.nextLink until None.",
+      "Never assume one page = all data.",
+      "Use the server's nextLink URL as-is.",
+    ],
+    references: [
+      { title: "Microsoft Graph — Paging through a collection", url: "https://learn.microsoft.com/en-us/graph/paging" },
+      { title: "OData — Server-driven paging", url: "https://learn.microsoft.com/en-us/graph/query-parameters#odatanextlink" },
+    ],
     story: `Graph returns results in pages. Miss the <code>@odata.nextLink</code> and you only see the first few devices — a classic interview trap.`,
     concept: `Keep requesting the next link until it's gone:
 <pre>all_names = []
@@ -1184,6 +1406,29 @@ else:
   },
   {
     id: "l30", world: "w6", title: "PATCH an Update", xp: 140,
+    deepDive: `HTTP verbs map to intent: <b>GET</b> read, <b>POST</b> create, <b>PATCH</b> partial update, <b>PUT</b> replace, <b>DELETE</b> remove. To change a field you PATCH just that field:
+<pre>resp = graph.patch(url, json={"complianceState": "compliant"})
+resp.status_code     # 204 No Content = success, empty body</pre>
+<p>Graph typically answers a successful PATCH with <b>204 No Content</b> — so there's nothing to <code>.json()</code>. Writes need the right <i>write</i> permission/scope on the app registration.</p>`,
+    examples: [
+      `<b>Partial update:</b> PATCH sends only the keys you want changed; untouched fields stay as-is.`,
+      `<b>Check the code, not the body:</b> treat <code>204</code> (or <code>200</code>) as success; don't parse an empty 204 body.`,
+    ],
+    pitfalls: [
+      `Calling <code>.json()</code> on a 204 response errors — there's no body.`,
+      `Wrong resource id → <b>404</b>; missing write scope → <b>403</b>. Distinguish these from 401 (no/expired token).`,
+      `PATCH vs PUT: PATCH merges a few fields, PUT replaces the whole object — don't accidentally wipe fields.`,
+    ],
+    why: `Write-back (PATCH) closes the loop from "detect" to "fix." Interviewers check you know the verb semantics and that 204 means success with no body.`,
+    keyPoints: [
+      "PATCH = partial update; success is often 204 (no body).",
+      "GET/POST/PATCH/PUT/DELETE map to read/create/update/replace/delete.",
+      "401 = auth, 403 = scope, 404 = wrong id.",
+    ],
+    references: [
+      { title: "Graph — Update managedDevice", url: "https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-update" },
+      { title: "MDN — HTTP request methods", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods" },
+    ],
     story: `Reading is half the job. Write a change back with PATCH and confirm the 204.`,
     concept: `<pre>resp = graph.patch(url, json={"complianceState": "compliant"})
 resp.status_code   # 204 = success, no content</pre>`,
@@ -1201,6 +1446,33 @@ else:
   },
   {
     id: "l31", world: "w6", title: "Survive Rate Limits", xp: 170,
+    deepDive: `APIs protect themselves by <b>throttling</b>: when you send too many requests, Graph replies <b>HTTP 429 Too Many Requests</b> with a <code>Retry-After</code> header telling you how long to wait. Resilient code retries with <b>exponential backoff</b>:
+<pre>for attempt in range(5):
+    resp = graph.flaky_get(url)
+    if resp.status_code == 200:
+        break
+    wait = int(resp.headers.get("Retry-After", 2 ** attempt))  # honor server, else back off
+    # time.sleep(wait)   # real code sleeps; add random "jitter" too</pre>
+<p>Backoff grows the wait each try (1s, 2s, 4s…); <b>jitter</b> (a little randomness) stops many clients retrying in lockstep (the "thundering herd").</p>`,
+    examples: [
+      `<b>Retry loop:</b> the simulator's endpoint returns 429 twice then 200 — loop until you get the 200.`,
+      `<b>Backoff schedule:</b> 1s → 2s → 4s → 8s, each optionally + a random fraction (jitter).`,
+    ],
+    pitfalls: [
+      `Ignoring <code>Retry-After</code> and hammering immediately — you get throttled harder (or banned).`,
+      `No retry cap → a down service makes your job loop forever; always bound attempts.`,
+      `No jitter means synchronized clients all retry at once and re-overload the API.`,
+    ],
+    why: `Handling 429 with backoff+jitter is the mark of production-grade API code and a frequent system-design/coding question. It's the difference between a demo and a reliable job.`,
+    keyPoints: [
+      "429 = throttled; honor the Retry-After header.",
+      "Retry with exponential backoff + jitter, and a max attempt cap.",
+      "Resilience, not just correctness, is what ships.",
+    ],
+    references: [
+      { title: "Microsoft Graph — Throttling & 429 handling", url: "https://learn.microsoft.com/en-us/graph/throttling" },
+      { title: "AWS Architecture Blog — Exponential backoff and jitter", url: "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" },
+    ],
     story: `Graph throttles you with HTTP 429. Production code retries instead of failing. <code>graph.flaky_get</code> returns 429 twice, then 200.`,
     concept: `Retry in a loop until success (or you run out of tries):
 <pre>for attempt in range(5):
