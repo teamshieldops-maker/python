@@ -90,6 +90,24 @@ function checkLesson(lesson) {
       feedback: `Flow "${b.flow.desc}" should be ${b.flow.expect.toUpperCase()} but your rules make it ${b.result.toUpperCase()}. (${bad.length} flow${bad.length > 1 ? "s" : ""} off.)`,
     };
   }
+
+  if (lesson.kind === "l7") {
+    const text = document.getElementById("editor").value;
+    const { results, errors } = NetEngine.evaluateL7(text, lesson.requests, lesson.defaultAction);
+    if (errors.length) {
+      return { passed: false, feedback: "⚠️ " + errors[0].msg, results, errors };
+    }
+    const bad = results.filter(r => !r.correct);
+    if (bad.length === 0) {
+      return { passed: true, feedback: "✅ Every request handled correctly — solid Layer-7 policy!", results };
+    }
+    const b = bad[0];
+    return {
+      passed: false,
+      results,
+      feedback: `Request "${b.req.desc}" should be ${b.req.expect.toUpperCase()} but your rules make it ${b.result.toUpperCase()}. (${bad.length} off.)`,
+    };
+  }
   return { passed: false, feedback: "Unknown lesson type." };
 }
 
@@ -148,15 +166,21 @@ function renderLesson() {
       lesson.fields.map(f => `<label class="field"><span>${escapeHtml(f.label)}</span>
         <input id="field-${f.id}" placeholder="${escapeHtml(f.placeholder || "")}" autocomplete="off" spellcheck="false"></label>`).join("") +
       `</div>`;
-  } else if (lesson.kind === "firewall") {
+  } else if (lesson.kind === "firewall" || lesson.kind === "l7") {
+    const fname = lesson.kind === "l7" ? "waf.rules" : "firewall.rules";
     inputHtml = `<div class="editor-wrap">
-        <div class="editor-bar"><span>firewall.rules</span>
+        <div class="editor-bar"><span>${fname}</span>
           <button id="reset-btn" class="mini-btn" title="Reset">↺ reset</button></div>
         <textarea id="editor" spellcheck="false"></textarea>
       </div>`;
   }
 
-  const primaryLabel = lesson.kind === "firewall" ? "▶ Run traffic" : "✓ Check answer";
+  const primaryLabel = lesson.kind === "firewall" ? "▶ Run traffic"
+    : lesson.kind === "l7" ? "▶ Run requests"
+    : "✓ Check answer";
+  const simHead = lesson.kind === "l7" ? "🧪 Live Request Simulator" : "🖥️ Live Traffic Simulator";
+  const simSub = lesson.kind === "l7" ? "— runs your rules against each HTTP request"
+    : "— runs your rules against each flow";
 
   panel.innerHTML = `
     <div class="lesson-crumbs">${world.emoji} ${world.name} · Quest ${idx + 1}/${LESSONS.length}</div>
@@ -172,8 +196,8 @@ function renderLesson() {
     </div>
     <div id="hints" class="hints"></div>
     <div id="feedback" class="feedback"></div>
-    ${lesson.kind === "firewall" ? `<div class="portal">
-        <div class="portal-head">🖥️ Live Traffic Simulator <span class="portal-sub">— runs your rules against each flow</span></div>
+    ${(lesson.kind === "firewall" || lesson.kind === "l7") ? `<div class="portal">
+        <div class="portal-head">${simHead} <span class="portal-sub">${simSub}</span></div>
         <div id="topo" class="topo"></div>
       </div>` : ""}
     <div class="lesson-foot">
@@ -194,7 +218,7 @@ function renderLesson() {
       };
     });
   }
-  if (lesson.kind === "firewall") {
+  if (lesson.kind === "firewall" || lesson.kind === "l7") {
     const ed = document.getElementById("editor");
     ed.value = loadDraft(lesson.id) ?? lesson.starter ?? "";
     autoResize(ed);
@@ -202,8 +226,9 @@ function renderLesson() {
       if (e.key === "Tab") { e.preventDefault(); const s = ed.selectionStart; ed.value = ed.value.slice(0, s) + "  " + ed.value.slice(ed.selectionEnd); ed.selectionStart = ed.selectionEnd = s + 2; }
     });
     ed.addEventListener("input", () => { autoResize(ed); saveDraft(lesson.id, ed.value); });
-    document.getElementById("reset-btn").onclick = () => { ed.value = lesson.starter ?? ""; saveDraft(lesson.id, ed.value); autoResize(ed); renderTopology(lesson, null); };
-    renderTopology(lesson, null);
+    const drawSim = () => { if (lesson.kind === "l7") renderRequests(lesson, null); else renderTopology(lesson, null); };
+    document.getElementById("reset-btn").onclick = () => { ed.value = lesson.starter ?? ""; saveDraft(lesson.id, ed.value); autoResize(ed); drawSim(); };
+    drawSim();
   }
 
   document.getElementById("primary-btn").onclick = () => doCheck(lesson);
@@ -227,6 +252,7 @@ function doCheck(lesson) {
   fb.className = "feedback";
   fb.textContent = res.feedback || "";
   if (lesson.kind === "firewall") renderTopology(lesson, res.results || null);
+  if (lesson.kind === "l7") renderRequests(lesson, res.results || null);
 
   if (res.passed) {
     fb.classList.add("good");
@@ -281,6 +307,35 @@ function renderTopology(lesson, results) {
   el.innerHTML = zoneHtml + `<div class="flows">${rows}</div>`;
 }
 
+/* ---------------- request simulator (WAF / API) ---------------- */
+function renderRequests(lesson, results) {
+  const el = document.getElementById("topo");
+  if (!el) return;
+  const def = lesson.defaultAction || "allow";
+  const head = `<div class="l7-default">Default action: <span class="verdict ${def}">${def.toUpperCase()}</span> <span class="portal-sub">(unmatched requests)</span></div>`;
+  const rows = lesson.requests.map((req, i) => {
+    const r = results ? results[i] : null;
+    const actual = r ? r.result : null;
+    const mark = r ? (r.correct ? "✔" : "✘") : "";
+    const stateCls = r ? (r.correct ? "ok" : "bad") : "pending";
+    const actualBadge = actual ? `<span class="verdict ${actual}">${actual.toUpperCase()}</span>` : `<span class="verdict pending">—</span>`;
+    // show the most relevant payload field
+    const payload = req.query != null ? ("?" + req.query)
+      : req.body != null ? ('body: "' + req.body + '"')
+      : req.token !== undefined ? ("token: " + (req.token ? "present" : "none") + (req.role ? " · role: " + req.role : ""))
+      : "";
+    return `<div class="flow-row ${stateCls}">
+      <span class="flow-proto">${escapeHtml(req.method)}</span>
+      <span class="flow-path"><b>${escapeHtml(req.path)}</b> <small>${escapeHtml(payload)}</small></span>
+      <span class="flow-desc">${escapeHtml(req.desc)}</span>
+      <span class="flow-expect">want <b>${req.expect}</b></span>
+      ${actualBadge}
+      <span class="flow-mark ${stateCls}">${mark}</span>
+    </div>`;
+  }).join("");
+  el.innerHTML = head + `<div class="flows">${rows}</div>`;
+}
+
 /* ---------------- hints & solution ---------------- */
 function revealHint(lesson) {
   const shown = state.hintsShown[lesson.id] || 0;
@@ -304,10 +359,11 @@ function showSolution(lesson) {
   const box = document.createElement("div");
   box.className = "solution-box";
   const sol = lesson.solutionText || lesson.solution || "";
+  const hasEditor = lesson.kind === "firewall" || lesson.kind === "l7";
   box.innerHTML = `<div class="sol-head">✅ Answer</div><pre>${escapeHtml(sol)}</pre>` +
-    (lesson.kind === "firewall" ? `<button id="use-sol" class="mini-btn">Load into editor</button>` : "");
+    (hasEditor ? `<button id="use-sol" class="mini-btn">Load into editor</button>` : "");
   el.appendChild(box);
-  if (lesson.kind === "firewall") {
+  if (hasEditor) {
     document.getElementById("use-sol").onclick = () => {
       const ed = document.getElementById("editor");
       ed.value = lesson.solution || sol; saveDraft(lesson.id, ed.value); autoResize(ed);

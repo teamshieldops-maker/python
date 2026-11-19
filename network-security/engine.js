@@ -124,9 +124,72 @@
     return { results, errors, rules };
   }
 
+  /* ---------------- Layer-7 engine (WAF / API gateway) ---------------- */
+  // Rule syntax:
+  //   <action>                                  (unconditional catch-all)
+  //   <action> when <field> <op> [value...]
+  // action: allow | block
+  // field : method | path | query | body | role | token | ip | header:<name>
+  // op    : eq | contains | matches | present | missing
+  const L7_ACTIONS = ["allow", "block"];
+  const L7_OPS = ["eq", "contains", "matches", "present", "missing"];
+
+  function parseL7Rules(text) {
+    const rules = [];
+    const errors = [];
+    String(text || "").split("\n").forEach((line, i) => {
+      const raw = line.split("#")[0].trim();
+      if (!raw) return;
+      const t = raw.split(/\s+/);
+      const action = t[0].toLowerCase();
+      if (!L7_ACTIONS.includes(action)) { errors.push({ line: i + 1, msg: `Line ${i + 1}: action must be allow or block` }); return; }
+      if (t.length === 1) { rules.push({ action, cond: null, raw }); return; }
+      if (t[1].toLowerCase() !== "when") { errors.push({ line: i + 1, msg: `Line ${i + 1}: expected "when" after ${action}` }); return; }
+      const field = t[2] ? t[2].toLowerCase() : "";
+      const op = t[3] ? t[3].toLowerCase() : "";
+      const value = t.slice(4).join(" ");
+      if (!field) { errors.push({ line: i + 1, msg: `Line ${i + 1}: missing field` }); return; }
+      if (!L7_OPS.includes(op)) { errors.push({ line: i + 1, msg: `Line ${i + 1}: op must be eq/contains/matches/present/missing` }); return; }
+      if (["eq", "contains", "matches"].includes(op) && value === "") { errors.push({ line: i + 1, msg: `Line ${i + 1}: op "${op}" needs a value` }); return; }
+      rules.push({ action, cond: { field, op, value }, raw });
+    });
+    return { rules, errors };
+  }
+
+  function fieldValue(req, field) {
+    if (field.startsWith("header:")) return (req.headers || {})[field.slice(7)];
+    return req[field];
+  }
+  function matchL7(rule, req) {
+    if (!rule.cond) return true;
+    const { field, op, value } = rule.cond;
+    const fv = fieldValue(req, field);
+    const s = (fv == null ? "" : String(fv));
+    switch (op) {
+      case "eq": return s.toLowerCase() === value.toLowerCase();
+      case "contains": return s.toLowerCase().includes(value.toLowerCase());
+      case "matches": { try { return new RegExp(value, "i").test(s); } catch (e) { return false; } }
+      case "present": return fv != null && s !== "";
+      case "missing": return fv == null || s === "";
+      default: return false;
+    }
+  }
+  function evaluateL7(text, requests, defaultAction) {
+    const def = defaultAction || "allow";
+    const { rules, errors } = parseL7Rules(text);
+    const results = (requests || []).map(req => {
+      let matched = null;
+      for (const r of rules) { if (matchL7(r, req)) { matched = r; break; } }
+      const result = matched ? matched.action : def;
+      return { req, result, matchedRule: matched ? matched.raw : "(no match → default " + def + ")", correct: req.expect ? result === req.expect : null };
+    });
+    return { results, errors, rules };
+  }
+
   const api = {
     ipToInt, intToIp, parseCidr, ipInCidr, prefixForHosts,
     parseRules, matchFlow, evaluate,
+    parseL7Rules, matchL7, evaluateL7,
   };
 
   root.NetEngine = api;

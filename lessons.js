@@ -13,6 +13,9 @@ const WORLDS = [
   { id: "w5", name: "Intune Simulator",   emoji: "🖥️", blurb: "Automate a live mock Intune — watch tags apply in real time." },
   { id: "w6", name: "Graph API",          emoji: "🌐", blurb: "Auth, GET/PATCH, pagination & 429 retry — real API skills." },
   { id: "w7", name: "Security Boss",      emoji: "🛡️", blurb: "CrowdStrike triage, IOC hashing & auto-remediation." },
+  { id: "w8", name: "Advanced Python",    emoji: "🧠", blurb: "Generators, decorators, dataclasses, regex & exceptions." },
+  { id: "w9", name: "API Security",       emoji: "🔑", blurb: "JWTs, OAuth, scopes & input validation in Python." },
+  { id: "w10", name: "CI/CD & Automation", emoji: "⚙️", blurb: "Tests, retries, secret scanning & dependency checks." },
 ];
 
 const LESSONS = [
@@ -774,5 +777,351 @@ for d in intune.list_devices():
         intune.add_tag(did, "byod")`,
     ],
     solution: `from datetime import datetime\n\nfor d in intune.list_devices():\n    did = d["id"]\n    if not d["compliant"]:\n        intune.add_tag(did, "quarantine")\n    seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()\n    if (NOW - seen).days > 30:\n        intune.add_tag(did, "stale")\n    if not d["managed"]:\n        intune.add_tag(did, "byod")\nprint("remediation complete")`,
+  },
+
+  /* ================= WORLD 8: ADVANCED PYTHON ================= */
+  {
+    id: "l36", world: "w8", title: "Generators Stream Data", xp: 120,
+    story: `🧠 Processing 100k devices? Don't build a giant list — <b>yield</b> them one at a time with a generator. Memory-friendly and fast.`,
+    concept: `A function with <code>yield</code> is a generator — it produces values lazily:
+<pre>def names():
+    for d in intune.list_devices():
+        yield d["name"]
+
+list(names())   # pull them all</pre>`,
+    task: `Write a generator <code>compliant_names()</code> that yields the <code>name</code> of each <b>compliant</b> device. Then collect them into <code>names</code>.`,
+    starter: `# define the generator, then: names = list(compliant_names())\n`,
+    check: `
+if 'compliant_names' not in globals() or not callable(compliant_names):
+    _feedback = "Define a generator function compliant_names() that uses yield."
+else:
+    _exp = [d["name"] for d in intune.list_devices() if d["compliant"]]
+    _got = list(compliant_names())
+    if _got == _exp and globals().get("names") == _exp:
+        _passed = True; _feedback = "Lazy streaming with yield — scales to millions of rows. 🌊"
+    else:
+        _feedback = f"Expected {_exp}, got {_got}."
+`,
+    hints: ["Use yield inside a for-loop over intune.list_devices().", "Only yield when d['compliant'] is True.", "names = list(compliant_names())"],
+    solution: `def compliant_names():\n    for d in intune.list_devices():\n        if d["compliant"]:\n            yield d["name"]\n\nnames = list(compliant_names())\nprint(names)`,
+  },
+  {
+    id: "l37", world: "w8", title: "Decorators Wrap Logic", xp: 140,
+    story: `Want to add logging, retries, or auditing to many functions without touching each one? That's a <b>decorator</b>.`,
+    concept: `A decorator is a function that wraps another function:
+<pre>import functools
+def count_calls(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        wrapper.calls += 1
+        return fn(*args, **kwargs)
+    wrapper.calls = 0
+    return wrapper</pre>`,
+    task: `Write a decorator <code>count_calls</code> that tracks how many times a function ran via a <code>.calls</code> attribute. Decorate <code>ping()</code> and call it 3 times.`,
+    starter: `import functools\n\n# define count_calls, decorate ping, call it 3 times\n`,
+    check: `
+if 'ping' not in globals() or not callable(ping):
+    _feedback = "Define and decorate a function ping()."
+elif getattr(ping, "calls", None) == 3:
+    _passed = True; _feedback = "Reusable cross-cutting behavior — decorators are everywhere in real code. 🎁"
+else:
+    _feedback = f"ping.calls should be 3 after calling ping() three times. Got {getattr(ping, 'calls', None)}."
+`,
+    hints: ["wrapper.calls starts at 0 and += 1 each call.", "Apply with @count_calls above def ping():", "Call ping() three times at the end."],
+    solution: `import functools\n\ndef count_calls(fn):\n    @functools.wraps(fn)\n    def wrapper(*args, **kwargs):\n        wrapper.calls += 1\n        return fn(*args, **kwargs)\n    wrapper.calls = 0\n    return wrapper\n\n@count_calls\ndef ping():\n    return "pong"\n\nping()\nping()\nping()\nprint(ping.calls)`,
+  },
+  {
+    id: "l38", world: "w8", title: "Dataclasses", xp: 110,
+    story: `Dictionaries are loose. A <b>dataclass</b> gives you a typed, self-documenting object with almost no boilerplate.`,
+    concept: `<pre>from dataclasses import dataclass
+
+@dataclass
+class Device:
+    name: str
+    os: str
+    compliant: bool
+
+d = Device("LAPTOP-01", "Windows", True)
+d.name   # "LAPTOP-01"</pre>`,
+    task: `Define a <code>Device</code> dataclass with fields <code>name</code>, <code>os</code>, <code>compliant</code>. Create <code>d = Device("LAPTOP-01", "Windows", True)</code>.`,
+    starter: `from dataclasses import dataclass\n\n# define Device, then create d\n`,
+    check: `
+if 'd' not in globals():
+    _feedback = "Create an instance named d."
+elif getattr(d, "name", None) == "LAPTOP-01" and getattr(d, "os", None) == "Windows" and getattr(d, "compliant", None) is True:
+    _passed = True; _feedback = "Typed, clean objects with zero boilerplate. 🧱"
+else:
+    _feedback = "d should be Device('LAPTOP-01','Windows',True) with .name/.os/.compliant."
+`,
+    hints: ["Decorate the class with @dataclass.", "Fields use type hints: name: str", 'd = Device("LAPTOP-01", "Windows", True)'],
+    solution: `from dataclasses import dataclass\n\n@dataclass\nclass Device:\n    name: str\n    os: str\n    compliant: bool\n\nd = Device("LAPTOP-01", "Windows", True)\nprint(d)`,
+  },
+  {
+    id: "l39", world: "w8", title: "Regex on Logs", xp: 130,
+    story: `Log parsing is bread-and-butter security work. Pull every IP out of a log line with <code>re</code>.`,
+    concept: `<pre>import re
+re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", text)  # all IPv4-looking strings</pre>
+<code>\\d+</code> = digits, <code>\\.</code> = literal dot. <code>findall</code> returns every match.`,
+    task: `From <code>log</code>, extract all IPv4 addresses into <code>ips</code> (expect <code>['10.0.0.5', '192.168.1.20']</code>).`,
+    starter: `import re\nlog = "2026-11-13 login from 10.0.0.5 failed; retry from 192.168.1.20"\n\n# ips = ?\n`,
+    check: `
+if 'ips' not in globals():
+    _feedback = "Create ips."
+elif ips == ["10.0.0.5", "192.168.1.20"]:
+    _passed = True; _feedback = "Regex log-parsing unlocked — half of blue-team scripting. 🔎"
+else:
+    _feedback = f"Expected ['10.0.0.5','192.168.1.20'], got {ips}."
+`,
+    hints: ["Use re.findall with a digit-dot pattern.", 'Pattern: r"\\d+\\.\\d+\\.\\d+\\.\\d+"', 'ips = re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", log)'],
+    solution: `import re\nlog = "2026-11-13 login from 10.0.0.5 failed; retry from 192.168.1.20"\n\nips = re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", log)\nprint(ips)`,
+  },
+  {
+    id: "l40", world: "w8", title: "Custom Exceptions", xp: 120,
+    story: `Good automation fails loudly and specifically. Define your own exception type and handle it.`,
+    concept: `<pre>class ComplianceError(Exception):
+    pass
+
+def enforce(device):
+    if not device["compliant"]:
+        raise ComplianceError("device not compliant")
+    return True</pre>
+Catch it with <code>try/except ComplianceError</code>.`,
+    task: `Define <code>ComplianceError</code> and <code>enforce(device)</code> (raises it when not compliant, else returns True). Then catch it for a non-compliant device and set <code>caught = True</code>.`,
+    starter: `# define ComplianceError + enforce, then catch it\n`,
+    check: `
+if 'ComplianceError' not in globals() or not isinstance(ComplianceError, type) or not issubclass(ComplianceError, Exception):
+    _feedback = "Define a ComplianceError exception class."
+elif 'enforce' not in globals() or not callable(enforce):
+    _feedback = "Define enforce(device)."
+else:
+    try:
+        _ok = enforce({"compliant": True})
+    except Exception:
+        _ok = None
+    if _ok is True and globals().get("caught") is True:
+        _passed = True; _feedback = "Precise, catchable failures — production-grade error handling. 🧯"
+    else:
+        _feedback = "enforce(compliant) should return True, and catching a non-compliant device should set caught=True."
+`,
+    hints: ["class ComplianceError(Exception): pass", "raise ComplianceError(...) when not compliant", "Wrap enforce({'compliant': False}) in try/except ComplianceError and set caught = True"],
+    solution: `class ComplianceError(Exception):\n    pass\n\ndef enforce(device):\n    if not device["compliant"]:\n        raise ComplianceError("device not compliant")\n    return True\n\ncaught = False\ntry:\n    enforce({"compliant": False})\nexcept ComplianceError:\n    caught = True\nprint(caught)`,
+  },
+
+  /* ================= WORLD 9: API SECURITY ================= */
+  {
+    id: "l41", world: "w9", title: "Decode a JWT", xp: 130,
+    story: `🔑 APIs hand you a JWT. Its middle segment is just base64 JSON — let's read the claims.`,
+    concept: `A JWT is <code>header.payload.signature</code>. Decode the payload (segment 1) — remember base64 needs padding:
+<pre>import base64, json
+part = token.split(".")[1]
+part += "=" * (-len(part) % 4)   # fix padding
+claims = json.loads(base64.urlsafe_b64decode(part))</pre>`,
+    task: `Decode the JWT's payload into <code>claims</code> and read the <code>role</code> into <code>role</code> (expect <code>"admin"</code>).`,
+    starter: `import base64, json\ntoken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsInJvbGUiOiJhZG1pbiIsImF1ZCI6ImludHVuZS1hcGkiLCJleHAiOjk5OTk5OTk5OTl9.c2lnbmF0dXJl"\n\n# decode payload -> claims, then role\n`,
+    check: `
+if globals().get("role") == "admin" and isinstance(globals().get("claims"), dict):
+    _passed = True; _feedback = "Decoded the claims! Next lesson: why decoding ALONE is dangerous. 🔓"
+else:
+    _feedback = 'Split on ".", take index 1, pad to a multiple of 4, base64.urlsafe_b64decode, json.loads, then claims["role"].'
+`,
+    hints: ["token.split('.')[1] is the payload.", 'Pad: part += "=" * (-len(part) % 4)', 'claims = json.loads(base64.urlsafe_b64decode(part)); role = claims["role"]'],
+    solution: `import base64, json\ntoken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsInJvbGUiOiJhZG1pbiIsImF1ZCI6ImludHVuZS1hcGkiLCJleHAiOjk5OTk5OTk5OTl9.c2lnbmF0dXJl"\n\npart = token.split(".")[1]\npart += "=" * (-len(part) % 4)\nclaims = json.loads(base64.urlsafe_b64decode(part))\nrole = claims["role"]\nprint(role)`,
+  },
+  {
+    id: "l42", world: "w9", title: "Verify, Don't Trust", xp: 130,
+    story: `Decoding a JWT proves nothing — anyone can forge the payload. You must validate claims (and, really, the signature). Start with expiry + audience.`,
+    concept: `Never trust an unverified token. At minimum check it hasn't expired and is meant for your API:
+<pre>valid = claims["exp"] > now_ts and claims["aud"] == "intune-api"</pre>`,
+    task: `Given <code>claims</code> (expired!) and <code>now_ts</code>, set <code>valid</code> = token not expired AND audience is <code>"intune-api"</code>. (It should come out <code>False</code>.)`,
+    starter: `claims = {"aud": "intune-api", "exp": 1000}\nnow_ts = 2000\n\n# valid = ?\n`,
+    check: `
+if 'valid' not in globals():
+    _feedback = "Create valid."
+elif valid is False:
+    _passed = True; _feedback = "Rejected an expired token — exactly right. Decode != verify. 🛡️"
+elif valid is True:
+    _feedback = "exp (1000) is before now_ts (2000), so the token is EXPIRED — valid should be False."
+else:
+    _feedback = "valid should be a boolean from two checks: exp > now_ts AND aud == 'intune-api'."
+`,
+    hints: ["Expired means claims['exp'] <= now_ts.", "Combine with 'and'.", 'valid = claims["exp"] > now_ts and claims["aud"] == "intune-api"'],
+    solution: `claims = {"aud": "intune-api", "exp": 1000}\nnow_ts = 2000\n\nvalid = claims["exp"] > now_ts and claims["aud"] == "intune-api"\nprint(valid)`,
+  },
+  {
+    id: "l43", world: "w9", title: "Bearer Token Header", xp: 110,
+    story: `To call a protected API you attach your token as a Bearer header. Get a token, build the header.`,
+    concept: `<pre>token = graph.authenticate(client_id, secret, tenant)
+headers = {"Authorization": f"Bearer {token}"}</pre>`,
+    task: `Authenticate <code>graph</code>, then build <code>headers</code> with an <code>Authorization: Bearer &lt;token&gt;</code> entry.`,
+    starter: `# authenticate, then build the headers dict\n`,
+    check: `
+_h = globals().get("headers")
+if not isinstance(_h, dict) or "Authorization" not in _h:
+    _feedback = "Create a headers dict with an 'Authorization' key."
+elif _h["Authorization"].startswith("Bearer ") and graph.token and _h["Authorization"].endswith(graph.token):
+    _passed = True; _feedback = "Properly authenticated API call header. 🔐"
+else:
+    _feedback = 'headers = {"Authorization": f"Bearer {token}"} after graph.authenticate(...).'
+`,
+    hints: ["token = graph.authenticate('app','secret','tenant')", 'Use an f-string: f"Bearer {token}"', 'headers = {"Authorization": f"Bearer {token}"}'],
+    solution: `token = graph.authenticate("app-1234", "secret", "contoso")\nheaders = {"Authorization": f"Bearer {token}"}\nprint(headers)`,
+  },
+  {
+    id: "l44", world: "w9", title: "Check the Scope", xp: 120,
+    story: `A valid token still shouldn't do everything. Enforce least privilege by checking granted scopes.`,
+    concept: `<pre>def require_scope(granted, needed):
+    return needed in granted</pre>
+OAuth scopes (like <code>DeviceManagementManagedDevices.Read.All</code>) limit what a token may do.`,
+    task: `Write <code>require_scope(granted, needed)</code> returning True only if <code>needed</code> is in <code>granted</code>. Then set <code>allowed = require_scope(granted, "DeviceManagementManagedDevices.Read.All")</code>.`,
+    starter: `granted = ["DeviceManagementManagedDevices.Read.All", "User.Read"]\n\n# define require_scope, then set allowed\n`,
+    check: `
+if 'require_scope' not in globals() or not callable(require_scope):
+    _feedback = "Define require_scope(granted, needed)."
+elif require_scope(["a", "b"], "b") is True and require_scope(["a"], "z") is False and globals().get("allowed") is True:
+    _passed = True; _feedback = "Least-privilege authorization in two lines. 🎯"
+else:
+    _feedback = "require_scope should return (needed in granted), and allowed should be True."
+`,
+    hints: ["return needed in granted", "Call it with the Read.All scope.", 'allowed = require_scope(granted, "DeviceManagementManagedDevices.Read.All")'],
+    solution: `granted = ["DeviceManagementManagedDevices.Read.All", "User.Read"]\n\ndef require_scope(granted, needed):\n    return needed in granted\n\nallowed = require_scope(granted, "DeviceManagementManagedDevices.Read.All")\nprint(allowed)`,
+  },
+  {
+    id: "l45", world: "w9", title: "Validate the Input", xp: 140,
+    story: `Never trust client input. Reject unexpected fields (mass-assignment) and wrong types before acting on a payload.`,
+    concept: `Allowlist the fields you accept:
+<pre>ALLOWED = {"name", "os"}
+def validate(payload):
+    if set(payload) - ALLOWED:   # any extra keys?
+        return False
+    return isinstance(payload.get("name"), str)</pre>
+An attacker adding <code>"isAdmin": true</code> must be rejected.`,
+    task: `Write <code>validate(payload)</code> that returns True only if keys are a subset of <code>{"name","os"}</code> AND <code>name</code> is a string. Extra keys or bad types → False.`,
+    starter: `ALLOWED = {"name", "os"}\n\n# define validate(payload)\n`,
+    check: `
+if 'validate' not in globals() or not callable(validate):
+    _feedback = "Define validate(payload)."
+else:
+    _a = validate({"name": "X", "os": "Windows"})
+    _b = validate({"name": "X", "os": "Windows", "isAdmin": True})
+    _c = validate({"name": 123})
+    if _a is True and _b is False and _c is False:
+        _passed = True; _feedback = "Mass-assignment blocked, types enforced. This stops real breaches. 🧰"
+    else:
+        _feedback = f"Expected True/False/False, got {_a}/{_b}/{_c}. Reject extra keys and non-string names."
+`,
+    hints: ["Extra keys: set(payload) - ALLOWED should be empty.", "Type check: isinstance(payload.get('name'), str)", "Return False if extra keys OR name isn't a str."],
+    solution: `ALLOWED = {"name", "os"}\n\ndef validate(payload):\n    if set(payload) - ALLOWED:\n        return False\n    return isinstance(payload.get("name"), str)\n\nprint(validate({"name": "X", "os": "Windows"}))`,
+  },
+
+  /* ================= WORLD 10: CI/CD & AUTOMATION ================= */
+  {
+    id: "l46", world: "w10", title: "Write a Test", xp: 110,
+    story: `⚙️ Automation you don't test is automation you can't trust. Assertions are the simplest tests.`,
+    concept: `<pre>assert is_strong("x" * 12) is True
+assert is_strong("short") is False</pre>
+An <code>assert</code> that's False raises <code>AssertionError</code> and fails the build.`,
+    task: `Write <code>is_strong(pw)</code> (True if 12+ chars). Write <code>test_is_strong()</code> that asserts both a strong and weak case, call it, and set <code>tested = True</code>.`,
+    starter: `# define is_strong, then test_is_strong(), then call it\n`,
+    check: `
+if 'is_strong' not in globals() or not callable(is_strong):
+    _feedback = "Define is_strong(pw)."
+elif is_strong("x" * 12) is True and is_strong("short") is False and globals().get("tested") is True:
+    _passed = True; _feedback = "Green tests = shippable code. This mindset passes interviews. ✅"
+else:
+    _feedback = "is_strong should be True for 12+ chars, False otherwise; run test_is_strong() and set tested=True."
+`,
+    hints: ["return len(pw) >= 12", "Inside the test use assert ... is True / is False.", "Call test_is_strong() then set tested = True"],
+    solution: `def is_strong(pw):\n    return len(pw) >= 12\n\ndef test_is_strong():\n    assert is_strong("x" * 12) is True\n    assert is_strong("short") is False\n\ntest_is_strong()\ntested = True\nprint("tests passed")`,
+  },
+  {
+    id: "l47", world: "w10", title: "Retry with Backoff", xp: 140,
+    story: `Pipelines hit flaky APIs. Robust automation retries instead of failing. The simulator's <code>graph.flaky_get</code> fails twice, then succeeds.`,
+    concept: `<pre>def fetch_with_retry(url, max_tries=5):
+    for _ in range(max_tries):
+        resp = graph.flaky_get(url)
+        if resp.status_code == 200:
+            return resp
+    return resp</pre>`,
+    task: `Write <code>fetch_with_retry(url)</code> that retries until status 200, call it, and store the final status code in <code>status</code>.`,
+    starter: `url = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\n\n# define fetch_with_retry, call it, set status\n`,
+    check: `
+if 'fetch_with_retry' not in globals() or not callable(fetch_with_retry):
+    _feedback = "Define fetch_with_retry(url)."
+elif globals().get("status") == 200:
+    _passed = True; _feedback = "Resilient automation that rides out failures. 🧱"
+else:
+    _feedback = f"Loop graph.flaky_get until status_code == 200; set status. Got {globals().get('status')}."
+`,
+    hints: ["Loop with for _ in range(5):", "Return the response when status_code == 200.", "status = fetch_with_retry(url).status_code"],
+    solution: `url = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\n\ndef fetch_with_retry(url, max_tries=5):\n    for _ in range(max_tries):\n        resp = graph.flaky_get(url)\n        if resp.status_code == 200:\n            return resp\n    return resp\n\nstatus = fetch_with_retry(url).status_code\nprint(status)`,
+  },
+  {
+    id: "l48", world: "w10", title: "Scan for Secrets", xp: 140,
+    story: `A hardcoded AWS key or API token in a repo is a breach. Build a mini secret-scanner with regex.`,
+    concept: `Match known secret shapes:
+<pre>import re
+re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", line)</pre>
+AWS access keys start <code>AKIA…</code>; many API keys look like <code>sk_live_…</code>.`,
+    task: `From the <code>config</code> text, build <code>leaks</code> — the lines that contain a secret (expect 2: the AWS key and the API key).`,
+    starter: `import re\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123\\nlog_level=info"\n\n# leaks = ?\n`,
+    check: `
+if 'leaks' not in globals():
+    _feedback = "Create leaks."
+elif len(leaks) == 2 and any("AKIA" in x for x in leaks) and any("sk_live" in x for x in leaks):
+    _passed = True; _feedback = "You just built a secret scanner — pre-commit hooks use exactly this. 🔦"
+else:
+    _feedback = f"Expected 2 secret lines (AWS key + api_key), got {leaks}."
+`,
+    hints: ["Split with config.splitlines().", "Keep lines where re.search(pattern, line) matches.", 'leaks = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]'],
+    solution: `import re\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123\\nlog_level=info"\n\nleaks = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]\nprint(leaks)`,
+  },
+  {
+    id: "l49", world: "w10", title: "Dependency Scan (SCA)", xp: 140,
+    story: `Most breaches ride in via a vulnerable library. Compare installed packages against a known-vulnerable list — that's SCA.`,
+    concept: `<pre>vulnerable = [pkg for pkg, ver in installed.items()
+              if f"{pkg}=={ver}" in KNOWN_VULN]</pre>`,
+    task: `Given <code>installed</code> and <code>KNOWN_VULN</code>, build <code>vulnerable</code> — the package names whose exact version is known-vulnerable (expect <code>['pyyaml', 'requests']</code>, sorted).`,
+    starter: `installed = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1", "log4j==2.14.0"}\n\n# vulnerable = ? (sorted)\n`,
+    check: `
+if 'vulnerable' not in globals():
+    _feedback = "Create vulnerable."
+elif sorted(vulnerable) == ["pyyaml", "requests"]:
+    _passed = True; _feedback = "SCA in one line — this catches the Log4Shells before they ship. 🧪"
+else:
+    _feedback = f"Expected ['pyyaml','requests'], got {sorted(vulnerable) if isinstance(vulnerable, list) else vulnerable}."
+`,
+    hints: ["Build 'pkg==ver' and test membership in KNOWN_VULN.", 'f"{pkg}=={ver}" in KNOWN_VULN', 'vulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in KNOWN_VULN)'],
+    solution: `installed = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1", "log4j==2.14.0"}\n\nvulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in KNOWN_VULN)\nprint(vulnerable)`,
+  },
+  {
+    id: "l50", world: "w10", title: "BOSS: Pipeline Security Gate", xp: 300,
+    story: `🏆 Final boss. Build the CI/CD gate that fails a build if it finds vulnerable dependencies OR leaked secrets — the capstone of secure automation.`,
+    concept: `Combine SCA + secret scanning into one gate that returns a report and a pass/fail:
+<pre>def pipeline_gate(installed, config, known_vuln):
+    vulnerable = sorted(...)      # SCA
+    secrets = [... secret lines ...]
+    return {"vulnerable": vulnerable,
+            "secrets": len(secrets),
+            "passed": not vulnerable and not secrets}</pre>`,
+    task: `Write <code>pipeline_gate(installed, config, known_vuln)</code> returning a dict with <code>vulnerable</code> (sorted names), <code>secrets</code> (count), and <code>passed</code> (True only if both are empty). Call it into <code>report</code>.`,
+    starter: `import re\ninstalled = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123"\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1"}\n\n# define pipeline_gate(installed, config, known_vuln), then report = ...\n`,
+    check: `
+if 'pipeline_gate' not in globals() or not callable(pipeline_gate):
+    _feedback = "Define pipeline_gate(installed, config, known_vuln)."
+else:
+    _r = globals().get("report")
+    if not isinstance(_r, dict):
+        _feedback = "Call pipeline_gate(...) into report."
+    elif sorted(_r.get("vulnerable", [])) == ["pyyaml", "requests"] and _r.get("secrets", 0) >= 2 and _r.get("passed") is False:
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. You built a full CI/CD security gate — SCA + secret scanning + a pass/fail verdict. You're interview-ready."
+    else:
+        _feedback = f"Gate should find vulnerable ['pyyaml','requests'], 2+ secrets, and passed=False. Got {_r}."
+`,
+    hints: [
+      "Reuse your SCA: vulnerable = sorted(pkg for pkg,ver in installed.items() if f'{pkg}=={ver}' in known_vuln)",
+      'Secrets: [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]',
+      "passed = not vulnerable and not secrets",
+    ],
+    solution: `import re\ninstalled = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123"\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1"}\n\ndef pipeline_gate(installed, config, known_vuln):\n    vulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in known_vuln)\n    secrets = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]\n    return {"vulnerable": vulnerable, "secrets": len(secrets), "passed": not vulnerable and not secrets}\n\nreport = pipeline_gate(installed, config, KNOWN_VULN)\nprint(report)`,
   },
 ];
