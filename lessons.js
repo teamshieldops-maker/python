@@ -17,6 +17,7 @@ const WORLDS = [
   { id: "w9", name: "API Security",       emoji: "🔑", blurb: "JWTs, OAuth, scopes & input validation in Python." },
   { id: "w10", name: "CI/CD & Automation", emoji: "⚙️", blurb: "Tests, retries, secret scanning & dependency checks." },
   { id: "w11", name: "Log Analytics",     emoji: "📊", blurb: "Counter, parsing & detecting attacks in log data." },
+  { id: "w12", name: "Cloud Security",    emoji: "☁️", blurb: "boto3-style automation: public buckets, encryption & IAM." },
 ];
 
 const LESSONS = [
@@ -1228,5 +1229,134 @@ else:
       "flagged = sorted(ip for ip, n in fails.items() if n >= 5)",
     ],
     solution: `from collections import Counter\nlog_lines = [\n    "10.0.0.9 alice FAIL", "10.0.0.9 alice FAIL", "10.0.0.9 bob FAIL",\n    "10.0.0.9 bob FAIL", "10.0.0.9 carol FAIL",\n    "10.0.0.2 dave OK", "10.0.0.2 dave FAIL", "192.168.1.5 eve OK",\n]\n\nfails = Counter()\nfor line in log_lines:\n    ip, user, result = line.split()\n    if result == "FAIL":\n        fails[ip] += 1\nflagged = sorted(ip for ip, n in fails.items() if n >= 5)\nprint(flagged)`,
+  },
+
+  /* ================= WORLD 12: CLOUD SECURITY (Python) ================= */
+  {
+    id: "l56", world: "w12", title: "Scan for Public Buckets", xp: 120,
+    story: `☁️ A live mock AWS account is available as <code>aws</code> (boto3-style). The #1 cloud leak is a public object store — go find them.`,
+    concept: `The <code>aws</code> client lists resources:
+<pre>for b in aws.list_buckets():
+    b["name"], b["public"], b["encrypted"]</pre>
+Also: <code>aws.block_public_access(name)</code>, <code>aws.enable_encryption(name)</code>, <code>aws.list_policies()</code>.`,
+    task: `Build <code>public_buckets</code> — the names of every bucket where <code>public</code> is True (expect <code>['customer-backups', 'public-assets']</code>).`,
+    starter: `# find all public buckets\n`,
+    check: `
+if 'public_buckets' not in globals():
+    _feedback = "Create public_buckets."
+elif sorted(public_buckets) == ["customer-backups", "public-assets"]:
+    _passed = True; _feedback = "Found the exposed buckets — step one of cloud posture management. ☁️"
+else:
+    _feedback = f"Expected ['customer-backups','public-assets'], got {public_buckets}."
+`,
+    hints: ["Loop aws.list_buckets().", "Keep b['name'] where b['public'] is True.", "public_buckets = [b['name'] for b in aws.list_buckets() if b['public']]"],
+    solution: `public_buckets = [b["name"] for b in aws.list_buckets() if b["public"]]\nprint(public_buckets)`,
+  },
+  {
+    id: "l57", world: "w12", title: "Lock Them Down", xp: 130,
+    story: `Don't just report — remediate. Block public access on every exposed bucket.`,
+    concept: `<pre>for b in aws.list_buckets():
+    if b["public"]:
+        aws.block_public_access(b["name"])</pre>`,
+    task: `Block public access on every currently-public bucket. Afterwards no bucket should be public.`,
+    starter: `# remediate: block public access on all public buckets\n`,
+    check: `
+_still_public = [b["name"] for b in aws.list_buckets() if b["public"]]
+if not _still_public:
+    _passed = True; _feedback = "All buckets locked down. Auto-remediation is the dream of every cloud team. 🔒"
+else:
+    _feedback = f"These are still public: {_still_public}. Loop and call aws.block_public_access(name)."
+`,
+    hints: ["Loop the buckets.", "if b['public']: aws.block_public_access(b['name'])"],
+    solution: `for b in aws.list_buckets():\n    if b["public"]:\n        aws.block_public_access(b["name"])\nprint("locked down")`,
+  },
+  {
+    id: "l58", world: "w12", title: "Encryption Audit", xp: 120,
+    story: `Data at rest must be encrypted. Find the buckets that aren't.`,
+    concept: `Same list, different flag: <code>b["encrypted"]</code>.`,
+    task: `Build <code>unencrypted</code> — names of buckets where <code>encrypted</code> is False (expect <code>['customer-backups', 'terraform-state']</code>).`,
+    starter: `# find unencrypted buckets\n`,
+    check: `
+if 'unencrypted' not in globals():
+    _feedback = "Create unencrypted."
+elif sorted(unencrypted) == ["customer-backups", "terraform-state"]:
+    _passed = True; _feedback = "Encryption gaps found — this is a standard compliance finding. 🔐"
+else:
+    _feedback = f"Expected ['customer-backups','terraform-state'], got {unencrypted}."
+`,
+    hints: ["if not b['encrypted']", "unencrypted = [b['name'] for b in aws.list_buckets() if not b['encrypted']]"],
+    solution: `unencrypted = [b["name"] for b in aws.list_buckets() if not b["encrypted"]]\nprint(unencrypted)`,
+  },
+  {
+    id: "l59", world: "w12", title: "Enforce Encryption", xp: 120,
+    story: `Turn on encryption everywhere it's missing.`,
+    concept: `<pre>aws.enable_encryption(name)</pre>`,
+    task: `Enable encryption on every unencrypted bucket. Afterwards all buckets must be encrypted.`,
+    starter: `# enable encryption where missing\n`,
+    check: `
+_still = [b["name"] for b in aws.list_buckets() if not b["encrypted"]]
+if not _still:
+    _passed = True; _feedback = "Every bucket encrypted at rest. Clean audit. ✅"
+else:
+    _feedback = f"Still unencrypted: {_still}. Loop and call aws.enable_encryption(name)."
+`,
+    hints: ["Loop the buckets.", "if not b['encrypted']: aws.enable_encryption(b['name'])"],
+    solution: `for b in aws.list_buckets():\n    if not b["encrypted"]:\n        aws.enable_encryption(b["name"])\nprint("encrypted")`,
+  },
+  {
+    id: "l60", world: "w12", title: "Hunt Over-Permissive IAM", xp: 140,
+    story: `Wildcard IAM policies are a breach multiplier. Flag any policy granting <code>*</code> actions.`,
+    concept: `Each policy has an <code>actions</code> list. A wildcard like <code>"*"</code> or <code>"s3:*"</code> is over-permissive:
+<pre>any("*" in a for a in policy["actions"])</pre>`,
+    task: `Build <code>risky_policies</code> — names of policies where any action contains <code>*</code> (expect <code>['AdminLegacy', 'BackupSvc']</code>).`,
+    starter: `# flag policies with wildcard actions\n`,
+    check: `
+if 'risky_policies' not in globals():
+    _feedback = "Create risky_policies."
+elif sorted(risky_policies) == ["AdminLegacy", "BackupSvc"]:
+    _passed = True; _feedback = "Wildcard IAM caught — least-privilege enforcement in code. 🎯"
+else:
+    _feedback = f"Expected ['AdminLegacy','BackupSvc'], got {risky_policies}."
+`,
+    hints: ["Loop aws.list_policies().", "Check any('*' in a for a in p['actions']).", "risky_policies = [p['name'] for p in aws.list_policies() if any('*' in a for a in p['actions'])]"],
+    solution: `risky_policies = [p["name"] for p in aws.list_policies() if any("*" in a for a in p["actions"])]\nprint(risky_policies)`,
+  },
+  {
+    id: "l61", world: "w12", title: "BOSS: Cloud Posture Scanner", xp: 300,
+    story: `🏆 Final boss. Write one function that audits the whole cloud account — finds public buckets, unencrypted data, and wildcard IAM — then auto-remediates the buckets. This is a real CSPM tool in miniature.`,
+    concept: `Collect findings, then remediate:
+<pre>def secure_cloud(aws):
+    public = sorted(b["name"] for b in aws.list_buckets() if b["public"])
+    unenc  = sorted(b["name"] for b in aws.list_buckets() if not b["encrypted"])
+    risky  = sorted(p["name"] for p in aws.list_policies()
+                    if any("*" in a for a in p["actions"]))
+    for b in aws.list_buckets():
+        aws.block_public_access(b["name"])
+        aws.enable_encryption(b["name"])
+    return {"public": public, "unencrypted": unenc, "risky_policies": risky}</pre>`,
+    task: `Write <code>secure_cloud(aws)</code> that returns findings (<code>public</code>, <code>unencrypted</code>, <code>risky_policies</code> — each sorted) AND remediates all buckets (block public + encrypt). Call it into <code>findings</code>.`,
+    starter: `# define secure_cloud(aws); then: findings = secure_cloud(aws)\n`,
+    check: `
+if 'secure_cloud' not in globals() or not callable(secure_cloud):
+    _feedback = "Define secure_cloud(aws)."
+else:
+    _f = globals().get("findings")
+    _public_left = [b["name"] for b in aws.list_buckets() if b["public"]]
+    _unenc_left = [b["name"] for b in aws.list_buckets() if not b["encrypted"]]
+    if (isinstance(_f, dict)
+            and sorted(_f.get("public", [])) == ["customer-backups", "public-assets"]
+            and sorted(_f.get("unencrypted", [])) == ["customer-backups", "terraform-state"]
+            and sorted(_f.get("risky_policies", [])) == ["AdminLegacy", "BackupSvc"]
+            and not _public_left and not _unenc_left):
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. You built a cloud posture scanner that finds AND fixes misconfigurations. That's CSPM — you're interview-ready."
+    else:
+        _feedback = f"Findings must list the offenders AND remediation must leave no public/unencrypted buckets. Got findings={_f}, still public={_public_left}, still unencrypted={_unenc_left}."
+`,
+    hints: [
+      "Collect the three finding lists FIRST (before remediating).",
+      "public: b['public']; unencrypted: not b['encrypted']; risky: any('*' in a for a in p['actions']).",
+      "Then loop buckets calling aws.block_public_access and aws.enable_encryption; return the findings dict.",
+    ],
+    solution: `def secure_cloud(aws):\n    public = sorted(b["name"] for b in aws.list_buckets() if b["public"])\n    unenc = sorted(b["name"] for b in aws.list_buckets() if not b["encrypted"])\n    risky = sorted(p["name"] for p in aws.list_policies() if any("*" in a for a in p["actions"]))\n    for b in aws.list_buckets():\n        aws.block_public_access(b["name"])\n        aws.enable_encryption(b["name"])\n    return {"public": public, "unencrypted": unenc, "risky_policies": risky}\n\nfindings = secure_cloud(aws)\nprint(findings)`,
   },
 ];

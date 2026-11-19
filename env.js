@@ -186,10 +186,53 @@ KNOWN_BAD_HASHES = {
     "5f4dcc3b5aa765d61d8327deb882cf99",  # md5("password")
 }
 
+class AwsSim:
+    # A tiny boto3-style cloud account for security automation lessons.
+    def __init__(self):
+        self.buckets = [
+            {"name": "app-logs", "public": False, "encrypted": True},
+            {"name": "public-assets", "public": True, "encrypted": True},
+            {"name": "customer-backups", "public": True, "encrypted": False},
+            {"name": "terraform-state", "public": False, "encrypted": False},
+        ]
+        self.policies = [
+            {"name": "ReadOnlyAnalyst", "actions": ["s3:GetObject"], "resource": "arn:aws:s3:::app-logs/*"},
+            {"name": "AdminLegacy", "actions": ["*"], "resource": "*"},
+            {"name": "DeployBot", "actions": ["s3:PutObject", "s3:GetObject"], "resource": "arn:aws:s3:::public-assets/*"},
+            {"name": "BackupSvc", "actions": ["s3:*"], "resource": "arn:aws:s3:::customer-backups/*"},
+        ]
+        self.audit = []
+    def _bucket(self, name):
+        for b in self.buckets:
+            if b["name"] == name:
+                return b
+        return None
+    def list_buckets(self):
+        return self.buckets
+    def get_bucket(self, name):
+        return self._bucket(name)
+    def block_public_access(self, name):
+        b = self._bucket(name)
+        if b is None:
+            raise KeyError("No bucket " + str(name))
+        b["public"] = False
+        self.audit.append("block_public_access " + name)
+        return b
+    def enable_encryption(self, name):
+        b = self._bucket(name)
+        if b is None:
+            raise KeyError("No bucket " + str(name))
+        b["encrypted"] = True
+        self.audit.append("enable_encryption " + name)
+        return b
+    def list_policies(self):
+        return self.policies
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
 falcon = FalconSim()
+aws = AwsSim()
 
 def __state__():
     return _json.dumps({
@@ -198,5 +241,7 @@ def __state__():
         "audit": intune.audit,
         "graphCalls": len(graph.calls),
         "authed": graph.token is not None,
+        "buckets": aws.buckets,
+        "policies": aws.policies,
     })
 `;
