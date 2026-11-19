@@ -516,12 +516,33 @@ class K8sSim:
                 return p
         return None
 
+KNOWN_BAD_PROCESSES = {"mimikatz.exe", "nc.exe", "psexec.exe"}
+
+class SiemSim:
+    # A raw event stream for detection-engineering lessons.
+    def __init__(self):
+        self.events = [
+            {"id": 1, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 1},
+            {"id": 2, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 2},
+            {"id": 3, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 3},
+            {"id": 4, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 4},
+            {"id": 5, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 5},
+            {"id": 6, "type": "login", "user": "alice", "result": "success", "host": "PC1", "ts": 6},
+            {"id": 7, "type": "process", "user": "bob", "name": "mimikatz.exe", "host": "PC2", "ts": 7},
+            {"id": 8, "type": "login", "user": "carol", "result": "success", "host": "PC3", "ts": 8},
+            {"id": 9, "type": "process", "user": "carol", "name": "powershell.exe", "host": "PC3", "ts": 9},
+            {"id": 10, "type": "login", "user": "dave", "result": "fail", "host": "PC4", "ts": 10},
+        ]
+    def list_events(self):
+        return self.events
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
 falcon = FalconSim()
 aws = AwsSim()
 k8s = K8sSim()
+siem = SiemSim()
 
 def __state__():
     return _json.dumps({
@@ -533,6 +554,7 @@ def __state__():
         "buckets": aws.buckets,
         "policies": aws.policies,
         "pods": k8s.pods,
+        "events": siem.events,
     })
 `;
 
@@ -559,6 +581,7 @@ const WORLDS = [
   { id: "w11", name: "Log Analytics",     emoji: "📊", blurb: "Counter, parsing & detecting attacks in log data." },
   { id: "w12", name: "Cloud Security",    emoji: "☁️", blurb: "boto3-style automation: public buckets, encryption & IAM." },
   { id: "w13", name: "Container & K8s",   emoji: "🐳", blurb: "Audit pods: privileged, root, :latest & env secrets." },
+  { id: "w14", name: "Detection Eng",     emoji: "🚨", blurb: "Write SIEM rules: thresholds, correlation & alerts." },
 ];
 
 const LESSONS = [
@@ -2008,6 +2031,147 @@ else:
       "Return them in a dict with keys privileged / run_as_root / latest_image / secrets_in_env.",
     ],
     solution: `def audit_pods(k8s):\n    pods = k8s.list_pods()\n    return {\n        "privileged": sorted(p["name"] for p in pods if p["privileged"]),\n        "run_as_root": sorted(p["name"] for p in pods if p["runAsRoot"]),\n        "latest_image": sorted(p["name"] for p in pods if p["image"].endswith(":latest")),\n        "secrets_in_env": sorted(p["name"] for p in pods if p["envSecrets"]),\n    }\n\nreport = audit_pods(k8s)\nprint(report)`,
+  },
+
+  /* ================= WORLD 14: DETECTION ENGINEERING (SIEM) ================= */
+  {
+    id: "l67", world: "w14", title: "Filter the Stream", xp: 120,
+    story: `🚨 Raw events are available as <code>siem</code>. Detection starts with filtering the firehose down to what matters.`,
+    concept: `Each event is a dict:
+<pre>for e in siem.list_events():
+    e["type"]    # "login" / "process"
+    e["user"], e["host"], e["result"], e["name"]</pre>`,
+    task: `Build <code>failed_logins</code> — the events where <code>type</code> is <code>"login"</code> and <code>result</code> is <code>"fail"</code>. Store the count in <code>fail_count</code> (expect 6).`,
+    starter: `# collect failed login events, then count them\n`,
+    check: `
+if 'fail_count' not in globals():
+    _feedback = "Create fail_count."
+elif fail_count == 6 and isinstance(globals().get("failed_logins"), list):
+    _passed = True; _feedback = "Filtered the stream — step one of every detection. 🚨"
+else:
+    _feedback = f"Expected 6 failed logins, got {globals().get('fail_count')}."
+`,
+    hints: ["Filter on e['type']=='login' and e['result']=='fail'.", "failed_logins = [e for e in siem.list_events() if e['type']=='login' and e['result']=='fail']", "fail_count = len(failed_logins)"],
+    solution: `failed_logins = [e for e in siem.list_events() if e["type"] == "login" and e["result"] == "fail"]\nfail_count = len(failed_logins)\nprint(fail_count)`,
+  },
+  {
+    id: "l68", world: "w14", title: "Threshold Alert", xp: 140,
+    story: `A single failed login is noise. Many from one user is a brute-force attempt. Alert on the threshold.`,
+    concept: `Tally per user, then keep those over the line:
+<pre>from collections import Counter
+fails = Counter(e["user"] for e in events
+                if e["type"]=="login" and e["result"]=="fail")</pre>`,
+    task: `Build <code>brute_force</code> — users with 5 or more failed logins (expect <code>['alice']</code>).`,
+    starter: `from collections import Counter\n\n# users with >= 5 failed logins\n`,
+    check: `
+if 'brute_force' not in globals():
+    _feedback = "Create brute_force."
+elif sorted(brute_force) == ["alice"]:
+    _passed = True; _feedback = "Threshold rule firing — the bread-and-butter SIEM detection. 📈"
+else:
+    _feedback = f"Expected ['alice'], got {brute_force}."
+`,
+    hints: ["Counter over failed-login users.", "Keep users with count >= 5.", "brute_force = [u for u, n in fails.items() if n >= 5]"],
+    solution: `from collections import Counter\nfails = Counter(e["user"] for e in siem.list_events() if e["type"] == "login" and e["result"] == "fail")\nbrute_force = [u for u, n in fails.items() if n >= 5]\nprint(brute_force)`,
+  },
+  {
+    id: "l69", world: "w14", title: "Correlate the Kill Chain", xp: 160,
+    story: `The real signal isn't fails OR a success — it's many fails <b>followed by</b> a success (a brute-force that worked). Correlate the two.`,
+    concept: `Combine a count rule with a set membership:
+<pre>success_users = {e["user"] for e in events
+                 if e["type"]=="login" and e["result"]=="success"}
+compromised = [u for u in success_users if fails[u] >= 5]</pre>`,
+    task: `Build <code>compromised</code> — users who both had 5+ failed logins AND a successful login (expect <code>['alice']</code>).`,
+    starter: `from collections import Counter\n\n# users with >=5 fails AND a later success\n`,
+    check: `
+if 'compromised' not in globals():
+    _feedback = "Create compromised."
+elif sorted(compromised) == ["alice"]:
+    _passed = True; _feedback = "Correlation across events — this is what separates SIEM from grep. 🔗"
+else:
+    _feedback = f"Expected ['alice'], got {compromised}. (carol logged in but had no fails.)"
+`,
+    hints: ["Count fails per user with Counter.", "Collect the set of users with a success.", "compromised = [u for u in success_users if fails[u] >= 5]"],
+    solution: `from collections import Counter\nevents = siem.list_events()\nfails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\nsuccess_users = {e["user"] for e in events if e["type"] == "login" and e["result"] == "success"}\ncompromised = [u for u in success_users if fails[u] >= 5]\nprint(compromised)`,
+  },
+  {
+    id: "l70", world: "w14", title: "Signature Detection", xp: 130,
+    story: `Some things are bad on sight. Match process events against a known-bad list.`,
+    concept: `<code>KNOWN_BAD_PROCESSES</code> is provided by the environment (<code>mimikatz.exe</code>, <code>nc.exe</code>, <code>psexec.exe</code>).`,
+    task: `Build <code>malware_hosts</code> — hosts running a process in <code>KNOWN_BAD_PROCESSES</code> (expect <code>['PC2']</code>).`,
+    starter: `# find hosts running known-bad processes\n`,
+    check: `
+if 'malware_hosts' not in globals():
+    _feedback = "Create malware_hosts."
+elif sorted(malware_hosts) == ["PC2"]:
+    _passed = True; _feedback = "Signature hit on mimikatz — classic credential-theft detection. 🎯"
+else:
+    _feedback = f"Expected ['PC2'], got {malware_hosts}."
+`,
+    hints: ["Filter process events whose name is in KNOWN_BAD_PROCESSES.", "malware_hosts = [e['host'] for e in siem.list_events() if e['type']=='process' and e['name'] in KNOWN_BAD_PROCESSES]"],
+    solution: `malware_hosts = [e["host"] for e in siem.list_events() if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES]\nprint(malware_hosts)`,
+  },
+  {
+    id: "l71", world: "w14", title: "Write a Detection Rule", xp: 140,
+    story: `Package detection logic as a reusable rule that emits structured alerts with a severity.`,
+    concept: `A rule is a function returning alert dicts:
+<pre>def detect_malware(events):
+    return [{"host": e["host"], "severity": "critical"}
+            for e in events
+            if e["type"]=="process" and e["name"] in KNOWN_BAD_PROCESSES]</pre>`,
+    task: `Write <code>detect_malware(events)</code> returning a list of <code>{"host", "severity": "critical"}</code> alerts for known-bad processes. Call it into <code>alerts</code>.`,
+    starter: `# define detect_malware(events); then alerts = detect_malware(siem.list_events())\n`,
+    check: `
+if 'detect_malware' not in globals() or not callable(detect_malware):
+    _feedback = "Define detect_malware(events)."
+else:
+    _a = globals().get("alerts")
+    if _a == [{"host": "PC2", "severity": "critical"}]:
+        _passed = True; _feedback = "A reusable detection rule emitting structured alerts. 🧩"
+    else:
+        _feedback = f"Expected [{{'host':'PC2','severity':'critical'}}], got {_a}."
+`,
+    hints: ["Return a list of dicts with host + severity.", 'severity is "critical"', 'alerts = detect_malware(siem.list_events())'],
+    solution: `def detect_malware(events):\n    return [{"host": e["host"], "severity": "critical"} for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES]\n\nalerts = detect_malware(siem.list_events())\nprint(alerts)`,
+  },
+  {
+    id: "l72", world: "w14", title: "BOSS: Detection Pipeline", xp: 300,
+    story: `🏆 Final boss. Run multiple detection rules over the event stream and emit a single <b>prioritized</b> alert list — exactly what a SIEM correlation engine does.`,
+    concept: `Combine two rules and sort critical-first:
+<pre>def run_detections(events):
+    alerts = []
+    # malware (critical)
+    for e in events:
+        if e["type"]=="process" and e["name"] in KNOWN_BAD_PROCESSES:
+            alerts.append({"rule":"malware","severity":"critical","subject":e["host"]})
+    # brute-force success (high)
+    fails = Counter(...); success = {...}
+    for u in sorted(success):
+        if fails[u] >= 5:
+            alerts.append({"rule":"brute_force_success","severity":"high","subject":u})
+    rank = {"critical":0,"high":1,"medium":2,"low":3}
+    return sorted(alerts, key=lambda a: rank[a["severity"]])</pre>`,
+    task: `Write <code>run_detections(events)</code> emitting malware (critical) + brute-force-success (high) alerts, sorted critical-first. Call it into <code>alerts</code>.`,
+    starter: `from collections import Counter\n\n# define run_detections(events); then alerts = run_detections(siem.list_events())\n`,
+    check: `
+if 'run_detections' not in globals() or not callable(run_detections):
+    _feedback = "Define run_detections(events)."
+else:
+    _a = globals().get("alerts")
+    _ok = (isinstance(_a, list) and len(_a) == 2
+           and _a[0].get("severity") == "critical" and _a[0].get("rule") == "malware" and _a[0].get("subject") == "PC2"
+           and _a[1].get("severity") == "high" and _a[1].get("rule") == "brute_force_success" and _a[1].get("subject") == "alice")
+    if _ok:
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. You built a multi-rule detection pipeline with prioritized alerts — real detection engineering. You're interview-ready."
+    else:
+        _feedback = f"Expected a critical malware (PC2) alert first, then a high brute_force_success (alice). Got {_a}."
+`,
+    hints: [
+      "Rule 1: malware -> {'rule':'malware','severity':'critical','subject':host}.",
+      "Rule 2: users with >=5 fails AND a success -> {'rule':'brute_force_success','severity':'high','subject':user}.",
+      "Sort with a severity rank dict so critical comes before high.",
+    ],
+    solution: `from collections import Counter\n\ndef run_detections(events):\n    alerts = []\n    for e in events:\n        if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES:\n            alerts.append({"rule": "malware", "severity": "critical", "subject": e["host"]})\n    fails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\n    success = {e["user"] for e in events if e["type"] == "login" and e["result"] == "success"}\n    for u in sorted(success):\n        if fails[u] >= 5:\n            alerts.append({"rule": "brute_force_success", "severity": "high", "subject": u})\n    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}\n    return sorted(alerts, key=lambda a: rank[a["severity"]])\n\nalerts = run_detections(siem.list_events())\nprint(alerts)`,
   },
 ];
 

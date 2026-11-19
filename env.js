@@ -245,12 +245,33 @@ class K8sSim:
                 return p
         return None
 
+KNOWN_BAD_PROCESSES = {"mimikatz.exe", "nc.exe", "psexec.exe"}
+
+class SiemSim:
+    # A raw event stream for detection-engineering lessons.
+    def __init__(self):
+        self.events = [
+            {"id": 1, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 1},
+            {"id": 2, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 2},
+            {"id": 3, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 3},
+            {"id": 4, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 4},
+            {"id": 5, "type": "login", "user": "alice", "result": "fail", "host": "PC1", "ts": 5},
+            {"id": 6, "type": "login", "user": "alice", "result": "success", "host": "PC1", "ts": 6},
+            {"id": 7, "type": "process", "user": "bob", "name": "mimikatz.exe", "host": "PC2", "ts": 7},
+            {"id": 8, "type": "login", "user": "carol", "result": "success", "host": "PC3", "ts": 8},
+            {"id": 9, "type": "process", "user": "carol", "name": "powershell.exe", "host": "PC3", "ts": 9},
+            {"id": 10, "type": "login", "user": "dave", "result": "fail", "host": "PC4", "ts": 10},
+        ]
+    def list_events(self):
+        return self.events
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
 falcon = FalconSim()
 aws = AwsSim()
 k8s = K8sSim()
+siem = SiemSim()
 
 def __state__():
     return _json.dumps({
@@ -262,5 +283,6 @@ def __state__():
         "buckets": aws.buckets,
         "policies": aws.policies,
         "pods": k8s.pods,
+        "events": siem.events,
     })
 `;
