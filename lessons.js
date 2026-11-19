@@ -1497,6 +1497,30 @@ else:
   /* ================= WORLD 7: SECURITY BOSS ================= */
   {
     id: "l32", world: "w7", title: "Triage Detections", xp: 130,
+    deepDive: `A SOC drowns in alerts; triage is filtering to what matters. The simulator's <code>falcon</code> client lists CrowdStrike-style detections:
+<pre>for det in falcon.list_detections():
+    det["severity"]   # "critical" / "high" / "medium" / "low"
+    det["hostname"], det["tactic"], det["status"]</pre>
+<p>Surface the serious ones (critical/high) first — that's signal-vs-noise, the core SOC skill.</p>`,
+    examples: [
+      `<b>Severity filter:</b> <code>[d["hostname"] for d in falcon.list_detections() if d["severity"] in ("critical","high")]</code>.`,
+      `<b>Enrich before deciding:</b> join the hostname to asset/owner data so an analyst knows blast radius instantly.`,
+    ],
+    pitfalls: [
+      `Treating all severities equally buries the critical one under noise.`,
+      `Severity alone isn't risk — a "medium" on a domain controller may outrank a "high" on a test VM; weight by asset value.`,
+      `Ignoring detection <code>status</code> (new vs resolved) re-alerts on things already handled.`,
+    ],
+    why: `"How would you triage a flood of alerts?" is a staple SOC/detection interview question. Filtering by severity (and enriching with asset context) is the expected first answer.`,
+    keyPoints: [
+      "Triage = filter the firehose to what matters.",
+      "Rank by severity AND asset value, not severity alone.",
+      "Respect status so you don't re-work resolved detections.",
+    ],
+    references: [
+      { title: "CrowdStrike — What is EDR?", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/endpoint-security/endpoint-detection-and-response-edr/" },
+      { title: "MITRE ATT&CK — Tactics", url: "https://attack.mitre.org/tactics/enterprise/" },
+    ],
     story: `🛡️ Switch to CrowdStrike. <code>falcon.list_detections()</code> gives live detections. Surface the serious ones.`,
     concept: `<pre>for det in falcon.list_detections():
     det["severity"]   # "critical" / "high" / ...
@@ -1516,6 +1540,30 @@ else:
   },
   {
     id: "l33", world: "w7", title: "Respond & Resolve", xp: 130,
+    deepDive: `Detection without response just makes noise. Automate the action for clear-cut cases:
+<pre>for det in falcon.list_detections():
+    if det["severity"] == "critical":
+        falcon.resolve(det["id"])   # mark handled (after acting)</pre>
+<p>This is a mini <b>SOAR playbook</b>: a rule triggers an automated response. In reality "respond" might mean isolate the host, kill a process, or disable an account — then update the detection's status.</p>`,
+    examples: [
+      `<b>Auto-close policy:</b> auto-resolve known-benign detections; auto-contain criticals; leave the ambiguous middle for humans.`,
+      `<b>Full action:</b> real playbooks call EDR to <i>network-contain</i> the host, then annotate and resolve the detection.`,
+    ],
+    pitfalls: [
+      `Auto-resolving without actually remediating hides active threats — resolve only after the response action succeeds.`,
+      `Over-automating risky actions (mass host isolation) can cause outages — gate destructive steps with approval.`,
+      `No audit trail of automated actions makes incident review impossible.`,
+    ],
+    why: `SOAR and automated response are hot topics. Showing you'd automate the obvious (contain + resolve criticals) while keeping humans in the loop for ambiguous/destructive actions is the mature answer.`,
+    keyPoints: [
+      "Pair every detection rule with a response action.",
+      "Resolve only after the real remediation succeeds.",
+      "Gate destructive actions; always log what automation did.",
+    ],
+    references: [
+      { title: "CrowdStrike — What is SOAR?", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/next-gen-siem/security-orchestration-automation-and-response-soar/" },
+      { title: "MITRE — Incident response", url: "https://www.cisa.gov/resources-tools/services/incident-response-training" },
+    ],
     story: `Automate the response: resolve every critical detection. Watch their status flip below.`,
     concept: `<pre>for det in falcon.list_detections():
     if det["severity"] == "critical":
@@ -1534,6 +1582,31 @@ else:
   },
   {
     id: "l34", world: "w7", title: "Hash the IOCs", xp: 160,
+    deepDive: `Threat intel is largely about <b>indicators of compromise</b> (IOCs) — file hashes, IPs, domains. Hashing turns a file's bytes into a fixed fingerprint you can match against known-bad lists:
+<pre>import hashlib
+hashlib.md5(b"abc123").hexdigest()      # fingerprint
+hashlib.sha256(data).hexdigest()        # preferred today
+h in KNOWN_BAD_HASHES                   # intel match</pre>
+<p>MD5/SHA-1 are fine as <i>identifiers</i> for IOC matching but are cryptographically broken — use <b>SHA-256</b> for anything security-sensitive (integrity, signatures).</p>`,
+    examples: [
+      `<b>Enrich evidence:</b> hash each collected file, check membership in a threat-intel set, flag the matches.`,
+      `<b>Encode first:</b> hashlib needs bytes — <code>hashlib.sha256(text.encode()).hexdigest()</code>.`,
+    ],
+    pitfalls: [
+      `Passing a str to hashlib raises TypeError — <code>.encode()</code> to bytes first.`,
+      `Using MD5/SHA-1 for <i>security</i> (not just IOC lookup) — they're collision-broken; use SHA-256.`,
+      `Comparing hashes case-inconsistently — <code>hexdigest()</code> is lowercase; normalize intel feeds.`,
+    ],
+    why: `IOC matching and "why not MD5 for integrity?" come up in threat-intel and crypto questions alike. Knowing MD5 is OK as an identifier but broken for security is the nuance interviewers want.`,
+    keyPoints: [
+      "Hash bytes (encode strings first) to a hex fingerprint.",
+      "Match fingerprints against known-bad IOC sets.",
+      "SHA-256 for security; MD5/SHA-1 only as weak identifiers.",
+    ],
+    references: [
+      { title: "Python docs — hashlib", url: "https://docs.python.org/3/library/hashlib.html" },
+      { title: "CrowdStrike — Indicators of Compromise (IOCs)", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/threat-intelligence/indicators-of-compromise-ioc/" },
+    ],
     story: `Threat intel works on hashes. Compute MD5s and match against known-bad indicators.`,
     concept: `<code>hashlib</code> hashes text:
 <pre>import hashlib
@@ -1555,6 +1628,34 @@ else:
   },
   {
     id: "l35", world: "w7", title: "BOSS: Auto-Remediation Engine", xp: 300,
+    deepDive: `This capstone fuses everything in the world: enumerate the fleet, evaluate multiple rules per device, and apply the right tags/actions in one pass — a real policy-as-code engine.
+<pre>for d in intune.list_devices():
+    if not d["compliant"]:             # rule 1
+        intune.add_tag(d["id"], "quarantine")
+    if stale(d):                        # rule 2 (date math)
+        intune.add_tag(d["id"], "stale")
+    if not d["managed"]:                # rule 3
+        intune.add_tag(d["id"], "byod")</pre>
+<p>The design lessons: rules are <b>independent</b> and <b>composable</b>, the pass is <b>idempotent</b>, and every action is attributable.</p>`,
+    examples: [
+      `<b>Policy as code:</b> each rule is a small, testable condition → action; adding a new policy is adding one more <code>if</code>.`,
+      `<b>Separation of concerns:</b> keep detection (which devices) separate from remediation (what to do) so each is testable.`,
+    ],
+    pitfalls: [
+      `Entangling rules so they interfere — keep each independent and order-insensitive where possible.`,
+      `Non-idempotent actions that duplicate on rerun after a partial failure.`,
+      `No dry-run / no logging on a fleet-wide mutation — always be able to preview and audit.`,
+    ],
+    why: `A "write an engine that applies our device policies" take-home is extremely common. Showing composable rules + idempotency + auditability is exactly the senior signal.`,
+    keyPoints: [
+      "Enumerate → evaluate independent rules → act, in one idempotent pass.",
+      "Separate detection from remediation for testability.",
+      "Dry-run + log every fleet-wide change.",
+    ],
+    references: [
+      { title: "Intune — Remediations (policy as code)", url: "https://learn.microsoft.com/en-us/mem/intune/fundamentals/remediations" },
+      { title: "Open Policy Agent — Policy as code", url: "https://www.openpolicyagent.org/docs/latest/" },
+    ],
     story: `🏆 Final boss. Write one pass over the fleet that applies your whole security policy — the capstone automation an interviewer dreams of.`,
     concept: `Apply ALL these rules to every device in <code>intune</code>:
 <ul>
@@ -1605,6 +1706,35 @@ for d in intune.list_devices():
   /* ================= WORLD 8: ADVANCED PYTHON ================= */
   {
     id: "l36", world: "w8", title: "Generators Stream Data", xp: 120,
+    deepDive: `A <b>generator</b> produces values <i>lazily</i>, one at a time, instead of building a whole list in memory. Any function with <code>yield</code> is a generator:
+<pre>def compliant_names():
+    for d in intune.list_devices():
+        if d["compliant"]:
+            yield d["name"]       # pause here, resume on next()
+
+for name in compliant_names():     # pulled on demand
+    ...
+list(compliant_names())            # force all at once</pre>
+<p>Generators keep memory flat even over millions of rows — perfect for streaming logs or paging API results.</p>`,
+    examples: [
+      `<b>Memory win:</b> processing a 10 GB log line-by-line with a generator uses kilobytes, not gigabytes.`,
+      `<b>Pipeline:</b> generators chain — <code>(parse(l) for l in lines)</code> then filter that, each stage lazy.`,
+    ],
+    pitfalls: [
+      `A generator is <b>single-use</b> — once exhausted it yields nothing; re-call the function for a fresh one.`,
+      `You can't index or <code>len()</code> a generator; wrap in <code>list()</code> if you need those (loses the memory benefit).`,
+      `Forgetting it's lazy: nothing runs until you iterate it.`,
+    ],
+    why: `"How would you process a file too big for memory?" → generators. They're a favorite for testing whether you understand lazy evaluation and memory, not just syntax.`,
+    keyPoints: [
+      "yield makes a lazy, memory-flat generator.",
+      "Great for huge/streaming data and pipelines.",
+      "Single-use; no indexing/len without list().",
+    ],
+    references: [
+      { title: "Python Tutorial — Generators", url: "https://docs.python.org/3/tutorial/classes.html#generators" },
+      { title: "PEP 255 — Simple generators", url: "https://peps.python.org/pep-0255/" },
+    ],
     story: `🧠 Processing 100k devices? Don't build a giant list — <b>yield</b> them one at a time with a generator. Memory-friendly and fast.`,
     concept: `A function with <code>yield</code> is a generator — it produces values lazily:
 <pre>def names():
@@ -1630,6 +1760,38 @@ else:
   },
   {
     id: "l37", world: "w8", title: "Decorators Wrap Logic", xp: 140,
+    deepDive: `A <b>decorator</b> is a function that wraps another to add behavior — logging, timing, retries, auth — without touching the original body. The <code>@</code> syntax applies it:
+<pre>import functools
+def count_calls(fn):
+    @functools.wraps(fn)            # preserve name/docstring
+    def wrapper(*args, **kwargs):
+        wrapper.calls += 1
+        return fn(*args, **kwargs)
+    wrapper.calls = 0
+    return wrapper
+
+@count_calls
+def ping(): ...</pre>
+<p>Cross-cutting concerns (the same thing you want on <i>many</i> functions) belong in decorators. <code>functools.wraps</code> keeps the wrapped function's identity for debugging.</p>`,
+    examples: [
+      `<b>Everyday decorators:</b> <code>@functools.cache</code> (memoize), <code>@app.route(...)</code> (Flask), <code>@retry</code> (resilience).`,
+      `<b>Arguments pass through:</b> <code>*args, **kwargs</code> in the wrapper forward any signature unchanged.`,
+    ],
+    pitfalls: [
+      `Omitting <code>functools.wraps</code> — the wrapped function loses its <code>__name__</code>/docstring, confusing tracebacks and tooling.`,
+      `Swallowing the return value — the wrapper must <code>return fn(...)</code>.`,
+      `A decorator that needs its own arguments requires an extra layer (a function returning a decorator) — easy to get tangled.`,
+    ],
+    why: `Decorators appear everywhere in real frameworks and are a classic "explain this" interview question. Implementing one with <code>*args/**kwargs</code> + <code>functools.wraps</code> shows real fluency.`,
+    keyPoints: [
+      "Decorators wrap functions to add cross-cutting behavior.",
+      "Forward *args/**kwargs and return the inner result.",
+      "Use functools.wraps to preserve identity.",
+    ],
+    references: [
+      { title: "Python docs — functools (wraps, cache)", url: "https://docs.python.org/3/library/functools.html" },
+      { title: "PEP 318 — Decorators", url: "https://peps.python.org/pep-0318/" },
+    ],
     story: `Want to add logging, retries, or auditing to many functions without touching each one? That's a <b>decorator</b>.`,
     concept: `A decorator is a function that wraps another function:
 <pre>import functools
@@ -1655,6 +1817,37 @@ else:
   },
   {
     id: "l38", world: "w8", title: "Dataclasses", xp: 110,
+    deepDive: `A <b>dataclass</b> turns a class into a typed record with auto-generated <code>__init__</code>, <code>__repr__</code>, and <code>__eq__</code> — far less boilerplate than a hand-written class, and far clearer than a loose dict:
+<pre>from dataclasses import dataclass
+
+@dataclass
+class Device:
+    name: str
+    os: str
+    compliant: bool = False     # default value
+
+d = Device("LAPTOP-01", "Windows", True)
+d.name            # attribute access, with IDE autocomplete
+d == Device("LAPTOP-01", "Windows", True)   # True (value equality)</pre>`,
+    examples: [
+      `<b>vs dict:</b> <code>d.name</code> (typo-safe, autocompleted) beats <code>d["name"]</code> (typos become silent KeyErrors).`,
+      `<b>Extras:</b> <code>@dataclass(frozen=True)</code> makes it immutable/hashable; <code>field(default_factory=list)</code> for safe list defaults.`,
+    ],
+    pitfalls: [
+      `Mutable defaults need <code>field(default_factory=list)</code>, not <code>= []</code> (same trap as function defaults).`,
+      `Dataclasses don't validate types at runtime — the annotations are hints; add checks if you need enforcement.`,
+      `Overusing classes for trivial throwaway data — a dict/tuple is fine for a one-off.`,
+    ],
+    why: `Dataclasses are the modern way to model records and signal clean, typed Python. "dict vs dataclass?" is a common design discussion — dataclasses win for structured, reused records.`,
+    keyPoints: [
+      "@dataclass auto-generates init/repr/eq from typed fields.",
+      "Attribute access is typo-safe and IDE-friendly vs dicts.",
+      "Use default_factory for mutable defaults; frozen=True for immutability.",
+    ],
+    references: [
+      { title: "Python docs — dataclasses", url: "https://docs.python.org/3/library/dataclasses.html" },
+      { title: "PEP 557 — Data Classes", url: "https://peps.python.org/pep-0557/" },
+    ],
     story: `Dictionaries are loose. A <b>dataclass</b> gives you a typed, self-documenting object with almost no boilerplate.`,
     concept: `<pre>from dataclasses import dataclass
 
@@ -1681,6 +1874,36 @@ else:
   },
   {
     id: "l39", world: "w8", title: "Regex on Logs", xp: 130,
+    deepDive: `<b>Regular expressions</b> match text patterns — the backbone of log parsing and detection signatures. The <code>re</code> module:
+<pre>import re
+re.search(pattern, text)     # first match anywhere (or None)
+re.findall(pattern, text)    # all matches as a list
+re.match(pattern, text)      # match at the start only
+
+# common tokens
+\\d  digit   \\w  word char   \\s  space   .  any char
++  1+   *  0+   ?  0/1   {3}  exactly 3
+()  capture group   |  or   ^ $  start/end</pre>
+<p>Use <b>raw strings</b> (<code>r"..."</code>) so backslashes aren't eaten by Python before regex sees them.</p>`,
+    examples: [
+      `<b>IPv4:</b> <code>re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", log)</code> pulls every IP-looking token.`,
+      `<b>Capture groups:</b> <code>re.search(r"user=(\\w+)", line).group(1)</code> extracts just the username.`,
+    ],
+    pitfalls: [
+      `Forgetting <code>r"..."</code> — <code>"\\d"</code> vs <code>r"\\d"</code> bites everyone; always use raw strings for patterns.`,
+      `Over-broad patterns match too much (e.g., the naive IP regex also matches 999.999.999.999) — tighten when precision matters.`,
+      `<b>ReDoS:</b> catastrophic backtracking on hostile input can hang — avoid nested quantifiers on untrusted data.`,
+    ],
+    why: `Log parsing, IOC extraction, and writing/reading detection rules (Sigma, YARA-ish) all lean on regex. It's a near-guaranteed part of any blue-team scripting screen.`,
+    keyPoints: [
+      "re.search/findall/match; raw strings r\"...\" for patterns.",
+      "Core tokens: \\d \\w \\s, quantifiers + * ? {n}, groups ( ).",
+      "Beware over-broad patterns and ReDoS on untrusted input.",
+    ],
+    references: [
+      { title: "Python docs — re module", url: "https://docs.python.org/3/library/re.html" },
+      { title: "Python HOWTO — Regular expressions", url: "https://docs.python.org/3/howto/regex.html" },
+    ],
     story: `Log parsing is bread-and-butter security work. Pull every IP out of a log line with <code>re</code>.`,
     concept: `<pre>import re
 re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", text)  # all IPv4-looking strings</pre>
@@ -1700,6 +1923,39 @@ else:
   },
   {
     id: "l40", world: "w8", title: "Custom Exceptions", xp: 120,
+    deepDive: `Defining your own exception types makes failures <b>specific and catchable</b>. Subclass <code>Exception</code>:
+<pre>class ComplianceError(Exception):
+    "Raised when a device fails policy."
+
+def enforce(device):
+    if not device["compliant"]:
+        raise ComplianceError(f"{device['name']} is non-compliant")
+    return True
+
+try:
+    enforce(dev)
+except ComplianceError as e:
+    log.warning(e)   # handle just this failure type</pre>
+<p>Callers can catch <code>ComplianceError</code> specifically without swallowing unrelated bugs. A small exception hierarchy (a base <code>AppError</code> with subclasses) scales cleanly.</p>`,
+    examples: [
+      `<b>Domain errors:</b> <code>TokenExpiredError</code>, <code>RateLimitedError</code>, <code>PolicyViolation</code> — each caught and handled differently.`,
+      `<b>Hierarchy:</b> <code>class AppError(Exception)</code> → subclasses, so callers can catch broad (<code>AppError</code>) or narrow.`,
+    ],
+    pitfalls: [
+      `Raising bare <code>Exception</code> forces callers to catch everything — define specific types.`,
+      `Catching your custom error with a bare <code>except:</code> defeats the purpose.`,
+      `Putting logic in <code>__init__</code> of an exception — keep them simple data carriers.`,
+    ],
+    why: `Clean error design (custom types, a small hierarchy, specific handling) is a senior signal. Interviewers notice when you model failures instead of returning error strings or None.`,
+    keyPoints: [
+      "Subclass Exception for specific, catchable failures.",
+      "Catch narrow types; use a base class for grouping.",
+      "Exceptions are data carriers — keep them simple.",
+    ],
+    references: [
+      { title: "Python Tutorial — User-defined exceptions", url: "https://docs.python.org/3/tutorial/errors.html#user-defined-exceptions" },
+      { title: "Python docs — Exception hierarchy", url: "https://docs.python.org/3/library/exceptions.html#exception-hierarchy" },
+    ],
     story: `Good automation fails loudly and specifically. Define your own exception type and handle it.`,
     concept: `<pre>class ComplianceError(Exception):
     pass
