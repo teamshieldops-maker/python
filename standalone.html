@@ -671,6 +671,30 @@ const LESSONS = [
   {
     id: "l1", world: "w1", title: "First Contact", xp: 40,
     story: `Welcome, architect. 👋 A <b>variable</b> is a labelled box that holds a value. Let's store a device name.`,
+    deepDive: `In Python a variable is a <b>name bound to an object</b>. You don't declare a type — Python is <i>dynamically typed</i>, so the same name can later point at a different kind of value. Assignment (<code>=</code>) means "make this name refer to that object".
+<pre>device_name = "LAPTOP-01"   # name -> a string object
+count = 42                  # name -> an int object
+count = "now a string"      # totally legal: rebinding</pre>
+<p>Convention: variable names use <code>snake_case</code>, start with a letter/underscore, and should be descriptive (<code>device_name</code>, not <code>d</code>). Everything in Python — strings, numbers, lists, even functions — is an object.</p>`,
+    examples: [
+      `<b>Inspect a value's type:</b> <code>type("LAPTOP-01")</code> → <code>&lt;class 'str'&gt;</code>; <code>type(42)</code> → <code>&lt;class 'int'&gt;</code>.`,
+      `<b>Rebinding:</b> <code>status = "online"</code> then <code>status = "offline"</code> — the name now points at the second string; the first is discarded.`,
+    ],
+    pitfalls: [
+      `Quotes matter: <code>device_name = LAPTOP-01</code> (no quotes) is a NameError — Python thinks LAPTOP-01 is another variable.`,
+      `<code>=</code> assigns, <code>==</code> compares. Mixing them up is the #1 beginner bug.`,
+      `Names are case-sensitive: <code>Device</code> and <code>device</code> are different variables.`,
+    ],
+    why: `Everything else builds on this. Interviewers sometimes probe "is Python statically or dynamically typed?" — the answer (dynamic, names bind to objects) signals you understand the language model, not just syntax.`,
+    keyPoints: [
+      "A variable is a name bound to an object; no type declaration needed.",
+      "Use = to assign, snake_case for names, quotes for text values.",
+      "Everything in Python is an object.",
+    ],
+    references: [
+      { title: "Python Tutorial — An informal introduction", url: "https://docs.python.org/3/tutorial/introduction.html" },
+      { title: "PEP 8 — Naming conventions", url: "https://peps.python.org/pep-0008/#naming-conventions" },
+    ],
     concept: `Create a variable with <code>=</code> (means "put right side into left side"). Show it with <code>print()</code>. Text in quotes is a <b>string</b>.
 <pre>hostname = "SERVER-01"
 print(hostname)</pre>`,
@@ -690,6 +714,32 @@ else:
   {
     id: "l2", world: "w1", title: "Building a Tag", xp: 40,
     story: `Tagging systems join small facts into one label. Build <code>Windows-11</code> from two facts.`,
+    deepDive: `An <b>f-string</b> (formatted string literal, Python 3.6+) lets you embed expressions directly inside a string by prefixing it with <code>f</code> and wrapping code in <code>{ }</code>:
+<pre>os_name = "Windows"; ver = "11"
+tag = f"{os_name}-{ver}"        # "Windows-11"
+score = 0.8732
+f"{score:.1%}"                  # "87.3%"  (format spec after :)
+f"{os_name.upper()}"           # expressions work too -> "WINDOWS"</pre>
+<p>f-strings are faster and far more readable than old <code>%</code> or <code>.format()</code> styles, which is why they're the modern default.</p>`,
+    examples: [
+      `<b>Format specs:</b> <code>f"{42:04d}"</code> → <code>"0042"</code> (zero-pad); <code>f"{3.14159:.2f}"</code> → <code>"3.14"</code> (2 decimals).`,
+      `<b>Building a log line:</b> <code>f"[{level}] device {name} is {state}"</code> → <code>"[WARN] device PC-1 is offline"</code>.`,
+    ],
+    pitfalls: [
+      `Forgetting the <code>f</code> prefix: <code>"{os_name}"</code> prints the literal braces, not the value.`,
+      `Quote clashes: inside an <code>f"..."</code> use single quotes for dict keys — <code>f"{d['os']}"</code>.`,
+      `<b>Security:</b> never build SQL/shell/HTML by f-string interpolation of untrusted input — that's injection. Use parameterized queries / proper escaping instead.`,
+    ],
+    why: `You'll use f-strings constantly — tags, log messages, report rows, API URLs. The security-relevant nuance (don't f-string untrusted data into SQL) is a great thing to mention in an interview.`,
+    keyPoints: [
+      "Prefix with f, embed expressions in { }.",
+      "Format specs go after a colon: {value:.2f}, {n:04d}, {x:.1%}.",
+      "Great for display; NOT for building SQL/shell from untrusted input.",
+    ],
+    references: [
+      { title: "Python docs — Formatted string literals", url: "https://docs.python.org/3/reference/lexical_analysis.html#f-strings" },
+      { title: "Format Specification Mini-Language", url: "https://docs.python.org/3/library/string.html#format-specification-mini-language" },
+    ],
     concept: `An <b>f-string</b> drops variables into text — put <code>f</code> before the quote and wrap variables in <code>{ }</code>:
 <pre>os_name = "Windows"
 ver = "11"
@@ -710,6 +760,32 @@ else:
   {
     id: "l3", world: "w1", title: "Compliant or Not?", xp: 50,
     story: `Compliance is yes/no. In Python that's a <b>boolean</b>: <code>True</code> / <code>False</code>. 80+ passes.`,
+    deepDive: `<code>bool</code> has two values: <code>True</code> and <code>False</code>. Comparison operators produce booleans, and you combine them with <code>and</code> / <code>or</code> / <code>not</code>:
+<pre>score >= 80            # True or False
+a == b                 # equal?
+a != b                 # not equal
+x > 0 and x < 100      # both must hold
+not compliant          # flips it</pre>
+<p><b>Truthiness:</b> Python treats many values as "falsy" in a condition — <code>0</code>, <code>""</code>, <code>[]</code>, <code>{}</code>, <code>None</code> are all False-like; almost everything else is "truthy". So <code>if devices:</code> means "if the list is non-empty".</p>`,
+    examples: [
+      `<b>Comparisons:</b> <code>10 == 10</code> → True · <code>7 >= 80</code> → False · <code>"a" != "b"</code> → True.`,
+      `<b>Truthiness:</b> <code>if not results:</code> runs when <code>results</code> is empty — cleaner than <code>if len(results) == 0</code>.`,
+    ],
+    pitfalls: [
+      `<code>=</code> (assign) vs <code>==</code> (compare) — a classic bug inside <code>if</code>.`,
+      `<code>==</code> compares values; <code>is</code> compares identity. Use <code>== </code> for values, <code>is None</code> only for None.`,
+      `<code>True</code>/<code>False</code> are capitalized in Python (not <code>true</code>/<code>false</code>).`,
+    ],
+    why: `Every rule, filter, and guard clause returns a boolean. Knowing truthiness lets you write idiomatic checks (<code>if not token:</code>) that interviewers recognize as "Pythonic".`,
+    keyPoints: [
+      "Comparisons (==, !=, <, >=) yield booleans; combine with and/or/not.",
+      "Falsy: 0, '', [], {}, None. Truthy: basically everything else.",
+      "Use == for values, is only for None.",
+    ],
+    references: [
+      { title: "Python docs — Truth value testing", url: "https://docs.python.org/3/library/stdtypes.html#truth-value-testing" },
+      { title: "Python docs — Boolean operations", url: "https://docs.python.org/3/library/stdtypes.html#boolean-operations-and-or-not" },
+    ],
     concept: `Comparisons produce booleans. <code>=</code> assigns, <code>==</code> compares:
 <pre>10 == 10   # True
 7 >= 80    # False</pre>`,
@@ -731,6 +807,33 @@ else:
   {
     id: "l4", world: "w1", title: "Compliance Math", xp: 50,
     story: `Reports need numbers. Compute a compliance percentage from counts.`,
+    deepDive: `Python has two main number types: <code>int</code> (whole numbers, unlimited size) and <code>float</code> (decimals). The arithmetic operators:
+<pre>+  -  *            add, subtract, multiply
+/                  true division  -> always a float (4/2 == 2.0)
+//                 floor division -> drops the remainder (7//2 == 3)
+%                  modulo         -> the remainder (7%2 == 1)
+**                 power          (2**10 == 1024)
+round(x, n)        round to n decimals</pre>
+<p>Operator precedence follows math (<code>*</code>/<code>/</code> before <code>+</code>/<code>-</code>); use parentheses to be explicit.</p>`,
+    examples: [
+      `<b>Percentage:</b> <code>round(4 / 6 * 100)</code> → <code>67</code>. The <code>/</code> gives 0.666…, ×100, then round to a whole number.`,
+      `<b>Floor vs true division:</b> <code>7 / 2</code> → <code>3.5</code>; <code>7 // 2</code> → <code>3</code>; <code>7 % 2</code> → <code>1</code>.`,
+    ],
+    pitfalls: [
+      `<code>/</code> always returns a float in Python 3 (<code>4/2</code> is <code>2.0</code>, not <code>2</code>) — use <code>//</code> if you want an integer.`,
+      `Floating-point isn't exact: <code>0.1 + 0.2</code> → <code>0.30000000000000004</code>. Round for display; use <code>decimal</code>/<code>int cents</code> for money.`,
+      `Precedence surprises: <code>compliant / total * 100</code> is fine, but add parentheses when unsure.`,
+    ],
+    why: `Security reporting is full of rates and thresholds — compliance %, coverage %, risk scores. Clean numeric handling (and knowing float quirks) keeps dashboards correct.`,
+    keyPoints: [
+      "int vs float; / is float division, // is floor division, % is remainder.",
+      "round(x, n) for display; floats are approximate.",
+      "Use parentheses to make precedence explicit.",
+    ],
+    references: [
+      { title: "Python Tutorial — Numbers", url: "https://docs.python.org/3/tutorial/introduction.html#numbers" },
+      { title: "Floating-Point Arithmetic: Issues and Limitations", url: "https://docs.python.org/3/tutorial/floatingpoint.html" },
+    ],
     concept: `Python does math with <code>+ - * /</code>. <code>round()</code> rounds:
 <pre>rate = 4 / 6        # 0.666...
 pct = round(rate * 100)   # 67</pre>`,
@@ -750,6 +853,35 @@ else:
   {
     id: "l5", world: "w1", title: "Clean the Hostname", xp: 50,
     story: `Real data is messy — extra spaces, wrong case. String methods clean it up.`,
+    deepDive: `Strings are <b>immutable</b> — methods never change the original; they return a <i>new</i> string. The essentials:
+<pre>s.strip()          trim leading/trailing whitespace
+s.lower() / upper()change case
+s.replace(a, b)    swap substrings
+s.split(",")       -> list of parts
+",".join(parts)    list -> one string
+s.startswith(x) / endswith(x)
+s[0]  s[-1]  s[1:4]  slicing</pre>
+<p>Because they return new strings, you can <b>chain</b> them: <code>raw.strip().upper()</code>.</p>`,
+    examples: [
+      `<b>Normalize a hostname:</b> <code>"  Laptop-01 ".strip().upper()</code> → <code>"LAPTOP-01"</code>.`,
+      `<b>Parse a CSV line:</b> <code>"PC-1,Windows,true".split(",")</code> → <code>["PC-1", "Windows", "true"]</code>.`,
+      `<b>Build a path/CSV row:</b> <code>"-".join(["win", "11", "corp"])</code> → <code>"win-11-corp"</code>.`,
+    ],
+    pitfalls: [
+      `Strings are immutable: <code>s.upper()</code> alone does nothing unless you assign it (<code>s = s.upper()</code>).`,
+      `Comparisons are case-sensitive: <code>"Windows" == "windows"</code> is False — normalize first.`,
+      `<code>split()</code> with no argument splits on any whitespace; <code>split(",")</code> splits only on commas.`,
+    ],
+    why: `Log parsing, hostname/identity normalization, and cleaning API fields are daily security tasks. Chaining string methods is the fast, readable way interviewers expect.`,
+    keyPoints: [
+      "Strings are immutable — methods return new strings (assign the result).",
+      "strip/lower/upper/replace/split/join cover most data cleaning.",
+      "Chain methods: raw.strip().lower().",
+    ],
+    references: [
+      { title: "Python docs — String methods", url: "https://docs.python.org/3/library/stdtypes.html#string-methods" },
+      { title: "Python docs — Text sequence type str", url: "https://docs.python.org/3/library/stdtypes.html#text-sequence-type-str" },
+    ],
     concept: `Strings have built-in tools:
 <pre>s = "  pc-1 "
 s.strip()    # "pc-1"  (trim spaces)
@@ -774,6 +906,35 @@ else:
   {
     id: "l6", world: "w2", title: "The Inventory List", xp: 50,
     story: `Fleets have thousands of devices. A <b>list</b> holds many values in order.`,
+    deepDive: `A <b>list</b> is an ordered, <i>mutable</i> sequence. Indexing starts at <b>0</b>; negative indexes count from the end. Core operations:
+<pre>devices = ["PC-1", "PC-2"]
+devices.append("PC-3")     # add one to the end
+devices.extend(["PC-4"])   # add many
+devices.insert(0, "PC-0")  # insert at index
+devices.pop()              # remove & return last
+devices.remove("PC-2")     # remove by value
+len(devices)               # how many
+devices[0]  devices[-1]    # first / last
+devices[1:3]               # slice (items 1,2)</pre>`,
+    examples: [
+      `<b>Slicing:</b> <code>["a","b","c","d"][1:3]</code> → <code>["b","c"]</code> (start inclusive, end exclusive).`,
+      `<b>Grow an inventory:</b> start <code>[]</code>, loop results, <code>append</code> each — the standard "collect as you go" pattern.`,
+    ],
+    pitfalls: [
+      `Off-by-one: index <code>len(lst)</code> is out of range (valid indexes are 0 … len−1).`,
+      `<code>append(x)</code> adds one item; <code>extend(xs)</code> adds each item of xs. <code>append([1,2])</code> nests a list inside.`,
+      `Don't modify a list while iterating over it — iterate a copy or build a new list.`,
+    ],
+    why: `Device inventories, scan results, log lines — all lists. Fluent list ops (append, slice, len) are assumed knowledge and the base for loops and comprehensions later.`,
+    keyPoints: [
+      "Lists are ordered and mutable; indexing is 0-based, -1 is last.",
+      "append (one), extend (many), pop/remove, len, slicing [a:b].",
+      "Never mutate a list while looping over it.",
+    ],
+    references: [
+      { title: "Python Tutorial — Data structures (lists)", url: "https://docs.python.org/3/tutorial/datastructures.html" },
+      { title: "Python docs — Sequence types", url: "https://docs.python.org/3/library/stdtypes.html#sequence-types-list-tuple-range" },
+    ],
     concept: `<pre>devices = ["PC-1", "PC-2"]
 devices.append("PC-3")  # add
 len(devices)            # 3
@@ -795,6 +956,33 @@ else:
   {
     id: "l7", world: "w2", title: "A Device Has Properties", xp: 60,
     story: `A real device has an OS, compliance, an owner. A <b>dictionary</b> stores labelled properties — exactly how Graph hands you a device.`,
+    deepDive: `A <b>dict</b> maps <b>keys</b> to <b>values</b>. Keys are unique and must be hashable (strings, numbers, tuples). Lookups are fast (O(1) average).
+<pre>device = {"name": "PC-1", "os": "Windows", "compliant": True}
+device["os"]              # "Windows"  (KeyError if missing!)
+device.get("owner")       # None if missing (safe)
+device.get("owner", "-")  # default if missing
+device["owner"] = "alice" # add or update a key
+device.keys() / .values() / .items()  # iterate</pre>
+<p>JSON objects from APIs (Graph, Intune, Falcon) decode straight into Python dicts — so mastering dicts is mastering API data.</p>`,
+    examples: [
+      `<b>Iterate:</b> <code>for k, v in device.items(): print(k, v)</code> walks every key/value pair.`,
+      `<b>Nested access:</b> for <code>{"user": {"email": "a@b.com"}}</code>, read <code>data["user"]["email"]</code>.`,
+    ],
+    pitfalls: [
+      `<code>device["owner"]</code> raises <b>KeyError</b> if the key is missing — use <code>.get("owner", default)</code> for untrusted data.`,
+      `Keys are case- and type-sensitive: <code>"OS"</code> ≠ <code>"os"</code>, <code>1</code> ≠ <code>"1"</code>.`,
+      `Dict values can be any type (lists, other dicts) — but keys must be hashable (no lists as keys).`,
+    ],
+    why: `Almost every API response is JSON → dict. "How do you safely read a possibly-missing field?" (answer: <code>.get()</code>) is a very common practical question.`,
+    keyPoints: [
+      "Dicts map unique hashable keys to values; lookups are fast.",
+      "[] raises KeyError on miss; .get(key, default) is safe.",
+      "API/JSON data is dicts (and lists of dicts).",
+    ],
+    references: [
+      { title: "Python Tutorial — Dictionaries", url: "https://docs.python.org/3/tutorial/datastructures.html#dictionaries" },
+      { title: "Python docs — Mapping type dict", url: "https://docs.python.org/3/library/stdtypes.html#mapping-types-dict" },
+    ],
     concept: `<pre>device = {"name": "PC-1", "os": "Windows", "compliant": True}
 device["os"]            # "Windows"
 device["os"] = "Win11"  # change</pre>`,
@@ -814,6 +1002,34 @@ else:
   {
     id: "l8", world: "w2", title: "The Tag Map", xp: 60,
     story: `Core shape of a tagging system: a dict mapping each device to a <b>list</b> of tags.`,
+    deepDive: `Real data is <b>nested</b> — dicts holding lists, lists holding dicts. A tag map is a dict whose values are lists:
+<pre>device_tags = {
+    "PC-1": ["windows", "corporate"],
+    "PC-2": ["macos"],
+}
+device_tags["PC-1"].append("compliant")   # mutate the inner list
+device_tags["PC-3"] = []                   # add a new device
+"PC-1" in device_tags                      # membership check</pre>
+<p>You reach inner data by chaining access: <code>device_tags["PC-1"][0]</code> is the first tag of PC-1.</p>`,
+    examples: [
+      `<b>Add a tag safely:</b> <code>device_tags.setdefault("PC-9", []).append("new")</code> creates the list if the device isn't there yet.`,
+      `<b>List of dicts (API shape):</b> <code>[{"name":"PC-1","tags":["win"]}, {"name":"PC-2","tags":[]}]</code> — loop it with <code>for d in data:</code>.`,
+    ],
+    pitfalls: [
+      `<code>device_tags["PC-9"].append(...)</code> raises KeyError if PC-9 isn't a key yet — create it first or use <code>setdefault</code>.`,
+      `Assigning one list to two keys shares the <i>same</i> list object — appending to one changes both. Make copies if you need independence.`,
+      `Deep nesting gets unreadable fast — consider a dataclass (you'll meet those later) for complex records.`,
+    ],
+    why: `A device→tags map is the literal core of the tagging system interview task, and nested dict/list handling is exactly what parsing API responses requires.`,
+    keyPoints: [
+      "Dict values can be lists (or dicts) — nest to model real data.",
+      "Chain access: d[key][index]; check membership with `in`.",
+      "Use setdefault to append into a maybe-missing list key safely.",
+    ],
+    references: [
+      { title: "Python Tutorial — Nesting data structures", url: "https://docs.python.org/3/tutorial/datastructures.html#dictionaries" },
+      { title: "Python docs — dict.setdefault", url: "https://docs.python.org/3/library/stdtypes.html#dict.setdefault" },
+    ],
     concept: `<pre>device_tags = {"PC-1": ["windows", "corporate"]}
 device_tags["PC-1"].append("compliant")</pre>`,
     task: `Create <code>device_tags</code> mapping <code>"LAPTOP-01"</code> to <code>["windows","corporate"]</code>, then append <code>"compliant"</code> to it.`,
@@ -834,6 +1050,32 @@ else:
   {
     id: "l9", world: "w2", title: "Kill the Duplicates", xp: 60,
     story: `Tag lists get messy with repeats. A <b>set</b> keeps only unique values.`,
+    deepDive: `A <b>set</b> is an unordered collection of <i>unique</i>, hashable items. Membership tests are O(1), and set algebra answers "what's shared / different" instantly:
+<pre>set(["a", "a", "b"])      # {"a", "b"}  (dedupe)
+a | b    # union (in either)
+a & b    # intersection (in both)
+a - b    # difference (in a, not b)
+x in myset               # fast membership</pre>
+<p>Sets have no order and no indexing — if you need a sorted result, wrap with <code>sorted(...)</code>, which returns a list.</p>`,
+    examples: [
+      `<b>Dedupe + sort:</b> <code>sorted(set(["windows","win","windows"]))</code> → <code>["win", "windows"]</code>.`,
+      `<b>Excess permissions:</b> <code>set(user_scopes) - set(allowed_scopes)</code> gives exactly the scopes a user has beyond policy — a real access-review check.`,
+    ],
+    pitfalls: [
+      `Sets are unordered — you can't do <code>myset[0]</code>; convert to a list first.`,
+      `Only hashable items allowed — a set of lists raises TypeError (use tuples).`,
+      `<code>{}</code> is an empty <b>dict</b>, not a set — an empty set is <code>set()</code>.`,
+    ],
+    why: `Sets make dedup, fast "is this in the blocklist?", and policy diffs (granted vs allowed) trivial and readable — patterns that recur across detection and compliance work.`,
+    keyPoints: [
+      "Sets store unique, hashable items; O(1) membership.",
+      "Operators: | union, & intersection, - difference.",
+      "Unordered/no indexing — wrap in sorted() for a stable list.",
+    ],
+    references: [
+      { title: "Python Tutorial — Sets", url: "https://docs.python.org/3/tutorial/datastructures.html#sets" },
+      { title: "Python docs — set type", url: "https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset" },
+    ],
     concept: `<pre>set(["a", "a", "b"])   # {"a", "b"}
 sorted(set(...))        # back to a sorted list</pre>`,
     task: `From <code>raw_tags</code> (has duplicates), build <code>unique</code> — a sorted list of the distinct tags.`,
@@ -853,6 +1095,30 @@ else:
   {
     id: "l10", world: "w2", title: "Count the Compliant", xp: 70,
     story: `Aggregating is a core reporting skill. Count how many devices are compliant.`,
+    deepDive: `<b>Aggregation</b> turns a collection into a single summary number. <code>sum()</code> adds an iterable; combined with a <b>generator expression</b> it counts matches without building a temporary list:
+<pre>sum(1 for d in devices if d["compliant"])   # count compliant
+sum(d["cost"] for d in items)               # total a field
+len([d for d in devices if not d["compliant"]])  # count via list</pre>
+<p>Because <code>True == 1</code> and <code>False == 0</code>, you can even do <code>sum(d["compliant"] for d in devices)</code>. For counting categories, <code>collections.Counter</code> (you'll use it in Log Analytics) is the next step up.</p>`,
+    examples: [
+      `<b>Count a condition:</b> <code>sum(1 for d in devices if d["os"] == "Windows")</code> → number of Windows devices.`,
+      `<b>Rate in one line:</b> <code>round(sum(d["compliant"] for d in devices) / len(devices) * 100)</code> → compliance %.`,
+    ],
+    pitfalls: [
+      `A <i>generator</i> expression <code>(… for …)</code> has parentheses, not brackets; <code>[… for …]</code> builds a full list (more memory).`,
+      `Dividing by <code>len(devices)</code> when the list could be empty → ZeroDivisionError; guard with <code>if devices</code>.`,
+      `Summing non-numbers (e.g., strings) raises TypeError — sum numbers or booleans.`,
+    ],
+    why: `Dashboards and KPIs are aggregation: counts, totals, rates. Doing it in one readable line (sum + generator) is exactly the idiom interviewers look for.`,
+    keyPoints: [
+      "sum(1 for x in xs if cond) counts matches without a temp list.",
+      "True==1/False==0, so you can sum booleans directly.",
+      "Generators use ( ); lists use [ ] — generators are leaner.",
+    ],
+    references: [
+      { title: "Python docs — sum()", url: "https://docs.python.org/3/library/functions.html#sum" },
+      { title: "Python docs — Generator expressions", url: "https://docs.python.org/3/reference/expressions.html#generator-expressions" },
+    ],
     concept: `<code>sum()</code> over booleans counts the True ones (True==1):
 <pre>sum(1 for d in devices if d["compliant"])</pre>
 or add inside a loop.`,
