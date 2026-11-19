@@ -215,3 +215,24 @@ code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; backgrou
   .dev-row { grid-template-columns: 1fr 1fr; gap: 4px; }
   .det-row { grid-template-columns: .6fr 1fr; }
 }
+
+/* ---------- rich lesson sections (professional depth) ---------- */
+.sec { border: 1px solid var(--line); border-radius: var(--radius); margin: 12px 0; overflow: hidden; background: #0c1428; }
+.sec-h { padding: 10px 16px; font-weight: 700; font-size: 14px; border-bottom: 1px solid var(--line); }
+.sec-b { padding: 14px 16px; line-height: 1.65; font-size: 14.5px; }
+.sec-b ul { margin: 2px 0 2px 18px; padding: 0; } .sec-b li { margin: 5px 0; }
+.sec-b p { margin: 8px 0; }
+.sec-deepdive { border-left: 3px solid var(--accent); }
+.sec-deepdive .sec-h { color: #c3b6ff; }
+.sec-examples { border-left: 3px solid var(--accent2); }
+.sec-examples .sec-h { color: var(--accent2); }
+.sec-examples .ex { background: #0b0f1f; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
+.sec-pitfalls { border-left: 3px solid var(--bad); }
+.sec-pitfalls .sec-h { color: #ffc9d1; }
+.sec-why { border-left: 3px solid var(--warn); }
+.sec-why .sec-h { color: var(--warn); }
+.sec-key { border-left: 3px solid var(--good); }
+.sec-key .sec-h { color: #b6ffd6; }
+.sec-refs .sec-h { color: var(--muted); }
+.sec-refs a { color: var(--accent2); text-decoration: none; }
+.sec-refs a:hover { text-decoration: underline; }

@@ -189,6 +189,7 @@ function renderLesson() {
     <h1 class="lesson-h1">${lesson.title} <span class="lesson-xp">+${lesson.xp} XP</span></h1>
     <div class="story">${lesson.story}</div>
     <div class="concept">${lesson.concept}</div>
+    ${richSections(lesson)}
     <div class="task"><b>🎯 Your mission:</b> ${lesson.task}</div>
 
     <div class="editor-wrap">
@@ -355,6 +356,21 @@ function showSolution(lesson) {
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ---------------- rich lesson sections (professional depth) ---------------- */
+function section(title, cls, inner) {
+  return inner ? `<div class="sec sec-${cls}"><div class="sec-h">${title}</div><div class="sec-b">${inner}</div></div>` : "";
+}
+function richSections(l) {
+  let h = "";
+  if (l.deepDive) h += section("📘 Deep dive", "deepdive", l.deepDive);
+  if (l.examples && l.examples.length) h += section("🔧 Worked examples", "examples", l.examples.map(e => `<div class="ex">${e}</div>`).join(""));
+  if (l.pitfalls && l.pitfalls.length) h += section("⚠️ Common pitfalls", "pitfalls", "<ul>" + l.pitfalls.map(p => `<li>${p}</li>`).join("") + "</ul>");
+  if (l.why) h += section("🎯 Why it matters / interview", "why", l.why);
+  if (l.keyPoints && l.keyPoints.length) h += section("🧠 Key takeaways", "key", "<ul>" + l.keyPoints.map(k => `<li>${k}</li>`).join("") + "</ul>");
+  if (l.references && l.references.length) h += section("🔗 Go deeper", "refs", "<ul>" + l.references.map(r => `<li><a href="${r.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a></li>`).join("") + "</ul>");
+  return h;
 }
 
 /* ---------------- live Intune portal ---------------- */

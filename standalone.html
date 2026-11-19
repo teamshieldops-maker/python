@@ -223,6 +223,27 @@ code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; backgrou
   .det-row { grid-template-columns: .6fr 1fr; }
 }
 
+/* ---------- rich lesson sections (professional depth) ---------- */
+.sec { border: 1px solid var(--line); border-radius: var(--radius); margin: 12px 0; overflow: hidden; background: #0c1428; }
+.sec-h { padding: 10px 16px; font-weight: 700; font-size: 14px; border-bottom: 1px solid var(--line); }
+.sec-b { padding: 14px 16px; line-height: 1.65; font-size: 14.5px; }
+.sec-b ul { margin: 2px 0 2px 18px; padding: 0; } .sec-b li { margin: 5px 0; }
+.sec-b p { margin: 8px 0; }
+.sec-deepdive { border-left: 3px solid var(--accent); }
+.sec-deepdive .sec-h { color: #c3b6ff; }
+.sec-examples { border-left: 3px solid var(--accent2); }
+.sec-examples .sec-h { color: var(--accent2); }
+.sec-examples .ex { background: #0b0f1f; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13.5px; }
+.sec-pitfalls { border-left: 3px solid var(--bad); }
+.sec-pitfalls .sec-h { color: #ffc9d1; }
+.sec-why { border-left: 3px solid var(--warn); }
+.sec-why .sec-h { color: var(--warn); }
+.sec-key { border-left: 3px solid var(--good); }
+.sec-key .sec-h { color: #b6ffd6; }
+.sec-refs .sec-h { color: var(--muted); }
+.sec-refs a { color: var(--accent2); text-decoration: none; }
+.sec-refs a:hover { text-decoration: underline; }
+
 </style>
   <!-- Pyodide: runs real Python in your browser -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
@@ -3086,6 +3107,7 @@ function renderLesson() {
     <h1 class="lesson-h1">${lesson.title} <span class="lesson-xp">+${lesson.xp} XP</span></h1>
     <div class="story">${lesson.story}</div>
     <div class="concept">${lesson.concept}</div>
+    ${richSections(lesson)}
     <div class="task"><b>🎯 Your mission:</b> ${lesson.task}</div>
 
     <div class="editor-wrap">
@@ -3252,6 +3274,21 @@ function showSolution(lesson) {
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ---------------- rich lesson sections (professional depth) ---------------- */
+function section(title, cls, inner) {
+  return inner ? `<div class="sec sec-${cls}"><div class="sec-h">${title}</div><div class="sec-b">${inner}</div></div>` : "";
+}
+function richSections(l) {
+  let h = "";
+  if (l.deepDive) h += section("📘 Deep dive", "deepdive", l.deepDive);
+  if (l.examples && l.examples.length) h += section("🔧 Worked examples", "examples", l.examples.map(e => `<div class="ex">${e}</div>`).join(""));
+  if (l.pitfalls && l.pitfalls.length) h += section("⚠️ Common pitfalls", "pitfalls", "<ul>" + l.pitfalls.map(p => `<li>${p}</li>`).join("") + "</ul>");
+  if (l.why) h += section("🎯 Why it matters / interview", "why", l.why);
+  if (l.keyPoints && l.keyPoints.length) h += section("🧠 Key takeaways", "key", "<ul>" + l.keyPoints.map(k => `<li>${k}</li>`).join("") + "</ul>");
+  if (l.references && l.references.length) h += section("🔗 Go deeper", "refs", "<ul>" + l.references.map(r => `<li><a href="${r.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a></li>`).join("") + "</ul>");
+  return h;
 }
 
 /* ---------------- live Intune portal ---------------- */

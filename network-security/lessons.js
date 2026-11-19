@@ -34,6 +34,34 @@ const LESSONS = [
   {
     id: "n1", world: "w1", title: "Where IP Lives", xp: 40, kind: "quiz",
     story: `Every control you design sits on the OSI model. Know where things live.`,
+    deepDive: `The OSI model breaks networking into 7 layers so you can reason about where a protocol, a problem, or a <i>control</i> belongs.
+<pre>L7 Application  — HTTP, DNS, TLS, SMTP      (data an app understands)
+L6 Presentation — encoding, encryption format
+L5 Session      — sessions/connections state
+L4 Transport    — TCP / UDP, PORTS           (segments)
+L3 Network      — IP addresses, ROUTING      (packets)
+L2 Data Link    — MAC addresses, switches     (frames)
+L1 Physical     — cables, radio, bits</pre>
+<p>Data is <b>encapsulated</b> top→down as it's sent (each layer wraps the one above with its own header) and <b>de-encapsulated</b> bottom→up as it's received. A security control can only act on the layers it can see: a plain packet filter sees L3/L4 (IPs and ports); a WAF parses L7 (the actual HTTP request).</p>`,
+    examples: [
+      `<b>Trace a request to https://bank.com:</b> L7 builds the HTTP request and wraps it in TLS → L4 TCP splits it into segments addressed to port 443 → L3 stamps source/destination IPs and routes it → L2 frames it with the next-hop MAC at each hop → L1 is the bits on the wire.`,
+      `<b>Where controls live:</b> switch = L2 · router / IP ACL / IPsec = L3 · stateful firewall & port rules = L4 · WAF / reverse proxy / API gateway = L7.`,
+    ],
+    pitfalls: [
+      `Confusing <b>MAC</b> (L2, only meaningful on the local segment) with <b>IP</b> (L3, routable across networks).`,
+      `Calling a port a "layer 3 thing" — ports are <b>L4</b> (TCP/UDP).`,
+      `Thinking TLS is its own numbered layer; it sits around L6/L7 and rides on top of TCP.`,
+    ],
+    why: `OSI is the most common networking interview opener. The real skill is <i>mapping</i>: given an attack or a control, say which layer it operates at (e.g., "a SYN flood is L4", "XSS is L7", "ARP spoofing is L2"). That shows you reason about defenses systematically instead of memorizing tools.`,
+    keyPoints: [
+      "L2 = MAC/switch, L3 = IP/router, L4 = TCP-UDP/ports, L7 = app (HTTP/DNS/TLS).",
+      "Encapsulation adds headers going down the stack; the receiver strips them going up.",
+      "A control only sees the layers it can inspect — pick the layer that matches the threat.",
+    ],
+    references: [
+      { title: "Cloudflare — What is the OSI model?", url: "https://www.cloudflare.com/learning/ddos/glossary/open-systems-interconnection-model-osi/" },
+      { title: "Wikipedia — OSI model", url: "https://en.wikipedia.org/wiki/OSI_model" },
+    ],
     concept: `The <b>OSI model</b> has 7 layers. Key ones for security:
 <ul><li>L2 Data Link — MAC addresses, switches</li>
 <li>L3 Network — <b>IP addresses, routers</b></li>
@@ -49,6 +77,28 @@ const LESSONS = [
   {
     id: "n2", world: "w1", title: "TCP vs UDP", xp: 40, kind: "quiz",
     story: `Firewall rules and attacks both care which transport protocol is in play.`,
+    deepDive: `<b>TCP</b> and <b>UDP</b> are the two L4 transport protocols; everything above them (HTTP, DNS, etc.) rides on one of them.
+<p><b>TCP</b> is connection-oriented: it opens a session with the <b>3-way handshake</b> (SYN → SYN-ACK → ACK), then guarantees <i>reliable, ordered, error-checked</i> delivery with sequence numbers, acknowledgements, and retransmission. Cost: more overhead and round-trips. Used by HTTP(S), SSH, SMTP, databases.</p>
+<p><b>UDP</b> is connectionless: no handshake, no ordering, no delivery guarantee — just fire datagrams and go. Cost: the app must handle loss. Benefit: fast and low-overhead. Used by DNS, DHCP, NTP, VoIP, and QUIC/HTTP3.</p>`,
+    examples: [
+      `<b>TCP handshake:</b> client sends <code>SYN</code> → server replies <code>SYN-ACK</code> → client sends <code>ACK</code>. Only then does data flow. A half-open flood of SYNs with no final ACK is a classic <b>SYN flood</b> DoS.`,
+      `<b>DNS uses both:</b> normal lookups go over UDP/53 (small, fast); large responses or zone transfers fall back to TCP/53.`,
+    ],
+    pitfalls: [
+      `Thinking UDP is "insecure" by nature — it isn't; but being connectionless makes <b>source-IP spoofing</b> and <b>amplification</b> (DNS/NTP reflection) easier.`,
+      `Forgetting that scanning differs: TCP scans watch for SYN-ACK; UDP scans are slower and ambiguous (no handshake to confirm).`,
+      `Assuming a protocol's port implies its transport — always specify tcp vs udp in firewall rules.`,
+    ],
+    why: `Firewall rules, DDoS categories, and port scans all branch on TCP vs UDP. Interviewers love "walk me through the TCP handshake" and "why is UDP used for DNS?" — crisp answers signal real fundamentals.`,
+    keyPoints: [
+      "TCP = connection-oriented, reliable, ordered (handshake first). UDP = connectionless, fast, best-effort.",
+      "TCP: HTTP(S), SSH, SMTP, DBs. UDP: DNS, DHCP, NTP, VoIP, QUIC.",
+      "UDP's statelessness enables spoofing & amplification attacks.",
+    ],
+    references: [
+      { title: "Cloudflare — TCP/IP", url: "https://www.cloudflare.com/learning/ddos/glossary/tcp-ip/" },
+      { title: "Cloudflare — UDP", url: "https://www.cloudflare.com/learning/ddos/glossary/user-datagram-protocol-udp/" },
+    ],
     concept: `<b>TCP</b> is connection-oriented (3-way handshake SYN/SYN-ACK/ACK, reliable, ordered). <b>UDP</b> is connectionless (fast, no handshake) — used by DNS, DHCP, VoIP.`,
     task: `Which statement is correct?`,
     options: [
@@ -65,6 +115,31 @@ const LESSONS = [
   {
     id: "n3", world: "w1", title: "Know Your Ports", xp: 60, kind: "fill",
     story: `Half of firewall work is knowing the well-known ports cold.`,
+    deepDive: `A <b>port</b> is a 16-bit number (0–65535) at L4 that identifies which service a packet is for. The OS multiplexes many connections using the 5-tuple: <code>(src IP, src port, dst IP, dst port, protocol)</code>.
+<p>Port ranges:</p>
+<pre>0–1023      Well-known  (HTTP 80, HTTPS 443, SSH 22, DNS 53 …)
+1024–49151  Registered  (app-assigned, e.g. MySQL 3306, RDP 3389)
+49152–65535 Ephemeral   (temporary client-side source ports)</pre>
+<p>When your laptop connects to a web server, the destination port is 443 but your <i>source</i> port is a random ephemeral one — that's how the OS tells concurrent connections apart.</p>`,
+    examples: [
+      `<b>Common ports to memorize:</b> 20/21 FTP · 22 SSH · 23 Telnet · 25 SMTP · 53 DNS · 80 HTTP · 110 POP3 · 143 IMAP · 389 LDAP · 443 HTTPS · 445 SMB · 3306 MySQL · 3389 RDP · 5432 Postgres.`,
+      `<b>Same number, different transport:</b> DNS listens on <code>udp/53</code> and <code>tcp/53</code> — they're distinct rules on a firewall.`,
+    ],
+    pitfalls: [
+      `Assuming an open port proves the service — attackers run SSH on 443 or malware C2 on 53 to blend in. Verify with the actual protocol, not just the number.`,
+      `Writing ACLs by port alone; pair with source/destination and protocol for real control.`,
+      `Forgetting ephemeral return ports when using a <b>stateless</b> ACL (you must allow them explicitly).`,
+    ],
+    why: `Every firewall rule, scan result, and traffic log is read through ports. Interviewers rapid-fire "what port is X?" — knowing the top ~15 cold is table stakes.`,
+    keyPoints: [
+      "Port = 16-bit L4 service identifier; connections are tracked by the 5-tuple.",
+      "0–1023 well-known, 1024–49151 registered, 49152+ ephemeral.",
+      "An open port ≠ a trusted/known service — confirm the protocol.",
+    ],
+    references: [
+      { title: "IANA — Service Name and Port Number Registry", url: "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml" },
+      { title: "Wikipedia — List of TCP and UDP port numbers", url: "https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers" },
+    ],
     concept: `Common ports: HTTP <b>80</b>, HTTPS <b>443</b>, SSH <b>22</b>, DNS <b>53</b>, RDP <b>3389</b>, SMTP <b>25</b>, MySQL <b>3306</b>.`,
     task: `Fill in the default port numbers.`,
     fields: [
@@ -78,6 +153,31 @@ const LESSONS = [
   {
     id: "n4", world: "w1", title: "The /24 Mask", xp: 60, kind: "fill",
     story: `CIDR prefixes map to subnet masks. Start with the everyday one.`,
+    deepDive: `An IPv4 address is 32 bits, written as four 8-bit <b>octets</b>. The <b>prefix</b> (the <code>/N</code> in CIDR) says how many leading bits are the <i>network</i> portion; the rest identify <i>hosts</i>. The subnet <b>mask</b> is just those network bits written as 1s.
+<pre>/24 = 11111111.11111111.11111111.00000000 = 255.255.255.0
+/25 = 11111111.11111111.11111111.10000000 = 255.255.255.128
+/26 = ...11000000 = 255.255.255.192
+/27 = ...11100000 = 255.255.255.224</pre>
+<p>Each extra bit in the mask <b>halves</b> the subnet (and doubles the number of subnets). The last non-zero octet value is <code>256 − block size</code>.</p>`,
+    examples: [
+      `<b>Prefix → mask quick table:</b> /8 = 255.0.0.0 · /16 = 255.255.0.0 · /24 = 255.255.255.0 · /26 = 255.255.255.192 · /30 = 255.255.255.252.`,
+      `<b>Why /24 is everyday:</b> it's exactly 3 octets of network + 1 octet of host = 256 addresses (254 usable) — a tidy "one office LAN" size.`,
+    ],
+    pitfalls: [
+      `Mixing up the <b>mask</b> (which bits are network) with the <b>network address</b> (the first address of the block).`,
+      `Off-by-one on the last octet: /25 is .128 not .127, /26 is .192 not .191.`,
+      `Assuming bigger prefix = bigger subnet — it's the opposite (/24 is far larger than /30).`,
+    ],
+    why: `Masks underlie every ACL, route, and segmentation decision. "Convert /26 to a mask" and "how many subnets does borrowing 2 bits create?" are standard interview warm-ups.`,
+    keyPoints: [
+      "Prefix = count of network bits; mask = those bits as 1s.",
+      "Each +1 to the prefix halves the subnet size.",
+      "Last octet value = 256 − block size (e.g. /27 → 256−32 = 224).",
+    ],
+    references: [
+      { title: "Wikipedia — CIDR", url: "https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing" },
+      { title: "RFC 1918 — Private address space", url: "https://datatracker.ietf.org/doc/html/rfc1918" },
+    ],
     concept: `A <code>/24</code> means the first 24 bits are the network. That's 3 full octets of 1s:
 <pre>/24  = 11111111.11111111.11111111.00000000 = 255.255.255.0</pre>`,
     task: `Enter the subnet mask for a /24 network (dotted decimal).`,
@@ -88,6 +188,28 @@ const LESSONS = [
   {
     id: "n5", world: "w1", title: "Hosts in a /27", xp: 70, kind: "fill",
     story: `Subnet sizing decides how many devices fit — and how tight your segments are.`,
+    deepDive: `Every subnet reserves two addresses that can't be assigned to hosts: the <b>network address</b> (all host bits 0) and the <b>broadcast address</b> (all host bits 1). So:
+<pre>usable hosts = 2^(32 − prefix) − 2</pre>
+<p>The exponent is the number of <i>host</i> bits. Two special cases (RFC 3021 / routing): a <code>/31</code> gives 2 usable addresses (point-to-point links, no broadcast needed) and a <code>/32</code> is a single host (a loopback or one-address route).</p>`,
+    examples: [
+      `<b>Sizing table:</b> /24 → 254 · /25 → 126 · /26 → 62 · /27 → 30 · /28 → 14 · /29 → 6 · /30 → 2 usable.`,
+      `<b>Right-sizing:</b> need 50 hosts? /26 (62) fits with headroom; /27 (30) is too small. Picking the smallest that fits is "least exposure" for address space.`,
+    ],
+    pitfalls: [
+      `Forgetting the <b>−2</b> for network + broadcast (a /27 has 32 addresses but only 30 usable).`,
+      `Applying −2 to a <b>/31</b> — point-to-point links use both addresses (RFC 3021).`,
+      `Confusing "total addresses" with "usable hosts" in capacity planning.`,
+    ],
+    why: `Subnet sizing shows up in network design questions and in security (smaller segments = tighter blast radius, cleaner ACLs). "How many hosts in a /27?" is a guaranteed subnetting question.`,
+    keyPoints: [
+      "usable hosts = 2^(32 − prefix) − 2.",
+      "Network and broadcast addresses are always reserved.",
+      "/31 = 2 (point-to-point), /32 = single host are the exceptions.",
+    ],
+    references: [
+      { title: "RFC 3021 — Using /31 on point-to-point links", url: "https://datatracker.ietf.org/doc/html/rfc3021" },
+      { title: "Wikipedia — Subnetwork", url: "https://en.wikipedia.org/wiki/Subnetwork" },
+    ],
     concept: `Usable hosts = 2^(32−prefix) − 2 (subtract network + broadcast).
 <pre>/27 -> 2^(32-27) - 2 = 32 - 2 = 30</pre>`,
     task: `How many usable host addresses are in a /27 subnet?`,
@@ -100,6 +222,33 @@ const LESSONS = [
   {
     id: "n6", world: "w2", title: "Find the Network", xp: 80, kind: "fill",
     story: `Given any host IP and prefix, you must find its network address — the basis of every ACL.`,
+    deepDive: `The <b>network address</b> is the first address of the block a host belongs to. The fast method (no binary needed):
+<ol>
+<li>Find the <b>block size</b> = 256 − (the mask octet). For /27 the mask is 255.255.255.<b>224</b>, so block size = 256 − 224 = <b>32</b>.</li>
+<li>Find the "interesting octet" (the one the prefix lands in). For /27 that's the 4th octet.</li>
+<li>The network is the largest multiple of the block size that is ≤ the host's value in that octet.</li>
+</ol>
+<p>Formally it's a bitwise <b>AND</b> of the IP and the mask, but the block-size trick is what people use under interview pressure.</p>`,
+    examples: [
+      `<b>192.168.10.37 /27:</b> block size 32 → multiples are .0, .32, .64, .96. 37 falls in the .32–.63 block → <b>network 192.168.10.32</b>, broadcast .63.`,
+      `<b>10.0.0.0 /22:</b> the prefix lands in the 3rd octet; block size there = 256 − 252 = 4 → blocks .0–.3, .4–.7 … → network <b>10.0.0.0</b>, broadcast 10.0.3.255.`,
+      `<b>172.16.5.0 /28:</b> block size 16 → .0, .16, .32 … → network <b>172.16.5.0</b>, hosts .1–.14, broadcast .15.`,
+    ],
+    pitfalls: [
+      `Working in the wrong octet — a /22 affects the 3rd octet, not the 4th.`,
+      `Rounding up instead of down: the network is the multiple <i>at or below</i> the host value.`,
+      `Forgetting that the host IP itself is usually inside the block, not the network address.`,
+    ],
+    why: `Finding the network address is the atomic skill behind writing ACLs, defining routes, and troubleshooting "why can't these two hosts talk?" It appears in nearly every subnetting interview.`,
+    keyPoints: [
+      "block size = 256 − mask octet.",
+      "Network = largest multiple of the block size ≤ host's value in the interesting octet.",
+      "Broadcast = next block boundary − 1; it's the mask AND the IP, done fast.",
+    ],
+    references: [
+      { title: "Wikipedia — CIDR (network/broadcast)", url: "https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing" },
+      { title: "Cloudflare — What is a subnet?", url: "https://www.cloudflare.com/learning/network-layer/what-is-a-subnet/" },
+    ],
     concept: `A <code>/27</code> has a block size of 32 in the last octet (networks at .0, .32, .64, .96 …). The host's network is the block it falls into.
 <pre>192.168.10.37 /27  -> .37 falls in .32–.63  -> network .32</pre>`,
     task: `What is the network address of <code>192.168.10.37/27</code>?`,
