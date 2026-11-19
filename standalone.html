@@ -641,6 +641,8 @@ const WORLDS = [
   { id: "w16", name: "Incident Response", emoji: "🧭", blurb: "Timeline, IOCs, scoping & a full incident report." },
   { id: "w17", name: "IAM & KMS",         emoji: "🔐", blurb: "Key rotation, over-shared keys & admins without MFA." },
   { id: "w18", name: "Threat Modeling",   emoji: "🧩", blurb: "STRIDE: map spoofing/tampering/injection & score risk." },
+  { id: "w19", name: "Web Exploitation",  emoji: "🕷️", blurb: "Catch IDOR, SSRF, open-redirect & CSRF in code." },
+  { id: "w20", name: "Compliance",        emoji: "📋", blurb: "PII, retention, access review & a compliance report." },
 ];
 
 const LESSONS = [
@@ -2662,6 +2664,232 @@ else:
       'Return a dict with spoofing/tampering/injection/repudiation + a risk sub-dict.',
     ],
     solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\ndef threat_model(components):\n    return {\n        "spoofing": sorted(c["name"] for c in components if not c["authenticated"]),\n        "tampering": sorted(c["name"] for c in components if not c["encrypted"]),\n        "injection": sorted(c["name"] for c in components if not c["validates_input"]),\n        "repudiation": sorted(c["name"] for c in components if not c["logs"]),\n        "risk": {c["name"]: [c["authenticated"], c["encrypted"], c["validates_input"], c["logs"]].count(False) for c in components},\n    }\n\nmodel = threat_model(components)\nprint(model)`,
+  },
+
+  /* ================= WORLD 19: WEB EXPLOITATION ================= */
+  {
+    id: "l92", world: "w19", title: "Catch IDOR", xp: 130,
+    story: `🕷️ The web-exploit labs. First: IDOR (Insecure Direct Object Reference) — the server returns an object without checking you own it. Detect it in the request log.`,
+    concept: `Each request names the requesting <code>user</code> and the resource's <code>owner</code>. If they differ and it's allowed, that's IDOR.`,
+    task: `Build <code>idor</code> — the <code>path</code>s where <code>user</code> ≠ <code>owner</code> (expect <code>['/orders/2', '/orders/4']</code>).`,
+    starter: `requests = [\n    {"user": "u1", "owner": "u1", "path": "/orders/1"},\n    {"user": "u1", "owner": "u2", "path": "/orders/2"},\n    {"user": "u3", "owner": "u3", "path": "/orders/9"},\n    {"user": "u3", "owner": "u1", "path": "/orders/4"},\n]\n\n# idor = paths where requester != owner\n`,
+    check: `
+if 'idor' not in globals():
+    _feedback = "Create idor."
+elif sorted(idor) == ["/orders/2", "/orders/4"]:
+    _passed = True; _feedback = "IDOR caught — always verify object ownership, not just login. 🕷️"
+else:
+    _feedback = f"Expected ['/orders/2','/orders/4'], got {idor}."
+`,
+    hints: ["Compare r['user'] != r['owner'].", "idor = [r['path'] for r in requests if r['user'] != r['owner']]"],
+    solution: `requests = [\n    {"user": "u1", "owner": "u1", "path": "/orders/1"},\n    {"user": "u1", "owner": "u2", "path": "/orders/2"},\n    {"user": "u3", "owner": "u3", "path": "/orders/9"},\n    {"user": "u3", "owner": "u1", "path": "/orders/4"},\n]\n\nidor = [r["path"] for r in requests if r["user"] != r["owner"]]\nprint(idor)`,
+  },
+  {
+    id: "l93", world: "w19", title: "Block SSRF", xp: 140,
+    story: `SSRF tricks your server into requesting internal URLs (cloud metadata, localhost, private ranges). Write the URL allow-check.`,
+    concept: `Reject internal/metadata targets; allow normal public http(s):
+<pre>blocked = ["169.254.169.254", "localhost", "127.0.0.1",
+           "://10.", "://192.168.", "://172.16."]</pre>`,
+    task: `Write <code>is_safe_url(url)</code> returning False for any URL hitting those internal targets, True for normal public http(s) URLs.`,
+    starter: `# define is_safe_url(url)\n`,
+    check: `
+if 'is_safe_url' not in globals() or not callable(is_safe_url):
+    _feedback = "Define is_safe_url(url)."
+else:
+    _a = is_safe_url("https://api.example.com")
+    _b = is_safe_url("http://169.254.169.254/latest/meta-data/")
+    _c = is_safe_url("http://localhost:8080")
+    _d = is_safe_url("http://10.0.0.5/admin")
+    if _a is True and _b is False and _c is False and _d is False:
+        _passed = True; _feedback = "SSRF guard working — this is exactly how you stop metadata theft. 🛡️"
+    else:
+        _feedback = f"Public URL should be True; metadata/localhost/private should be False. Got {_a}/{_b}/{_c}/{_d}."
+`,
+    hints: ["Lowercase the url, check if any blocked substring is in it -> False.", "Otherwise return True if it starts with http:// or https://.", 'blocked = ["169.254.169.254","localhost","127.0.0.1","://10.","://192.168.","://172.16."]'],
+    solution: `def is_safe_url(url):\n    low = url.lower()\n    blocked = ["169.254.169.254", "localhost", "127.0.0.1", "://10.", "://192.168.", "://172.16."]\n    if any(b in low for b in blocked):\n        return False\n    return low.startswith("http://") or low.startswith("https://")\n\nprint(is_safe_url("http://169.254.169.254/latest/meta-data/"))`,
+  },
+  {
+    id: "l94", world: "w19", title: "Stop Open Redirects", xp: 120,
+    story: `Open redirects send users to attacker sites via a trusted link. Only allow same-site relative paths.`,
+    concept: `A safe redirect target is a relative path starting with a single <code>/</code> — not <code>//evil.com</code> (protocol-relative) and not an absolute <code>http(s)://</code> URL.`,
+    task: `Write <code>safe_redirect(target)</code>: True only for a path starting with <code>/</code> but not <code>//</code>.`,
+    starter: `# define safe_redirect(target)\n`,
+    check: `
+if 'safe_redirect' not in globals() or not callable(safe_redirect):
+    _feedback = "Define safe_redirect(target)."
+else:
+    _a = safe_redirect("/dashboard")
+    _b = safe_redirect("//evil.com")
+    _c = safe_redirect("https://evil.com")
+    if _a is True and _b is False and _c is False:
+        _passed = True; _feedback = "Only same-site redirects allowed — open-redirect closed. 🔗"
+    else:
+        _feedback = f"'/dashboard' True; '//evil.com' and 'https://evil.com' False. Got {_a}/{_b}/{_c}."
+`,
+    hints: ["Must start with '/'.", "Must NOT start with '//'.", "return target.startswith('/') and not target.startswith('//')"],
+    solution: `def safe_redirect(target):\n    return target.startswith("/") and not target.startswith("//")\n\nprint(safe_redirect("//evil.com"))`,
+  },
+  {
+    id: "l95", world: "w19", title: "Verify the CSRF Token", xp: 120,
+    story: `CSRF forces a logged-in user's browser to submit a forged request. The defense: a secret token the attacker can't know.`,
+    concept: `The submitted form token must be present AND match the session token:
+<pre>return bool(form_token) and form_token == session_token</pre>`,
+    task: `Write <code>csrf_ok(session_token, form_token)</code> returning True only when the form token is non-empty and equals the session token.`,
+    starter: `# define csrf_ok(session_token, form_token)\n`,
+    check: `
+if 'csrf_ok' not in globals() or not callable(csrf_ok):
+    _feedback = "Define csrf_ok(session_token, form_token)."
+else:
+    _a = csrf_ok("abc123", "abc123")
+    _b = csrf_ok("abc123", "")
+    _c = csrf_ok("abc123", "wrong")
+    if _a is True and _b is False and _c is False:
+        _passed = True; _feedback = "CSRF token validated — forged cross-site requests rejected. 🎫"
+    else:
+        _feedback = f"Match=True, empty=False, mismatch=False. Got {_a}/{_b}/{_c}."
+`,
+    hints: ["Reject empty tokens.", "Require exact match.", "return bool(form_token) and form_token == session_token"],
+    solution: `def csrf_ok(session_token, form_token):\n    return bool(form_token) and form_token == session_token\n\nprint(csrf_ok("abc123", "wrong"))`,
+  },
+  {
+    id: "l96", world: "w19", title: "BOSS: Request Firewall", xp: 280,
+    story: `🏆 Combine every web defense into one request gate that returns a verdict and the exact reasons it blocked — an application-layer guard.`,
+    concept: `Check all four classes and collect reasons:
+<pre>def gate(req):
+    reasons = []
+    if req["user"] != req["owner"]: reasons.append("idor")
+    if not is_safe_url(req["url"]): reasons.append("ssrf")
+    if not (req["redirect"].startswith("/") and not req["redirect"].startswith("//")):
+        reasons.append("redirect")
+    if not (req["csrf_form"] and req["csrf_form"] == req["csrf_session"]):
+        reasons.append("csrf")
+    return {"allowed": not reasons, "reasons": sorted(reasons)}</pre>`,
+    task: `Write <code>gate(req)</code> returning <code>{"allowed": bool, "reasons": sorted}</code>. Call it on the malicious <code>req</code> into <code>result</code>.`,
+    starter: `def is_safe_url(url):\n    low = url.lower()\n    blocked = ["169.254.169.254", "localhost", "127.0.0.1", "://10.", "://192.168.", "://172.16."]\n    if any(b in low for b in blocked):\n        return False\n    return low.startswith("http://") or low.startswith("https://")\n\nreq = {"user": "u1", "owner": "u2", "url": "http://169.254.169.254/latest", "redirect": "//evil.com", "csrf_session": "abc", "csrf_form": "xyz"}\n\n# define gate(req); then result = gate(req)\n`,
+    check: `
+if 'gate' not in globals() or not callable(gate):
+    _feedback = "Define gate(req)."
+else:
+    _r = globals().get("result")
+    if isinstance(_r, dict) and _r.get("allowed") is False and sorted(_r.get("reasons", [])) == ["csrf", "idor", "redirect", "ssrf"]:
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. A multi-check application firewall catching IDOR, SSRF, open-redirect and CSRF at once. You're interview-ready."
+    else:
+        _feedback = f"Malicious req should be blocked with all four reasons. Got {_r}."
+`,
+    hints: [
+      "Append a reason string for each failing check.",
+      "Reuse is_safe_url for the SSRF check.",
+      'allowed = not reasons; return {"allowed": allowed, "reasons": sorted(reasons)}.',
+    ],
+    solution: `def is_safe_url(url):\n    low = url.lower()\n    blocked = ["169.254.169.254", "localhost", "127.0.0.1", "://10.", "://192.168.", "://172.16."]\n    if any(b in low for b in blocked):\n        return False\n    return low.startswith("http://") or low.startswith("https://")\n\nreq = {"user": "u1", "owner": "u2", "url": "http://169.254.169.254/latest", "redirect": "//evil.com", "csrf_session": "abc", "csrf_form": "xyz"}\n\ndef gate(req):\n    reasons = []\n    if req["user"] != req["owner"]:\n        reasons.append("idor")\n    if not is_safe_url(req["url"]):\n        reasons.append("ssrf")\n    if not (req["redirect"].startswith("/") and not req["redirect"].startswith("//")):\n        reasons.append("redirect")\n    if not (req["csrf_form"] and req["csrf_form"] == req["csrf_session"]):\n        reasons.append("csrf")\n    return {"allowed": not reasons, "reasons": sorted(reasons)}\n\nresult = gate(req)\nprint(result)`,
+  },
+
+  /* ================= WORLD 20: COMPLIANCE & GOVERNANCE ================= */
+  {
+    id: "l97", world: "w20", title: "Detect PII", xp: 130,
+    story: `📋 Compliance automation. GDPR/PCI start with knowing where personal data lives. Scan records for emails and SSNs.`,
+    concept: `Use regex alternation to match either pattern:
+<pre>import re
+re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", text)</pre>`,
+    task: `Build <code>pii_records</code> — records containing an email OR an SSN (expect 2 records).`,
+    starter: `import re\nrecords = [\n    "user John, email john@acme.com",\n    "note: call vendor tomorrow",\n    "ssn 123-45-6789 on file",\n    "ticket closed",\n]\n\n# pii_records = records containing email or SSN\n`,
+    check: `
+if 'pii_records' not in globals():
+    _feedback = "Create pii_records."
+elif len(pii_records) == 2 and "user John, email john@acme.com" in pii_records and "ssn 123-45-6789 on file" in pii_records:
+    _passed = True; _feedback = "PII located — the first step of any data-protection program. 📋"
+else:
+    _feedback = f"Expected the email and SSN records (2), got {pii_records}."
+`,
+    hints: ["Keep records where re.search(pattern, r) matches.", "Pattern: email OR ssn with | alternation.", 'pii_records = [r for r in records if re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", r)]'],
+    solution: `import re\nrecords = [\n    "user John, email john@acme.com",\n    "note: call vendor tomorrow",\n    "ssn 123-45-6789 on file",\n    "ticket closed",\n]\n\npii_records = [r for r in records if re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", r)]\nprint(pii_records)`,
+  },
+  {
+    id: "l98", world: "w20", title: "Retention Policy", xp: 120,
+    story: `Keeping data longer than policy is a compliance violation (and extra breach risk). Find records to purge.`,
+    concept: `A retention policy caps age. Anything older must go.`,
+    task: `Build <code>expired</code> — ids of records older than 365 days (expect <code>[1, 3]</code>).`,
+    starter: `records = [\n    {"id": 1, "age_days": 400},\n    {"id": 2, "age_days": 100},\n    {"id": 3, "age_days": 800},\n    {"id": 4, "age_days": 30},\n]\n\n# expired = ids older than 365 days (sorted)\n`,
+    check: `
+if 'expired' not in globals():
+    _feedback = "Create expired."
+elif sorted(expired) == [1, 3]:
+    _passed = True; _feedback = "Over-retained data flagged for purge — retention enforced. 🗑️"
+else:
+    _feedback = f"Expected [1,3], got {expired}."
+`,
+    hints: ["Filter r['age_days'] > 365.", "expired = sorted(r['id'] for r in records if r['age_days'] > 365)"],
+    solution: `records = [\n    {"id": 1, "age_days": 400},\n    {"id": 2, "age_days": 100},\n    {"id": 3, "age_days": 800},\n    {"id": 4, "age_days": 30},\n]\n\nexpired = sorted(r["id"] for r in records if r["age_days"] > 365)\nprint(expired)`,
+  },
+  {
+    id: "l99", world: "w20", title: "Access Review", xp: 140,
+    story: `Periodic access reviews catch permission creep. Find users holding scopes beyond their role.`,
+    concept: `Set subtraction finds the excess:
+<pre>set(user_scopes) - ROLE_SCOPES[role]   # non-empty = too much access</pre>`,
+    task: `Build <code>over_privileged</code> — names of users whose <code>scopes</code> exceed what their <code>role</code> allows (expect <code>['ben']</code>).`,
+    starter: `ROLE_SCOPES = {"analyst": {"read"}, "admin": {"read", "write", "delete"}}\nusers = [\n    {"name": "amy", "role": "analyst", "scopes": ["read"]},\n    {"name": "ben", "role": "analyst", "scopes": ["read", "delete"]},\n    {"name": "cara", "role": "admin", "scopes": ["read", "write"]},\n]\n\n# over_privileged = users whose scopes exceed their role (sorted)\n`,
+    check: `
+if 'over_privileged' not in globals():
+    _feedback = "Create over_privileged."
+elif sorted(over_privileged) == ["ben"]:
+    _passed = True; _feedback = "Permission creep caught — this is the access-review control in code. 🔍"
+else:
+    _feedback = f"Expected ['ben'], got {over_privileged}."
+`,
+    hints: ["Excess = set(u['scopes']) - ROLE_SCOPES[u['role']].", "Keep users where that set is non-empty.", "over_privileged = sorted(u['name'] for u in users if set(u['scopes']) - ROLE_SCOPES[u['role']])"],
+    solution: `ROLE_SCOPES = {"analyst": {"read"}, "admin": {"read", "write", "delete"}}\nusers = [\n    {"name": "amy", "role": "analyst", "scopes": ["read"]},\n    {"name": "ben", "role": "analyst", "scopes": ["read", "delete"]},\n    {"name": "cara", "role": "admin", "scopes": ["read", "write"]},\n]\n\nover_privileged = sorted(u["name"] for u in users if set(u["scopes"]) - ROLE_SCOPES[u["role"]])\nprint(over_privileged)`,
+  },
+  {
+    id: "l100", world: "w20", title: "Control Gap Analysis", xp: 120,
+    story: `An audit compares required controls to what's implemented. Report the gaps.`,
+    concept: `Set difference again — required minus implemented:
+<pre>sorted(REQUIRED - implemented)</pre>`,
+    task: `Build <code>missing</code> — required controls not yet implemented (expect <code>['access_review', 'mfa']</code>).`,
+    starter: `REQUIRED = {"encryption", "mfa", "logging", "backups", "access_review"}\nimplemented = {"encryption", "logging", "backups"}\n\n# missing = required controls not implemented (sorted)\n`,
+    check: `
+if 'missing' not in globals():
+    _feedback = "Create missing."
+elif sorted(missing) == ["access_review", "mfa"]:
+    _passed = True; _feedback = "Gap analysis done — the heart of a SOC 2 / ISO audit. 📑"
+else:
+    _feedback = f"Expected ['access_review','mfa'], got {missing}."
+`,
+    hints: ["Use set difference REQUIRED - implemented.", "missing = sorted(REQUIRED - implemented)"],
+    solution: `REQUIRED = {"encryption", "mfa", "logging", "backups", "access_review"}\nimplemented = {"encryption", "logging", "backups"}\n\nmissing = sorted(REQUIRED - implemented)\nprint(missing)`,
+  },
+  {
+    id: "l101", world: "w20", title: "BOSS: Compliance Report", xp: 300,
+    story: `🏆 The final world's boss. Produce an automated compliance report: over-retained records, over-privileged users, and missing controls — with an overall pass/fail.`,
+    concept: `Combine the three checks and compute compliance:
+<pre>def compliance_scan(records, users, role_scopes, required, implemented):
+    expired = sorted(r["id"] for r in records if r["age_days"] > 365)
+    over = sorted(u["name"] for u in users if set(u["scopes"]) - role_scopes[u["role"]])
+    missing = sorted(required - implemented)
+    return {"expired": expired, "over_privileged": over,
+            "missing_controls": missing,
+            "compliant": not (expired or over or missing)}</pre>`,
+    task: `Write <code>compliance_scan(records, users, role_scopes, required, implemented)</code> and call it into <code>report</code>.`,
+    starter: `records = [{"id": 1, "age_days": 400}, {"id": 2, "age_days": 100}, {"id": 3, "age_days": 800}, {"id": 4, "age_days": 30}]\nusers = [\n    {"name": "amy", "role": "analyst", "scopes": ["read"]},\n    {"name": "ben", "role": "analyst", "scopes": ["read", "delete"]},\n    {"name": "cara", "role": "admin", "scopes": ["read", "write"]},\n]\nROLE_SCOPES = {"analyst": {"read"}, "admin": {"read", "write", "delete"}}\nREQUIRED = {"encryption", "mfa", "logging", "backups", "access_review"}\nIMPLEMENTED = {"encryption", "logging", "backups"}\n\n# define compliance_scan(...); then report = compliance_scan(records, users, ROLE_SCOPES, REQUIRED, IMPLEMENTED)\n`,
+    check: `
+if 'compliance_scan' not in globals() or not callable(compliance_scan):
+    _feedback = "Define compliance_scan(records, users, role_scopes, required, implemented)."
+else:
+    _r = globals().get("report")
+    if (isinstance(_r, dict)
+            and sorted(_r.get("expired", [])) == [1, 3]
+            and sorted(_r.get("over_privileged", [])) == ["ben"]
+            and sorted(_r.get("missing_controls", [])) == ["access_review", "mfa"]
+            and _r.get("compliant") is False):
+        _passed = True; _feedback = "🏆 FINAL BOSS DEFEATED. An automated compliance report — retention, access review, and control gaps with a verdict. You've completed every world. 🎓"
+    else:
+        _feedback = f"Report needs expired [1,3], over_privileged ['ben'], missing ['access_review','mfa'], compliant False. Got {_r}."
+`,
+    hints: [
+      "Reuse your retention, access-review, and gap-analysis one-liners.",
+      "compliant = not (expired or over or missing).",
+      "Return all four in a dict and call it into report.",
+    ],
+    solution: `records = [{"id": 1, "age_days": 400}, {"id": 2, "age_days": 100}, {"id": 3, "age_days": 800}, {"id": 4, "age_days": 30}]\nusers = [\n    {"name": "amy", "role": "analyst", "scopes": ["read"]},\n    {"name": "ben", "role": "analyst", "scopes": ["read", "delete"]},\n    {"name": "cara", "role": "admin", "scopes": ["read", "write"]},\n]\nROLE_SCOPES = {"analyst": {"read"}, "admin": {"read", "write", "delete"}}\nREQUIRED = {"encryption", "mfa", "logging", "backups", "access_review"}\nIMPLEMENTED = {"encryption", "logging", "backups"}\n\ndef compliance_scan(records, users, role_scopes, required, implemented):\n    expired = sorted(r["id"] for r in records if r["age_days"] > 365)\n    over = sorted(u["name"] for u in users if set(u["scopes"]) - role_scopes[u["role"]])\n    missing = sorted(required - implemented)\n    return {"expired": expired, "over_privileged": over, "missing_controls": missing, "compliant": not (expired or over or missing)}\n\nreport = compliance_scan(records, users, ROLE_SCOPES, REQUIRED, IMPLEMENTED)\nprint(report)`,
   },
 ];
 
