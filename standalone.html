@@ -1140,6 +1140,33 @@ else:
   {
     id: "l11", world: "w3", title: "Tagging Rule", xp: 60,
     story: `Tags come from rules: "if macOS, tag apple." Meet <code>if / elif / else</code>.`,
+    deepDive: `Conditionals branch your logic. Python uses <b>indentation</b> (4 spaces) to mark what's inside a block — there are no braces.
+<pre>if os_name == "Windows":
+    platform = "microsoft"
+elif os_name in ("macOS", "iOS"):   # checked only if the first failed
+    platform = "apple"
+else:
+    platform = "other"</pre>
+<p><code>elif</code> chains as many branches as you like; the first true one wins and the rest are skipped. <code>in (...)</code> tests membership. For a simple either/or, use the one-line <b>ternary</b>: <code>tag = "apple" if is_apple else "other"</code>.</p>`,
+    examples: [
+      `<b>Membership branch:</b> <code>if os_name in ("macOS", "iOS"):</code> handles both Apple OSes in one condition.`,
+      `<b>Ternary:</b> <code>status = "compliant" if score >= 80 else "non-compliant"</code> — a whole if/else in one expression.`,
+    ],
+    pitfalls: [
+      `Indentation is syntax, not style — mixing tabs and spaces, or inconsistent indents, raises IndentationError.`,
+      `Order matters: put the most specific conditions first; a broad early branch can shadow later ones.`,
+      `Don't forget the colon <code>:</code> after each condition.`,
+    ],
+    why: `Rule engines, policy decisions, and tagging all come down to branching. Clear if/elif/else (and knowing the ternary) is assumed in every coding screen.`,
+    keyPoints: [
+      "Indentation (4 spaces) defines blocks; end each condition with a colon.",
+      "elif chains; first true branch wins. `in (...)` tests membership.",
+      "One-line choice: A if cond else B.",
+    ],
+    references: [
+      { title: "Python Tutorial — if statements & control flow", url: "https://docs.python.org/3/tutorial/controlflow.html#if-statements" },
+      { title: "Python docs — Conditional expressions (ternary)", url: "https://docs.python.org/3/reference/expressions.html#conditional-expressions" },
+    ],
     concept: `<pre>if os_name == "Windows":
     platform = "microsoft"
 elif os_name in ("macOS", "iOS"):
@@ -1163,6 +1190,37 @@ else:
   {
     id: "l12", world: "w3", title: "Sweep the Fleet", xp: 70,
     story: `A <code>for</code> loop runs your rule over every device — 3 or 30,000, same code.`,
+    deepDive: `A <code>for</code> loop iterates over any <b>iterable</b> (list, dict, string, range, generator), binding each item in turn:
+<pre>for d in devices:          # each dict
+    print(d["name"])
+
+for i, d in enumerate(devices):   # index + item
+    print(i, d["name"])
+
+for name, tags in tagmap.items():  # dict pairs
+    ...
+for a, b in zip(list1, list2):     # parallel lists
+    ...</pre>
+<p>The "collect as you go" pattern — start an empty list, loop, <code>append</code> matches — is the workhorse before you learn comprehensions.</p>`,
+    examples: [
+      `<b>Filter + collect:</b> <code>out = []</code> then <code>for d in devices: if d["os"]=="Windows": out.append(d["name"])</code>.`,
+      `<b>enumerate for numbering:</b> <code>for i, host in enumerate(hosts, start=1): print(i, host)</code>.`,
+    ],
+    pitfalls: [
+      `Looping a dict directly (<code>for x in mydict</code>) iterates its <b>keys</b>, not key/value pairs — use <code>.items()</code> for both.`,
+      `Modifying the list you're iterating over causes skipped/duplicated items — iterate a copy or build a new list.`,
+      `Reaching for an index counter manually? Use <code>enumerate</code> instead of a separate <code>i += 1</code>.`,
+    ],
+    why: `Every bulk operation — tag 10,000 devices, scan every log line — is a loop. Knowing enumerate/zip/.items() marks you as fluent, not just functional.`,
+    keyPoints: [
+      "for iterates any iterable, binding each item.",
+      "enumerate for index+item, zip for parallel lists, .items() for dict pairs.",
+      "Don't mutate what you're iterating; build a new collection.",
+    ],
+    references: [
+      { title: "Python Tutorial — for statements", url: "https://docs.python.org/3/tutorial/controlflow.html#for-statements" },
+      { title: "Python docs — enumerate()", url: "https://docs.python.org/3/library/functions.html#enumerate" },
+    ],
     concept: `<pre>windows = []
 for d in devices:
     if d["os"] == "Windows":
@@ -1184,6 +1242,31 @@ else:
   {
     id: "l13", world: "w3", title: "One-Line Filter", xp: 70,
     story: `The <b>list comprehension</b> does loop+filter+collect in one line. Interviewers love it.`,
+    deepDive: `A <b>comprehension</b> builds a new collection from an iterable in one expression:
+<pre>[expr for item in iterable if condition]   # list
+{expr for item in iterable}                # set
+{k: v for item in iterable}                # dict
+(expr for item in iterable)                # generator (lazy)</pre>
+<p>Read it left-to-right as "give me <i>expr</i>, for each <i>item</i>, where <i>condition</i>". It replaces the empty-list-then-append loop and is both faster and more readable — for simple transforms.</p>`,
+    examples: [
+      `<b>Filter:</b> <code>[d["name"] for d in devices if not d["compliant"]]</code> → names of non-compliant devices.`,
+      `<b>Transform:</b> <code>[name.upper() for name in hosts]</code>; <b>dict:</b> <code>{d["id"]: d["name"] for d in devices}</code>.`,
+    ],
+    pitfalls: [
+      `Don't cram complex logic in — if it needs multiple conditions or side effects, a normal loop is clearer. Readability beats cleverness.`,
+      `Brackets choose the type: <code>[]</code> list, <code>{}</code> set/dict, <code>()</code> generator — pick deliberately.`,
+      `Comprehensions create a new collection; they don't modify the source in place.`,
+    ],
+    why: `Comprehensions are a hallmark of "Pythonic" code — interviewers specifically look for them when you filter/transform data. They turn a 4-line loop into one clear line.`,
+    keyPoints: [
+      "[expr for x in xs if cond] = filter + transform + collect.",
+      "Also set {…}, dict {k:v …}, and lazy generator (…) forms.",
+      "Keep them simple; fall back to a loop when logic grows.",
+    ],
+    references: [
+      { title: "Python Tutorial — List comprehensions", url: "https://docs.python.org/3/tutorial/datastructures.html#list-comprehensions" },
+      { title: "Python docs — Displays for lists, sets and dicts", url: "https://docs.python.org/3/reference/expressions.html#displays-for-lists-sets-and-dictionaries" },
+    ],
     concept: `<pre>names = [d["name"] for d in devices if not d["compliant"]]</pre>
 Read: give me d["name"], for each d in devices, where not compliant.`,
     task: `Build <code>non_compliant</code> — names of all devices where <code>compliant</code> is False — in one line.`,
@@ -1203,6 +1286,35 @@ else:
   {
     id: "l14", world: "w3", title: "Don't Crash on Bad Data", xp: 80,
     story: `APIs return junk sometimes. <code>try/except</code> lets your script survive instead of dying.`,
+    deepDive: `When an operation fails, Python <b>raises an exception</b>. Unhandled, it crashes the program. <code>try/except</code> lets you catch and handle it:
+<pre>try:
+    value = int(raw)            # risky line
+except ValueError:
+    value = 0                   # handle the specific failure
+else:
+    log("parsed ok")           # ran only if no exception
+finally:
+    cleanup()                  # always runs</pre>
+<p>Python favors <b>EAFP</b> — "Easier to Ask Forgiveness than Permission": try the operation and handle failure, rather than pre-checking everything. Catch <i>specific</i> exceptions (<code>ValueError</code>, <code>KeyError</code>), not a bare <code>except:</code>.</p>`,
+    examples: [
+      `<b>Safe int parse:</b> <code>try: n = int(raw)</code> / <code>except ValueError: n = -1</code>.`,
+      `<b>Multiple types:</b> <code>except (KeyError, TypeError) as e:</code> catches either and binds the error object as <code>e</code>.`,
+    ],
+    pitfalls: [
+      `Bare <code>except:</code> (or <code>except Exception</code>) hides real bugs and even catches Ctrl-C — catch the specific exception you expect.`,
+      `Don't wrap huge blocks in one try — isolate the single risky line so you know what failed.`,
+      `Silently swallowing errors (<code>except: pass</code>) is how outages go undetected — at least log them.`,
+    ],
+    why: `Automation that touches flaky APIs/files must fail gracefully. "How do you handle errors in Python?" and "what's EAFP vs LBYL?" are common; specific-exception handling signals maturity.`,
+    keyPoints: [
+      "try/except catches exceptions so the program survives.",
+      "Catch specific exceptions; avoid bare except.",
+      "else runs on success, finally always runs (cleanup).",
+    ],
+    references: [
+      { title: "Python Tutorial — Errors and Exceptions", url: "https://docs.python.org/3/tutorial/errors.html" },
+      { title: "Python docs — Built-in exceptions", url: "https://docs.python.org/3/library/exceptions.html" },
+    ],
     concept: `<pre>try:
     value = int(raw)
 except ValueError:
@@ -1224,6 +1336,37 @@ else:
   {
     id: "l15", world: "w3", title: "Drain the Queue", xp: 80,
     story: `A <code>while</code> loop repeats until a condition changes — perfect for processing a work queue.`,
+    deepDive: `A <code>while</code> loop runs as long as its condition is true — use it when you don't know the number of iterations up front (draining a queue, retrying, polling):
+<pre>while queue:               # truthy while non-empty
+    item = queue.pop()
+    process(item)
+
+while True:                # loop + explicit exit
+    resp = poll()
+    if resp.done:
+        break              # leave the loop
+    if resp.skip:
+        continue           # jump to next iteration</pre>
+<p><code>break</code> exits the loop; <code>continue</code> skips to the next iteration.</p>`,
+    examples: [
+      `<b>Drain a queue:</b> <code>while queue: queue.pop(); processed += 1</code> runs until the list is empty.`,
+      `<b>Retry with a cap:</b> <code>tries = 0</code> / <code>while tries < 5: … tries += 1</code> — bounded so it can't spin forever.`,
+    ],
+    pitfalls: [
+      `<b>Infinite loops:</b> if the condition never becomes false (you forget to shrink the queue or increment the counter), it hangs. Always ensure progress toward the exit.`,
+      `Prefer a <code>for</code> loop when you're iterating a known collection — <code>while</code> is for condition-driven repetition.`,
+      `<code>while True</code> needs a guaranteed <code>break</code> path.`,
+    ],
+    why: `Job runners, retry/backoff, and polling loops are all <code>while</code>. Interviewers watch for a guaranteed exit condition — infinite loops are an instant red flag.`,
+    keyPoints: [
+      "while repeats on a condition; use it for unknown iteration counts.",
+      "break exits, continue skips to the next iteration.",
+      "Guarantee progress toward the exit to avoid infinite loops.",
+    ],
+    references: [
+      { title: "Python Tutorial — while / break / continue", url: "https://docs.python.org/3/tutorial/controlflow.html#break-and-continue-statements-and-else-clauses-on-loops" },
+      { title: "Python docs — Compound statements (while)", url: "https://docs.python.org/3/reference/compound_stmts.html#the-while-statement" },
+    ],
     concept: `<pre>while queue:          # runs while the list is non-empty
     item = queue.pop()  # remove the last item
     processed += 1</pre>`,
@@ -1245,6 +1388,32 @@ else:
   {
     id: "l16", world: "w4", title: "Your First Tool", xp: 70,
     story: `Stop copy-pasting logic. A <b>function</b> packages it once for reuse.`,
+    deepDive: `<code>def</code> defines a function: a named, reusable block that takes <b>parameters</b> and hands back a value with <code>return</code>.
+<pre>def make_tag(os_name):
+    "Return a normalized platform tag."   # docstring
+    return os_name.lower()
+
+make_tag("Windows")   # call it -> "windows"</pre>
+<p>A function with no <code>return</code> returns <code>None</code>. Variables created inside are <b>local</b> — they don't leak out. Good functions do one thing, have a clear name, and are easy to test.</p>`,
+    examples: [
+      `<b>Return vs print:</b> <code>return x</code> hands a value back to the caller (usable later); <code>print(x)</code> just displays it.`,
+      `<b>Reuse:</b> define <code>normalize(name)</code> once, call it on 10,000 devices — fix a bug in one place.`,
+    ],
+    pitfalls: [
+      `Forgetting <code>return</code> — the function then yields <code>None</code>, a common "why is my result empty?" bug.`,
+      `Confusing printing with returning; a function that only prints can't be composed/tested.`,
+      `Overly long functions — if it does five things, split it.`,
+    ],
+    why: `Functions are the unit of reuse and testing. Interviewers expect you to factor repeated logic into a named function with a clear signature and return value.`,
+    keyPoints: [
+      "def name(params): … return value.",
+      "No return → returns None; inner variables are local.",
+      "One job per function; return (don't just print) results.",
+    ],
+    references: [
+      { title: "Python Tutorial — Defining functions", url: "https://docs.python.org/3/tutorial/controlflow.html#defining-functions" },
+      { title: "PEP 257 — Docstring conventions", url: "https://peps.python.org/pep-0257/" },
+    ],
     concept: `<pre>def make_tag(os_name):
     return os_name.lower()
 
@@ -1265,6 +1434,31 @@ else:
   {
     id: "l17", world: "w4", title: "The Tag Factory", xp: 90,
     story: `A function that returns a whole <b>list</b> of tags for a device.`,
+    deepDive: `Functions can build and return any structure — a list, dict, tuple, or another object. Build it up locally, then return it:
+<pre>def get_tags(device):
+    tags = [device["os"].lower()]
+    tags.append("compliant" if device["compliant"] else "non-compliant")
+    return tags</pre>
+<p>Returning a <i>value</i> (not printing) lets callers chain and combine results: <code>all_tags = get_tags(a) + get_tags(b)</code>. This is the seed of a real tag engine.</p>`,
+    examples: [
+      `<b>Return a dict:</b> <code>return {"name": d["name"], "tags": tags}</code> — a structured record per device.`,
+      `<b>Compose:</b> <code>tag_map = {d["id"]: get_tags(d) for d in devices}</code> builds the whole map by calling the function per device.`,
+    ],
+    pitfalls: [
+      `Building a list but forgetting to <code>return</code> it (returns None).`,
+      `Returning a reference to a shared/mutable object the caller might change — return a fresh list per call.`,
+      `Doing the printing inside instead of returning — breaks reuse in the map/comprehension above.`,
+    ],
+    why: `"Write a function that returns tags/alerts/findings for an item" is the shape of countless interview tasks and real tooling. Returning clean structures is what makes code composable.`,
+    keyPoints: [
+      "Functions can return lists/dicts/any object.",
+      "Build locally, return the whole structure.",
+      "Returning values (not printing) enables composition.",
+    ],
+    references: [
+      { title: "Python Tutorial — More on defining functions", url: "https://docs.python.org/3/tutorial/controlflow.html#more-on-defining-functions" },
+      { title: "Python docs — return statement", url: "https://docs.python.org/3/reference/simple_stmts.html#the-return-statement" },
+    ],
     concept: `<pre>def get_tags(device):
     tags = [device["os"].lower()]
     tags.append("compliant" if device["compliant"] else "non-compliant")
@@ -1289,6 +1483,31 @@ else:
   {
     id: "l18", world: "w4", title: "Safe Lookups", xp: 80,
     story: `A missing key crashes a script. <code>.get()</code> gives a fallback instead.`,
+    deepDive: `Real API records are inconsistent — fields come and go. <code>dict.get</code> reads a key without risking a crash:
+<pre>device.get("owner")               # None if missing
+device.get("owner", "unassigned") # custom default
+# vs
+device["owner"]                   # KeyError if missing!</pre>
+<p>Related safe-access tools: <code>dict.setdefault(k, default)</code> (read-or-create), and for nested data, guard each level or use <code>.get(...)</code> chains with defaults.</p>`,
+    examples: [
+      `<b>Default value:</b> <code>get_owner = lambda d: d.get("owner", "unassigned")</code> never throws.`,
+      `<b>Nested safe read:</b> <code>data.get("user", {}).get("email")</code> — won't crash even if <code>user</code> is absent.`,
+    ],
+    pitfalls: [
+      `Using <code>[]</code> on fields that may be missing is the top cause of crashes on real data — reserve <code>[]</code> for keys you <i>know</i> exist.`,
+      `<code>.get()</code> returning <code>None</code> can surprise later code — supply a sensible default (<code>""</code>, <code>[]</code>, <code>"unassigned"</code>).`,
+      `<code>.get()</code> only guards one level; nested access needs a default at each step.`,
+    ],
+    why: `Defensive reads are the difference between a script that survives messy production data and one that dies on row 3. "How do you handle a possibly-missing field?" is a frequent practical question.`,
+    keyPoints: [
+      "dict.get(key[, default]) reads without KeyError.",
+      "[] is for keys you're certain exist; .get for uncertain ones.",
+      "Chain .get with {} defaults for nested data.",
+    ],
+    references: [
+      { title: "Python docs — dict.get", url: "https://docs.python.org/3/library/stdtypes.html#dict.get" },
+      { title: "Python docs — dict.setdefault", url: "https://docs.python.org/3/library/stdtypes.html#dict.setdefault" },
+    ],
     concept: `<pre>device.get("owner")               # None if missing
 device.get("owner", "unassigned") # fallback</pre>`,
     task: `Write <code>get_owner(device)</code> returning the owner, or <code>"unassigned"</code> if missing.`,
@@ -1307,6 +1526,33 @@ else:
   {
     id: "l19", world: "w4", title: "Default Arguments", xp: 90,
     story: `Functions can take optional inputs with defaults — flexible, reusable tools.`,
+    deepDive: `Parameters can have <b>default values</b>, making them optional. Callers can also pass arguments <b>by keyword</b> for clarity:
+<pre>def tag_device(device, prefix="auto"):
+    return f"{prefix}:{device['os'].lower()}"
+
+tag_device(d)                 # uses default -> "auto:windows"
+tag_device(d, "manual")       # positional
+tag_device(d, prefix="scan")  # keyword (clearest)</pre>
+<p><code>*args</code> captures extra positional arguments, <code>**kwargs</code> extra keyword ones — useful for flexible wrappers and decorators.</p>`,
+    examples: [
+      `<b>Keyword call:</b> <code>connect(host, port=443, verify=True)</code> reads far clearer than <code>connect(host, 443, True)</code>.`,
+      `<b>Flexible wrapper:</b> <code>def log(*args, **kwargs): ...</code> accepts any arguments and forwards them.`,
+    ],
+    pitfalls: [
+      `<b>Mutable default trap:</b> <code>def f(x, acc=[])</code> — the same list is reused across calls and accumulates! Use <code>acc=None</code> then <code>acc = acc or []</code> inside.`,
+      `Default arguments are evaluated once at definition time, not per call (the cause of the trap above).`,
+      `Required (non-default) parameters must come before defaulted ones in the signature.`,
+    ],
+    why: `Defaults and keyword args make APIs ergonomic. The mutable-default-argument gotcha is a <b>classic interview question</b> — knowing it (and the <code>None</code> fix) stands out.`,
+    keyPoints: [
+      "Defaults make parameters optional: def f(x, p='auto').",
+      "Call by keyword for clarity; *args/**kwargs for flexibility.",
+      "Never use a mutable default ([]/{}) — use None and create inside.",
+    ],
+    references: [
+      { title: "Python Tutorial — Default argument values", url: "https://docs.python.org/3/tutorial/controlflow.html#default-argument-values" },
+      { title: "Python Tutorial — Keyword arguments", url: "https://docs.python.org/3/tutorial/controlflow.html#keyword-arguments" },
+    ],
     concept: `<pre>def label(device, prefix="auto"):
     return f"{prefix}:{device['os'].lower()}"
 
@@ -1335,6 +1581,35 @@ else:
   {
     id: "l20", world: "w4", title: "Days Since Last Seen", xp: 100,
     story: `Finding stale devices needs date math. Python's <code>datetime</code> handles it.`,
+    deepDive: `The <code>datetime</code> module models dates and times. Subtracting two dates gives a <code>timedelta</code>, whose <code>.days</code> is the gap:
+<pre>from datetime import date, datetime, timedelta
+d1 = date(2026, 9, 15)
+d2 = date(2026, 11, 13)
+(d2 - d1).days                 # 59
+
+datetime.strptime("2026-09-15", "%Y-%m-%d")   # text -> datetime (parse)
+some_dt.strftime("%Y-%m-%d")                    # datetime -> text (format)
+date.today() - timedelta(days=30)               # "30 days ago"</pre>
+<p><code>strptime</code> <b>p</b>arses a string; <code>strftime</code> <b>f</b>ormats one. Format codes: <code>%Y</code> year, <code>%m</code> month, <code>%d</code> day, <code>%H:%M:%S</code> time.</p>`,
+    examples: [
+      `<b>Days since last seen:</b> <code>(NOW - datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()).days</code> → flag if > 30.`,
+      `<b>Cutoff:</b> <code>cutoff = date.today() - timedelta(days=90)</code>, then compare <code>last_login < cutoff</code>.`,
+    ],
+    pitfalls: [
+      `Wrong format string in <code>strptime</code> raises ValueError — the code must match the text exactly (dashes, zero-padding).`,
+      `<b>Naive vs aware:</b> a datetime without a timezone is "naive"; comparing naive and timezone-aware datetimes errors. Be consistent (prefer UTC for logs).`,
+      `Comparing a <code>date</code> with a <code>datetime</code> directly fails — convert with <code>.date()</code> first.`,
+    ],
+    why: `Stale-account detection, retention windows, token expiry, and log timelines are all date math. <code>strptime</code>/<code>timedelta</code> fluency shows you can handle real time-series security data.`,
+    keyPoints: [
+      "date2 - date1 → timedelta; .days is the gap.",
+      "strptime parses text→datetime; strftime formats datetime→text.",
+      "Mind naive vs timezone-aware datetimes (use UTC for logs).",
+    ],
+    references: [
+      { title: "Python docs — datetime module", url: "https://docs.python.org/3/library/datetime.html" },
+      { title: "strftime/strptime format codes", url: "https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes" },
+    ],
     concept: `<pre>from datetime import date
 last = date(2026, 9, 15)
 today = date(2026, 11, 13)
