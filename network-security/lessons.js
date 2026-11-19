@@ -751,6 +751,27 @@ allow udp internal internet 53    # DNS
   /* ================= W5: SECURE PROTOCOLS ================= */
   {
     id: "n20", world: "w5", title: "Encryption In Transit", xp: 80, kind: "quiz",
+    deepDive: `<b>TLS</b> (the S in HTTPS) protects data on the wire with three guarantees: <b>confidentiality</b> (encryption), <b>integrity</b> (tamper detection), and <b>server authentication</b> (the certificate proves you're talking to the real site). The TLS handshake negotiates a cipher and establishes session keys before any data flows.
+<p>Plain HTTP (port 80) offers none of these — anyone on the path can read and modify traffic.</p>`,
+    examples: [
+      `<b>HTTPS vs HTTP:</b> 443 encrypts + authenticates; 80 is cleartext.`,
+      `<b>Modern baseline:</b> TLS 1.2/1.3, strong ciphers, HSTS to force HTTPS, valid CA-issued certs.`,
+    ],
+    pitfalls: [
+      `TLS protects data <i>in transit</i> only — you still need encryption at rest and good key/cert management.`,
+      `Expired/self-signed/mismatched certs break the authentication guarantee (and train users to click through warnings).`,
+      `Old protocols/ciphers (SSLv3, TLS 1.0, RC4) are broken — disable them.`,
+    ],
+    why: `"What does TLS actually give you?" (confidentiality + integrity + authentication) is a fundamental question. Naming all three, plus "in transit only", shows real understanding.`,
+    keyPoints: [
+      "TLS = confidentiality + integrity + server authentication.",
+      "HTTP/80 is cleartext; use HTTPS/443 + HSTS.",
+      "In-transit only; disable old protocols/ciphers.",
+    ],
+    references: [
+      { title: "Cloudflare — What is TLS?", url: "https://www.cloudflare.com/learning/ssl/transport-layer-security-tls/" },
+      { title: "OWASP — TLS Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html" },
+    ],
     story: `Protecting data on the wire is table stakes.`,
     concept: `<b>TLS</b> (used by HTTPS) provides confidentiality, integrity, and server authentication for data in transit. Plain HTTP provides none of these.`,
     task: `Which gives you confidentiality for web traffic in transit?`,
@@ -762,6 +783,27 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n21", world: "w5", title: "Where IPSec Works", xp: 90, kind: "quiz",
+    deepDive: `<b>IPSec</b> secures traffic at the <b>Network layer (L3)</b>, so it protects <i>all</i> IP traffic in the tunnel transparently — ideal for site-to-site VPNs. <b>SSL/TLS VPNs</b> operate higher up (around the transport/application), often per-application and clientless via a browser.
+<pre>IPSec: IKE negotiates keys (UDP 500 / 4500 for NAT-T), then ESP encrypts packets</pre>`,
+    examples: [
+      `<b>Site-to-site:</b> IPSec tunnels two offices so every IP packet between them is encrypted.`,
+      `<b>Remote access:</b> SSL VPN (or IPSec client) for individual users; WireGuard is a modern, simpler L3 VPN.`,
+    ],
+    pitfalls: [
+      `IPSec + NAT needs NAT-Traversal (UDP 4500) — plain ESP can break through NAT.`,
+      `Confusing the layers: IPSec = L3 (all traffic), SSL VPN = higher layer (often per-app).`,
+      `VPN encrypts the tunnel, not the endpoints — a compromised client still gets in.`,
+    ],
+    why: `"At what layer does IPSec work, and how does it differ from an SSL VPN?" is a standard VPN question. L3/transparent vs higher-layer/per-app is the distinction.`,
+    keyPoints: [
+      "IPSec = L3, protects all IP traffic (great for site-to-site).",
+      "SSL/TLS VPN = higher layer, often per-app/clientless.",
+      "IKE on UDP 500/4500; VPN secures the tunnel, not endpoints.",
+    ],
+    references: [
+      { title: "Cloudflare — What is IPsec?", url: "https://www.cloudflare.com/learning/network-layer/what-is-ipsec/" },
+      { title: "Cloudflare — IPsec vs SSL VPN", url: "https://www.cloudflare.com/learning/network-layer/ipsec-vs-ssl-vpn/" },
+    ],
     story: `VPNs secure site-to-site and remote access — but they operate at different layers.`,
     concept: `<b>IPSec</b> secures traffic at the <b>Network layer (L3)</b>, protecting all IP traffic in the tunnel. <b>SSL/TLS VPNs</b> work higher up (around the application/transport).`,
     task: `At which OSI layer does IPSec primarily operate?`,
@@ -773,6 +815,30 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n22", world: "w5", title: "DNSSEC vs DoH", xp: 100, kind: "quiz",
+    deepDive: `DNS has two very different "secure DNS" technologies that solve <i>different</i> problems:
+<ul>
+<li><b>DNSSEC</b> cryptographically <b>signs</b> DNS records → <b>authenticity/integrity</b> (anti-spoofing/cache-poisoning). It does <b>not</b> encrypt.</li>
+<li><b>DoH / DoT</b> (DNS over HTTPS/TLS) <b>encrypts</b> the DNS query → <b>confidentiality/privacy</b> (stops eavesdropping on lookups). It does not prove the answer is authentic.</li>
+</ul>`,
+    examples: [
+      `<b>DNSSEC:</b> a resolver validates signatures so a forged "bank.com → attacker IP" is rejected.`,
+      `<b>DoH:</b> your ISP/network can't see which domains you look up.`,
+    ],
+    pitfalls: [
+      `They're complementary, not interchangeable — DNSSEC ≠ privacy; DoH ≠ authenticity.`,
+      `DoH can also <i>hinder</i> enterprise security monitoring (hidden lookups) — a real policy trade-off.`,
+      `DNSSEC adoption/validation gaps mean spoofing is still possible on unsigned zones.`,
+    ],
+    why: `"DNSSEC vs DoH" tests whether you separate integrity from confidentiality. Knowing DoH can blind security monitoring is a sharp, practical point.`,
+    keyPoints: [
+      "DNSSEC = signed records (integrity/authenticity), not encryption.",
+      "DoH/DoT = encrypted queries (privacy), not authenticity.",
+      "Complementary; DoH can complicate enterprise monitoring.",
+    ],
+    references: [
+      { title: "Cloudflare — DNSSEC", url: "https://www.cloudflare.com/learning/dns/dns-security/" },
+      { title: "Cloudflare — DNS over HTTPS (DoH)", url: "https://www.cloudflare.com/learning/dns/dns-over-tls/" },
+    ],
     story: `DNS is a favourite attack surface. Two defenses solve different problems.`,
     concept: `<b>DNSSEC</b> signs DNS records to guarantee <b>authenticity/integrity</b> (anti-spoofing) — it does NOT encrypt. <b>DoH/DoT</b> encrypts DNS queries for <b>confidentiality/privacy</b>.`,
     task: `What does DNSSEC provide?`,
@@ -789,6 +855,30 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n23", world: "w5", title: "VPN & Admin Ports", xp: 70, kind: "fill",
+    deepDive: `The secure-access and admin ports worth memorizing:
+<pre>IPSec IKE   UDP 500   (+ UDP 4500 for NAT-Traversal)
+SSH         TCP 22    (secure shell / SFTP)
+RDP         TCP 3389  (Windows remote desktop)
+OpenVPN     UDP 1194  ·  WireGuard  UDP 51820  ·  HTTPS/SSL-VPN 443</pre>`,
+    examples: [
+      `<b>IKE:</b> UDP 500 negotiates the IPSec tunnel; 4500 carries it through NAT.`,
+      `<b>Admin:</b> SSH 22 (Linux/network gear), RDP 3389 (Windows).`,
+    ],
+    pitfalls: [
+      `Never expose RDP (3389) or SSH (22) straight to the internet — brute-force/RDP worms target them; use a bastion/VPN.`,
+      `Blocking UDP 4500 silently breaks IPSec behind NAT.`,
+      `Default ports are conventions — services can move, so don't rely on port alone for identification.`,
+    ],
+    why: `Admin/VPN ports come up constantly in firewall rules and "why can't my VPN connect?" troubleshooting. Internet-exposed 3389/22 is a known breach vector worth flagging.`,
+    keyPoints: [
+      "IKE UDP 500 (+4500 NAT-T), SSH 22, RDP 3389.",
+      "Never expose RDP/SSH directly to the internet.",
+      "Ports are conventions; confirm the actual service.",
+    ],
+    references: [
+      { title: "IANA — Port registry", url: "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml" },
+      { title: "CISA — Securing RDP", url: "https://www.cisa.gov/news-events/alerts/2012/03/07/microsoft-releases-remote-desktop-protocol-security-advisory" },
+    ],
     story: `More ports to keep in muscle memory — the secure-access ones.`,
     concept: `IPSec IKE uses UDP <b>500</b> (and 4500 for NAT-T). SSH is <b>22</b>. RDP is <b>3389</b>.`,
     task: `Fill in the port numbers.`,
@@ -804,6 +894,28 @@ allow udp internal internet 53    # DNS
   /* ================= W6: THREAT DETECTION ================= */
   {
     id: "n24", world: "w6", title: "Spot the Scan", xp: 90, kind: "quiz",
+    deepDive: `Reconnaissance leaves a signature in traffic before the real attack. A <b>port scan</b> = one source touching many destination ports (or hosts) in a short window.
+<pre>SYN scan: send SYN, watch for SYN-ACK (open) vs RST (closed), never finish the handshake
+Vertical scan: many ports on one host · Horizontal: one port across many hosts</pre>`,
+    examples: [
+      `<b>Vertical scan:</b> one host SYNs ports 1–1024 on a server in seconds.`,
+      `<b>Tooling:</b> nmap for the attacker; IDS/IPS + flow analytics to detect the pattern.`,
+    ],
+    pitfalls: [
+      `Slow/"low-and-slow" scans spread over hours evade naive rate thresholds — correlate over longer windows.`,
+      `Benign scanners exist (vuln scanners, monitoring) — allowlist known-good sources to cut noise.`,
+      `A single blocked SYN isn't a scan; it's the <i>pattern</i> (breadth + rate) that matters.`,
+    ],
+    why: `Recognizing recon early is classic blue-team work. Knowing scan types (vertical/horizontal, SYN) and that low-and-slow evades thresholds is the depth interviewers want.`,
+    keyPoints: [
+      "Port scan = one source, many ports/hosts, short window.",
+      "SYN scans look for SYN-ACK vs RST without finishing.",
+      "Low-and-slow evades naive thresholds — correlate over time.",
+    ],
+    references: [
+      { title: "Nmap — Port scanning techniques", url: "https://nmap.org/book/man-port-scanning-techniques.html" },
+      { title: "MITRE ATT&CK — Network Service Discovery", url: "https://attack.mitre.org/techniques/T1046/" },
+    ],
     story: `🛰️ Recon shows up in traffic patterns before the real attack.`,
     concept: `A <b>port scan</b> looks like one source hammering many destination ports (often half-open SYNs) in a short window.`,
     task: `One host sends SYN packets to ports 1–1024 on a server within two seconds. This is most likely:`,
@@ -815,6 +927,31 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n25", world: "w6", title: "IDS vs IPS", xp: 90, kind: "quiz",
+    deepDive: `Both inspect traffic for threats; the difference is placement and power:
+<ul>
+<li><b>IDS</b> (Intrusion Detection System) is <b>passive</b> — it sits out-of-band (on a tap/SPAN) and <b>alerts</b>. It can't stop traffic.</li>
+<li><b>IPS</b> (Intrusion Prevention System) sits <b>inline</b> and can <b>drop/block</b> malicious traffic in real time.</li>
+</ul>
+<p>Detection methods for both: <b>signature</b> (known-bad patterns) and <b>anomaly</b> (deviation from baseline).</p>`,
+    examples: [
+      `<b>IDS:</b> Snort/Suricata on a SPAN port raising alerts to the SOC.`,
+      `<b>IPS:</b> the same engine inline, actively dropping an exploit attempt.`,
+    ],
+    pitfalls: [
+      `Inline IPS is a potential bottleneck and single point of failure — size it and plan fail-open/closed deliberately.`,
+      `Aggressive IPS blocking on false positives causes outages — tune before enabling prevent mode.`,
+      `Encrypted traffic limits inspection unless you decrypt (TLS inspection) — a privacy/performance trade-off.`,
+    ],
+    why: `IDS vs IPS (passive/alert vs inline/block) is a guaranteed question. The "P is for Prevention / inline" mnemonic plus the fail-open/false-positive trade-offs show depth.`,
+    keyPoints: [
+      "IDS = passive, detect & alert; IPS = inline, can block.",
+      "Both use signature + anomaly detection.",
+      "IPS adds latency/availability risk — tune and plan failure mode.",
+    ],
+    references: [
+      { title: "Cloudflare — IDS vs IPS", url: "https://www.cloudflare.com/learning/security/what-is-an-intrusion-detection-system/" },
+      { title: "Suricata — IDS/IPS engine", url: "https://suricata.io/" },
+    ],
     story: `Both inspect traffic, but one can stop it.`,
     concept: `An <b>IDS</b> is passive — it monitors (often on a span/tap) and <b>alerts</b>. An <b>IPS</b> sits <b>inline</b> and can <b>block/drop</b> malicious traffic in real time.`,
     task: `Which is true?`,
@@ -831,6 +968,28 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n26", world: "w6", title: "Find the Exfil", xp: 110, kind: "quiz",
+    deepDive: `Data exfiltration hides in outbound traffic. Tell-tale signs: a <b>large outbound transfer</b> from an internal host to an <b>unusual destination/port</b>, often <b>off-hours</b>, far above that host's baseline.
+<pre>Red flags: big uploads to unknown IPs, odd ports (4444), beaconing to one host,
+           DNS/HTTPS tunneling (many long TXT queries / steady POSTs)</pre>`,
+    examples: [
+      `<b>Classic exfil:</b> internal host → 185.x.x.x:4444, 2.5 GB upload at 3am.`,
+      `<b>Covert channels:</b> DNS tunneling or steady HTTPS beacons to a single C2 domain.`,
+    ],
+    pitfalls: [
+      `Legit big uploads exist (backups, cloud sync) — baseline per host and allowlist known destinations.`,
+      `Exfil over 443/53 looks "normal" by port — inspect volume, timing, and destination reputation, not just the port.`,
+      `Low-and-slow exfil stays under volume thresholds — watch for persistent beaconing too.`,
+    ],
+    why: `Spotting exfiltration from flow data is core detection work. Knowing to weigh volume + destination + timing (not just port) and that 443/53 are abused is the senior answer.`,
+    keyPoints: [
+      "Exfil = large/odd outbound to unusual dest, off-hours, above baseline.",
+      "443/53 are abused — judge volume/timing/destination, not just port.",
+      "Baseline per host; watch for beaconing and low-and-slow.",
+    ],
+    references: [
+      { title: "MITRE ATT&CK — Exfiltration (TA0010)", url: "https://attack.mitre.org/tactics/TA0010/" },
+      { title: "MITRE ATT&CK — Exfiltration Over C2 Channel", url: "https://attack.mitre.org/techniques/T1041/" },
+    ],
     story: `Data theft hides in the flow logs. Pick it out.`,
     concept: `Exfiltration often = a large <b>outbound</b> transfer from an internal host to an <b>unusual destination/port</b>, off-hours, far bigger than normal.`,
     task: `Which flow most likely indicates data exfiltration?`,
@@ -847,6 +1006,29 @@ allow udp internal internet 53    # DNS
   },
   {
     id: "n27", world: "w6", title: "Block the Attacker", xp: 130, kind: "firewall",
+    deepDive: `Once you've identified a hostile source, block it <b>above</b> your broad allows (first-match-wins). A deny placed after an <code>allow any</code> never fires:
+<pre>deny  tcp attacker dmz any    # specific block first
+allow tcp any dmz 443         # then the general service rule</pre>
+<p>This combines the order-matters lesson with incident response: contain the bad actor while keeping the service available to everyone else.</p>`,
+    examples: [
+      `<b>Block + keep serving:</b> deny the attacker zone to the DMZ, still allow internet/partner → dmz:443.`,
+      `<b>Real tools:</b> WAF/edge IP deny lists, threat-intel feeds, fail2ban, scrubbing services.`,
+    ],
+    pitfalls: [
+      `Placing the deny after the broad allow = it never triggers (the classic shadowing bug).`,
+      `IP blocks are easily evaded (new IPs, botnets) — pair with rate-limiting/behavioral controls.`,
+      `Over-broad blocks can take out shared infrastructure (NAT/CDN) that many users sit behind.`,
+    ],
+    why: `Containing an attacker at the firewall while preserving service, with correct rule order, is a practical IR-meets-networking task interviewers like.`,
+    keyPoints: [
+      "Put the specific deny ABOVE broad allows (first match wins).",
+      "IP blocking alone is evadable — add rate limits/behavior.",
+      "Avoid over-broad blocks that hit shared infra.",
+    ],
+    references: [
+      { title: "Cloudflare — IP access rules", url: "https://developers.cloudflare.com/waf/tools/ip-access-rules/" },
+      { title: "MITRE ATT&CK — Mitigations", url: "https://attack.mitre.org/mitigations/enterprise/" },
+    ],
     story: `You've identified a hostile source zone. Block it at the top while keeping the web service open to everyone else — order is everything.`,
     concept: `A <b>deny must come before</b> a broad allow, or the allow will let the attacker through first.`,
     task: `Keep <code>internet</code> and <code>partner</code> able to reach <code>dmz:443</code>, but block the <code>attacker</code> zone from the DMZ entirely.`,
@@ -864,6 +1046,32 @@ allow udp internal internet 53    # DNS
   /* ================= W7: BOSS ================= */
   {
     id: "n28", world: "w7", title: "BOSS: Secure the Enterprise", xp: 300, kind: "firewall",
+    deepDive: `This capstone combines everything: default-deny, three-tier segmentation, a management choke point, and controlled egress — across internet, DMZ (web), internal (app), db, and mgmt zones. Permit exactly the required flows and let default-deny block the dangerous ones:
+<pre>allow internet->dmz:443/80   (users to web)
+allow dmz->internal:8080     (web to app)
+allow internal->db:3306      (app to db)
+allow mgmt->internal:22, mgmt->dmz:22   (bastion admin)
+allow internal->internet:443 (outbound updates)
+# internet->db, internet->app, dmz->db, internet->mgmt  -> all denied</pre>`,
+    examples: [
+      `<b>Every flow justified:</b> each allow maps to a real need; nothing broad.`,
+      `<b>Blast-radius containment:</b> a breached web server still can't reach the DB directly or the mgmt zone.`,
+    ],
+    pitfalls: [
+      `A single over-broad rule (e.g., <code>allow any dmz any</code>) collapses the whole design — stay specific.`,
+      `Forgetting legitimate paths (updates, monitoring, backups) breaks operations — design them in explicitly.`,
+      `No logging/review means drift; audit the ruleset over time.`,
+    ],
+    why: `"Design the firewall policy for a segmented enterprise" is the quintessential network-security interview exercise. Default-deny + least-privilege flows + a bastion is the model answer.`,
+    keyPoints: [
+      "Default-deny; permit only adjacent, required flows.",
+      "Segment tiers; funnel admin through a bastion; filter egress.",
+      "Every allow is justified; audit for drift.",
+    ],
+    references: [
+      { title: "NIST — Zero Trust Architecture (SP 800-207)", url: "https://csrc.nist.gov/pubs/sp/800/207/final" },
+      { title: "NIST SP 800-41r1 — Firewall policy", url: "https://csrc.nist.gov/pubs/sp/800/41/r1/final" },
+    ],
     story: `🏆 Final boss. You're handed a full enterprise: internet, DMZ (web), internal (app), db, and a mgmt jump box. Write one ruleset that permits every required flow and denies everything dangerous. The topology below must go all-green.`,
     concept: `Required (allow): users→web (internet→dmz:443, :80), web→app (dmz→internal:8080), app→db (internal→db:3306), jump box→app SSH (mgmt→internal:22), jump box→web SSH (mgmt→dmz:22), and outbound updates (internal→internet:443).
 Must be denied: internet→db, internet→app, web→db direct, internet→mgmt.`,
@@ -906,6 +1114,27 @@ allow tcp internal internet 443`,
   /* ================= W8: WAF & APPSEC (Layer 7) ================= */
   {
     id: "n29", world: "w8", title: "What a WAF Does", xp: 90, kind: "quiz",
+    deepDive: `A network firewall sees IPs/ports (L3/L4). A <b>WAF</b> parses the actual <b>HTTP(S)</b> request (L7) — method, path, query, headers, body — and blocks web application attacks: the <b>OWASP Top 10</b> (SQLi, XSS, path traversal, etc.).
+<p>It sits in front of the app (reverse proxy / CDN edge / ingress) and complements, not replaces, secure coding and the L3/L4 firewall.</p>`,
+    examples: [
+      `<b>Catches app attacks:</b> a WAF can block <code>?id=1 OR 1=1</code> that a port-based firewall never sees.`,
+      `<b>Deployments:</b> cloud WAF (Cloudflare, AWS WAF), reverse proxy (ModSecurity), or Kubernetes ingress.`,
+    ],
+    pitfalls: [
+      `A WAF is not a substitute for fixing the code — it's defense-in-depth that can be bypassed.`,
+      `It needs to see decrypted traffic — TLS terminates at the WAF/edge.`,
+      `Poorly tuned rules cause false positives (blocking legit users) or false negatives (missed attacks).`,
+    ],
+    why: `"What's the difference between a firewall and a WAF?" is a common appsec question. L7/HTTP-aware vs L3/L4, and "defense-in-depth not a code fix," is the answer.`,
+    keyPoints: [
+      "WAF inspects L7 HTTP to block OWASP-style web attacks.",
+      "Sits at reverse proxy/CDN/ingress; needs decrypted traffic.",
+      "Complements secure coding — not a replacement.",
+    ],
+    references: [
+      { title: "Cloudflare — What is a WAF?", url: "https://www.cloudflare.com/learning/ddos/glossary/web-application-firewall-waf/" },
+      { title: "OWASP — Web Application Firewall", url: "https://owasp.org/www-community/Web_Application_Firewall" },
+    ],
     story: `🧯 A network firewall sees IPs and ports. A <b>WAF</b> reads the HTTP request itself.`,
     concept: `A <b>Web Application Firewall</b> inspects Layer-7 HTTP (method, path, query, headers, body) and blocks application attacks — the <b>OWASP Top 10</b> like SQL injection, XSS, and path traversal. It complements, not replaces, the L3/L4 firewall.`,
     task: `What best describes a WAF?`,
@@ -922,6 +1151,28 @@ allow tcp internal internet 443`,
   },
   {
     id: "n30", world: "w8", title: "Block Path Traversal", xp: 120, kind: "l7", defaultAction: "allow",
+    deepDive: `<b>Path (directory) traversal</b> uses <code>../</code> sequences to escape the web root and read files outside it (<code>/etc/passwd</code>, config, keys). In negative-security (blocklist) mode the WAF allows by default and blocks the known-bad signature:
+<pre>block when path contains ..</pre>
+<p>The real fix is in the app (canonicalize paths, reject <code>..</code>, use safe file APIs); the WAF is a fast compensating control.</p>`,
+    examples: [
+      `<b>Block traversal:</b> paths containing <code>..</code> (incl. encoded <code>..%2f</code>) are dropped; normal pages pass.`,
+      `<b>Target files:</b> attackers aim for <code>../../etc/passwd</code>, app configs, cloud credentials.`,
+    ],
+    pitfalls: [
+      `Encodings bypass naive checks — <code>%2e%2e%2f</code>, <code>..\\</code>, double-encoding — normalize before matching.`,
+      `Blocking only <code>../</code> but not its encoded forms leaves gaps.`,
+      `WAF rule ≠ fix — also harden the application's file handling.`,
+    ],
+    why: `Path traversal is a long-standing OWASP issue; writing a WAF rule for it (and knowing encodings evade naive rules) demonstrates practical L7 defense.`,
+    keyPoints: [
+      "Traversal = ../ to escape the web root and read files.",
+      "Block the signature, but normalize encodings first.",
+      "Fix the app too (canonicalize, reject .., safe APIs).",
+    ],
+    references: [
+      { title: "OWASP — Path Traversal", url: "https://owasp.org/www-community/attacks/Path_Traversal" },
+      { title: "PortSwigger — Directory traversal", url: "https://portswigger.net/web-security/file-path-traversal" },
+    ],
     story: `The WAF simulator is live. Write rules; each HTTP request is evaluated and shown allowed/blocked. Here, WAF runs in <b>negative</b> mode — allow by default, block known-bad.`,
     concept: `L7 rule syntax:
 <pre>action when field op value</pre>
@@ -944,6 +1195,29 @@ Path traversal (<code>../</code>) tries to escape the web root to read files lik
   },
   {
     id: "n31", world: "w8", title: "Stop SQL Injection", xp: 130, kind: "l7", defaultAction: "allow",
+    deepDive: `<b>SQL injection</b> smuggles SQL through user input to read/modify the database or bypass auth. A WAF matches classic signatures in the query/body:
+<pre>block when query contains union select
+block when query contains or 1=1</pre>
+<p>The <b>real</b> fix is <b>parameterized queries</b> (prepared statements) in the app — the WAF is a compensating layer, not the cure.</p>`,
+    examples: [
+      `<b>Auth bypass:</b> <code>' OR 1=1--</code>; <b>data theft:</b> <code>UNION SELECT password FROM users</code>.`,
+      `<b>App fix:</b> <code>cursor.execute("... WHERE id = %s", (id,))</code> — never string-concatenate SQL.`,
+    ],
+    pitfalls: [
+      `Signature WAF rules are evadable (comments, encoding, case) — parameterize in code; don't rely on the WAF alone.`,
+      `Over-broad SQLi rules false-positive on legit input containing "select"/"or" — tune carefully.`,
+      `Blocklisting keywords is a losing game vs a determined attacker.`,
+    ],
+    why: `Injection is OWASP #3; "how do you prevent SQLi?" must answer <b>parameterized queries</b> first (WAF second). Knowing the WAF is evadable shows you understand defense-in-depth.`,
+    keyPoints: [
+      "WAF blocks SQLi signatures (union select, or 1=1).",
+      "Real fix = parameterized queries / prepared statements.",
+      "Signatures are evadable — WAF is a compensating layer.",
+    ],
+    references: [
+      { title: "OWASP — SQL Injection Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html" },
+      { title: "OWASP — Injection (Top 10)", url: "https://owasp.org/Top10/A03_2021-Injection/" },
+    ],
     story: `SQLi hides in query strings — <code>' OR 1=1--</code> or <code>UNION SELECT</code>. Catch the signatures.`,
     concept: `Match attack patterns in the <code>query</code> field. Use <code>contains</code> for simple substrings (case-insensitive).`,
     task: `Block requests whose <code>query</code> contains <code>union select</code> OR <code>or 1=1</code>. Legitimate searches must pass.`,
@@ -960,6 +1234,29 @@ Path traversal (<code>../</code>) tries to escape the web root to read files lik
   },
   {
     id: "n32", world: "w8", title: "Neutralize XSS", xp: 130, kind: "l7", defaultAction: "allow",
+    deepDive: `<b>XSS</b> (Cross-Site Scripting) injects attacker JavaScript that runs in victims' browsers — stealing sessions, keylogging, defacing. A WAF blocks injection markers in input:
+<pre>block when body contains <script
+block when body contains onerror</pre>
+<p>The real fixes live in the app: <b>context-aware output encoding</b>, a strong <b>Content-Security-Policy</b>, and framework auto-escaping.</p>`,
+    examples: [
+      `<b>Stored XSS:</b> <code>&lt;script&gt;steal()&lt;/script&gt;</code> saved in a comment; <b>attribute XSS:</b> <code>onerror=alert(1)</code>.`,
+      `<b>App defenses:</b> encode on output, set CSP, use framework escaping (React/Angular auto-escape).`,
+    ],
+    pitfalls: [
+      `WAF signatures miss obfuscated/encoded XSS (HTML entities, event handlers, SVG) — encoding + CSP are the durable fix.`,
+      `Blocking <code>&lt;script</code> only is trivial to bypass (many vectors) — don't rely on it alone.`,
+      `Reflected/DOM XSS may never hit the server body a WAF inspects.`,
+    ],
+    why: `XSS is a perennial OWASP risk. "How do you stop XSS?" → output encoding + CSP (WAF as backup) is the answer that shows you know where the real fix lives.`,
+    keyPoints: [
+      "XSS runs attacker JS in the victim's browser.",
+      "Real fix: output encoding + CSP + framework escaping.",
+      "WAF signatures help but are evadable (DOM/encoded XSS).",
+    ],
+    references: [
+      { title: "OWASP — XSS Prevention Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" },
+      { title: "MDN — Content Security Policy (CSP)", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP" },
+    ],
     story: `Cross-site scripting arrives in the request body — <code>&lt;script&gt;</code> tags and <code>onerror=</code> handlers.`,
     concept: `Inspect the <code>body</code> for script injection markers. Real comments shouldn't contain them.`,
     task: `Block requests whose <code>body</code> contains <code>&lt;script</code> OR <code>onerror</code>. Normal comments pass.`,
@@ -976,6 +1273,31 @@ Path traversal (<code>../</code>) tries to escape the web root to read files lik
   },
   {
     id: "n33", world: "w8", title: "Positive vs Negative", xp: 90, kind: "quiz",
+    deepDive: `Two WAF models:
+<ul>
+<li><b>Negative (blocklist):</b> allow by default, block known-bad signatures. Easy to deploy, low false positives — but <b>bypassable</b> by novel/obfuscated payloads.</li>
+<li><b>Positive (allowlist):</b> deny by default, permit only known-good input/shapes. Much stronger, but higher effort and more false positives, so it needs tuning (often via learning mode).</li>
+</ul>
+<p>Mature deployments blend both and run in "detect/log" before "block".</p>`,
+    examples: [
+      `<b>Negative:</b> OWASP Core Rule Set signatures catching common attacks.`,
+      `<b>Positive:</b> a schema that only accepts <code>id</code> as digits and <code>email</code> as an email — anything else blocked.`,
+    ],
+    pitfalls: [
+      `Pure blocklist lulls you into false confidence — determined attackers evade signatures.`,
+      `Pure allowlist, rolled out in block mode without tuning, breaks legitimate traffic.`,
+      `Skipping a detect-only/learning phase leads to painful false-positive outages.`,
+    ],
+    why: `Positive vs negative security model is a classic WAF/design question (same idea as default-deny firewalls and input allowlisting). Knowing the trade-offs and "detect before block" is the mature take.`,
+    keyPoints: [
+      "Negative = blocklist (easy, bypassable); Positive = allowlist (strong, higher effort).",
+      "Blend both; favor allowlisting for critical inputs.",
+      "Run detect/learning mode before enabling block.",
+    ],
+    references: [
+      { title: "OWASP — Positive security model", url: "https://owasp.org/www-community/Positive_security_model" },
+      { title: "OWASP ModSecurity Core Rule Set", url: "https://coreruleset.org/" },
+    ],
     story: `How a WAF decides is a design choice with real trade-offs.`,
     concept: `<b>Negative model</b> (blocklist): allow by default, block known-bad signatures — easy to deploy but can be bypassed by novel/obfuscated payloads. <b>Positive model</b> (allowlist): deny by default, permit only known-good input — far stronger but higher effort and more false positives.`,
     task: `A WAF that blocks only known attack signatures uses which model, and what's its main weakness?`,
