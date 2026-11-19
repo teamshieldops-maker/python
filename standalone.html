@@ -499,11 +499,29 @@ class AwsSim:
     def list_policies(self):
         return self.policies
 
+class K8sSim:
+    # A tiny Kubernetes cluster for pod-security auditing lessons.
+    def __init__(self):
+        self.pods = [
+            {"name": "frontend-7c", "namespace": "web", "privileged": False, "runAsRoot": False, "image": "frontend:1.4.2", "limits": True, "envSecrets": []},
+            {"name": "api-5d", "namespace": "app", "privileged": False, "runAsRoot": True, "image": "api:latest", "limits": False, "envSecrets": ["DB_PASSWORD"]},
+            {"name": "debug-shell", "namespace": "app", "privileged": True, "runAsRoot": True, "image": "ubuntu:latest", "limits": False, "envSecrets": []},
+            {"name": "cache-0", "namespace": "data", "privileged": False, "runAsRoot": False, "image": "redis:7.2", "limits": True, "envSecrets": []},
+        ]
+    def list_pods(self):
+        return self.pods
+    def get_pod(self, name):
+        for p in self.pods:
+            if p["name"] == name:
+                return p
+        return None
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
 falcon = FalconSim()
 aws = AwsSim()
+k8s = K8sSim()
 
 def __state__():
     return _json.dumps({
@@ -514,6 +532,7 @@ def __state__():
         "authed": graph.token is not None,
         "buckets": aws.buckets,
         "policies": aws.policies,
+        "pods": k8s.pods,
     })
 `;
 
@@ -539,6 +558,7 @@ const WORLDS = [
   { id: "w10", name: "CI/CD & Automation", emoji: "⚙️", blurb: "Tests, retries, secret scanning & dependency checks." },
   { id: "w11", name: "Log Analytics",     emoji: "📊", blurb: "Counter, parsing & detecting attacks in log data." },
   { id: "w12", name: "Cloud Security",    emoji: "☁️", blurb: "boto3-style automation: public buckets, encryption & IAM." },
+  { id: "w13", name: "Container & K8s",   emoji: "🐳", blurb: "Audit pods: privileged, root, :latest & env secrets." },
 ];
 
 const LESSONS = [
@@ -1879,6 +1899,115 @@ else:
       "Then loop buckets calling aws.block_public_access and aws.enable_encryption; return the findings dict.",
     ],
     solution: `def secure_cloud(aws):\n    public = sorted(b["name"] for b in aws.list_buckets() if b["public"])\n    unenc = sorted(b["name"] for b in aws.list_buckets() if not b["encrypted"])\n    risky = sorted(p["name"] for p in aws.list_policies() if any("*" in a for a in p["actions"]))\n    for b in aws.list_buckets():\n        aws.block_public_access(b["name"])\n        aws.enable_encryption(b["name"])\n    return {"public": public, "unencrypted": unenc, "risky_policies": risky}\n\nfindings = secure_cloud(aws)\nprint(findings)`,
+  },
+
+  /* ================= WORLD 13: CONTAINER & K8s SECURITY (Python) ================= */
+  {
+    id: "l62", world: "w13", title: "Find Privileged Pods", xp: 130,
+    story: `🐳 A live mock cluster is available as <code>k8s</code>. A privileged container can escape to the host — hunt them down.`,
+    concept: `<pre>for p in k8s.list_pods():
+    p["name"], p["namespace"], p["privileged"]
+    p["runAsRoot"], p["image"], p["limits"], p["envSecrets"]</pre>`,
+    task: `Build <code>privileged</code> — names of pods where <code>privileged</code> is True (expect <code>['debug-shell']</code>).`,
+    starter: `# find privileged pods\n`,
+    check: `
+if 'privileged' not in globals():
+    _feedback = "Create privileged."
+elif sorted(privileged) == ["debug-shell"]:
+    _passed = True; _feedback = "Privileged pod found — a top container-escape risk. 🐳"
+else:
+    _feedback = f"Expected ['debug-shell'], got {privileged}."
+`,
+    hints: ["Loop k8s.list_pods().", "Keep p['name'] where p['privileged'].", "privileged = [p['name'] for p in k8s.list_pods() if p['privileged']]"],
+    solution: `privileged = [p["name"] for p in k8s.list_pods() if p["privileged"]]\nprint(privileged)`,
+  },
+  {
+    id: "l63", world: "w13", title: "Root & No Limits", xp: 140,
+    story: `Pods should run as non-root with resource limits. Flag the ones that break both rules.`,
+    concept: `Combine two conditions with <code>and</code>/<code>or</code>. Here: running as root OR missing resource limits is a finding.`,
+    task: `Build <code>unsafe</code> — names of pods that <code>runAsRoot</code> OR have no <code>limits</code> (expect <code>['api-5d', 'debug-shell']</code>).`,
+    starter: `# flag pods that run as root OR have no resource limits\n`,
+    check: `
+if 'unsafe' not in globals():
+    _feedback = "Create unsafe."
+elif sorted(unsafe) == ["api-5d", "debug-shell"]:
+    _passed = True; _feedback = "Root + unbounded pods flagged — classic Pod Security findings. 🔒"
+else:
+    _feedback = f"Expected ['api-5d','debug-shell'], got {unsafe}."
+`,
+    hints: ["Condition: p['runAsRoot'] or not p['limits']", "unsafe = [p['name'] for p in k8s.list_pods() if p['runAsRoot'] or not p['limits']]"],
+    solution: `unsafe = [p["name"] for p in k8s.list_pods() if p["runAsRoot"] or not p["limits"]]\nprint(unsafe)`,
+  },
+  {
+    id: "l64", world: "w13", title: "The :latest Trap", xp: 130,
+    story: `Mutable <code>:latest</code> image tags break reproducibility and let unreviewed code into prod. Find them.`,
+    concept: `A string ends with a suffix via <code>.endswith(...)</code>:
+<pre>"api:latest".endswith(":latest")   # True</pre>`,
+    task: `Build <code>latest_images</code> — names of pods whose <code>image</code> ends with <code>:latest</code> (expect <code>['api-5d', 'debug-shell']</code>).`,
+    starter: `# find pods using the :latest tag\n`,
+    check: `
+if 'latest_images' not in globals():
+    _feedback = "Create latest_images."
+elif sorted(latest_images) == ["api-5d", "debug-shell"]:
+    _passed = True; _feedback = "Unpinned images caught — pin digests/tags for supply-chain safety. 📌"
+else:
+    _feedback = f"Expected ['api-5d','debug-shell'], got {latest_images}."
+`,
+    hints: ["Use p['image'].endswith(':latest').", "latest_images = [p['name'] for p in k8s.list_pods() if p['image'].endswith(':latest')]"],
+    solution: `latest_images = [p["name"] for p in k8s.list_pods() if p["image"].endswith(":latest")]\nprint(latest_images)`,
+  },
+  {
+    id: "l65", world: "w13", title: "Secrets in Env", xp: 130,
+    story: `Secrets in plain environment variables leak into logs, crash dumps, and <code>kubectl describe</code>. Find pods doing it.`,
+    concept: `A non-empty list is truthy:
+<pre>if p["envSecrets"]:   # has secrets in env</pre>`,
+    task: `Build <code>leaky_pods</code> — names of pods with any entries in <code>envSecrets</code> (expect <code>['api-5d']</code>).`,
+    starter: `# find pods exposing secrets via env vars\n`,
+    check: `
+if 'leaky_pods' not in globals():
+    _feedback = "Create leaky_pods."
+elif sorted(leaky_pods) == ["api-5d"]:
+    _passed = True; _feedback = "Env-var secret exposure found — move these to mounted Secrets/a vault. 🔑"
+else:
+    _feedback = f"Expected ['api-5d'], got {leaky_pods}."
+`,
+    hints: ["A non-empty list is truthy: if p['envSecrets']", "leaky_pods = [p['name'] for p in k8s.list_pods() if p['envSecrets']]"],
+    solution: `leaky_pods = [p["name"] for p in k8s.list_pods() if p["envSecrets"]]\nprint(leaky_pods)`,
+  },
+  {
+    id: "l66", world: "w13", title: "BOSS: Pod Security Audit", xp: 300,
+    story: `🏆 Final boss. Write one admission-style auditor that scans every pod and reports all four classes of finding. This is what a Pod Security / OPA policy engine does.`,
+    concept: `Return a dict with four sorted lists:
+<pre>def audit_pods(k8s):
+    pods = k8s.list_pods()
+    return {
+        "privileged":   sorted(p["name"] for p in pods if p["privileged"]),
+        "run_as_root":  sorted(p["name"] for p in pods if p["runAsRoot"]),
+        "latest_image": sorted(p["name"] for p in pods if p["image"].endswith(":latest")),
+        "secrets_in_env": sorted(p["name"] for p in pods if p["envSecrets"]),
+    }</pre>`,
+    task: `Write <code>audit_pods(k8s)</code> returning those four sorted lists, and call it into <code>report</code>.`,
+    starter: `# define audit_pods(k8s); then report = audit_pods(k8s)\n`,
+    check: `
+if 'audit_pods' not in globals() or not callable(audit_pods):
+    _feedback = "Define audit_pods(k8s)."
+else:
+    _r = globals().get("report")
+    if (isinstance(_r, dict)
+            and sorted(_r.get("privileged", [])) == ["debug-shell"]
+            and sorted(_r.get("run_as_root", [])) == ["api-5d", "debug-shell"]
+            and sorted(_r.get("latest_image", [])) == ["api-5d", "debug-shell"]
+            and sorted(_r.get("secrets_in_env", [])) == ["api-5d"]):
+        _passed = True; _feedback = "🏆 BOSS DEFEATED. You built a Kubernetes pod-security auditor — the core of an admission policy engine. You're interview-ready."
+    else:
+        _feedback = f"Report must have the four finding lists. Got {_r}."
+`,
+    hints: [
+      "Grab pods = k8s.list_pods() once.",
+      "Four comprehensions: privileged, runAsRoot, image endswith ':latest', envSecrets truthy.",
+      "Return them in a dict with keys privileged / run_as_root / latest_image / secrets_in_env.",
+    ],
+    solution: `def audit_pods(k8s):\n    pods = k8s.list_pods()\n    return {\n        "privileged": sorted(p["name"] for p in pods if p["privileged"]),\n        "run_as_root": sorted(p["name"] for p in pods if p["runAsRoot"]),\n        "latest_image": sorted(p["name"] for p in pods if p["image"].endswith(":latest")),\n        "secrets_in_env": sorted(p["name"] for p in pods if p["envSecrets"]),\n    }\n\nreport = audit_pods(k8s)\nprint(report)`,
   },
 ];
 

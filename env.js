@@ -228,11 +228,29 @@ class AwsSim:
     def list_policies(self):
         return self.policies
 
+class K8sSim:
+    # A tiny Kubernetes cluster for pod-security auditing lessons.
+    def __init__(self):
+        self.pods = [
+            {"name": "frontend-7c", "namespace": "web", "privileged": False, "runAsRoot": False, "image": "frontend:1.4.2", "limits": True, "envSecrets": []},
+            {"name": "api-5d", "namespace": "app", "privileged": False, "runAsRoot": True, "image": "api:latest", "limits": False, "envSecrets": ["DB_PASSWORD"]},
+            {"name": "debug-shell", "namespace": "app", "privileged": True, "runAsRoot": True, "image": "ubuntu:latest", "limits": False, "envSecrets": []},
+            {"name": "cache-0", "namespace": "data", "privileged": False, "runAsRoot": False, "image": "redis:7.2", "limits": True, "envSecrets": []},
+        ]
+    def list_pods(self):
+        return self.pods
+    def get_pod(self, name):
+        for p in self.pods:
+            if p["name"] == name:
+                return p
+        return None
+
 # Singletons the lessons automate against
 intune = IntuneSim()
 graph = GraphClient(intune)
 falcon = FalconSim()
 aws = AwsSim()
+k8s = K8sSim()
 
 def __state__():
     return _json.dumps({
@@ -243,5 +261,6 @@ def __state__():
         "authed": graph.token is not None,
         "buckets": aws.buckets,
         "policies": aws.policies,
+        "pods": k8s.pods,
     })
 `;
