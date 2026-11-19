@@ -669,6 +669,31 @@ L1 Physical     — cables, radio, bits</pre>
   },
   {
     id: "n7", world: "w2", title: "Find the Broadcast", xp: 90, kind: "fill",
+    deepDive: `The <b>broadcast address</b> is the last address of a subnet (all host bits set to 1) — traffic to it reaches every host in the subnet. Fast method:
+<ol>
+<li>Find the block size = 256 − mask octet. For <code>/22</code> the mask is 255.255.<b>252</b>.0 → block size = 256 − 252 = <b>4</b> in the 3rd octet.</li>
+<li>The network starts at a multiple of the block size; the broadcast is <b>one less than the next</b> block boundary.</li>
+</ol>
+<pre>10.0.0.0 /22 -> 3rd-octet blocks 0-3, 4-7 ... -> network 10.0.0.0, broadcast 10.0.3.255</pre>`,
+    examples: [
+      `<b>10.0.0.0/22:</b> covers 10.0.0.0 – 10.0.3.255; broadcast = 10.0.3.255.`,
+      `<b>192.168.1.0/26:</b> block size 64 → broadcast 192.168.1.63.`,
+    ],
+    pitfalls: [
+      `For prefixes like /22, the "interesting octet" is the 3rd, not the 4th — work in the right octet.`,
+      `Broadcast is the last address of <i>this</i> block, i.e. next-boundary − 1, not the next network.`,
+      `/31 and /32 have no usable broadcast in the normal sense (point-to-point / single host).`,
+    ],
+    why: `Broadcast boundaries define where a subnet ends — essential for ACLs, DHCP scopes, and spotting overlaps. It's a guaranteed subnetting interview item.`,
+    keyPoints: [
+      "Broadcast = all host bits 1 = last address of the block.",
+      "block size = 256 − mask octet; broadcast = next boundary − 1.",
+      "Work in the octet the prefix lands in.",
+    ],
+    references: [
+      { title: "Cloudflare — What is a subnet?", url: "https://www.cloudflare.com/learning/network-layer/what-is-a-subnet/" },
+      { title: "Wikipedia — Broadcast address", url: "https://en.wikipedia.org/wiki/Broadcast_address" },
+    ],
     story: `The broadcast address ends a subnet — and a /22 spills across octets.`,
     concept: `A <code>/22</code> borrows into the 3rd octet with a block size of 4 (0–3, 4–7 …).
 <pre>10.0.0.0 /22 -> network 10.0.0.0, broadcast 10.0.3.255</pre>`,
@@ -679,6 +704,29 @@ L1 Physical     — cables, radio, bits</pre>
   },
   {
     id: "n8", world: "w2", title: "First & Last Host", xp: 90, kind: "fill",
+    deepDive: `Usable host range sits <i>between</i> the reserved network and broadcast addresses:
+<pre>first host = network + 1
+last host  = broadcast − 1</pre>
+<p>For <code>172.16.5.0/28</code> (block size 16): network .0, broadcast .15 → usable hosts .1 through .14.</p>`,
+    examples: [
+      `<b>172.16.5.0/28:</b> first 172.16.5.1, last 172.16.5.14 (14 usable).`,
+      `<b>Gateway convention:</b> teams often assign the first (.1) or last usable address to the router.`,
+    ],
+    pitfalls: [
+      `Don't hand out the network or broadcast address to a host — they're reserved.`,
+      `/31 is the exception (RFC 3021): both addresses are usable for point-to-point links.`,
+      `Off-by-one: first = network+1, last = broadcast−1 (not network/broadcast themselves).`,
+    ],
+    why: `Assigning gateways, static IPs, and DHCP ranges all require the usable host boundaries. It's a staple of subnetting questions.`,
+    keyPoints: [
+      "Usable range = network+1 … broadcast−1.",
+      "Network and broadcast are reserved (except /31).",
+      "Gateways conventionally take the first or last usable IP.",
+    ],
+    references: [
+      { title: "Wikipedia — Subnetwork", url: "https://en.wikipedia.org/wiki/Subnetwork" },
+      { title: "RFC 3021 — /31 point-to-point", url: "https://datatracker.ietf.org/doc/html/rfc3021" },
+    ],
     story: `Assigning gateways and ranges means knowing the usable host boundaries.`,
     concept: `In <code>172.16.5.0/28</code> (block size 16): network .0, broadcast .15, so usable hosts are .1 … .14.`,
     task: `For <code>172.16.5.0/28</code>, give the first and last usable host.`,
@@ -691,6 +739,29 @@ L1 Physical     — cables, radio, bits</pre>
   },
   {
     id: "n9", world: "w2", title: "Right-Size It", xp: 100, kind: "fill",
+    deepDive: `Pick the <b>smallest</b> subnet that still fits the hosts you need (plus modest growth). Work the host formula backward:
+<pre>usable = 2^(32−prefix) − 2
+need 50 -> /26 gives 62 (fits), /27 gives 30 (too small)</pre>
+<p>Right-sizing is "least privilege" for address space: oversized subnets waste addresses and enlarge a segment's blast radius; undersized ones force painful renumbering.</p>`,
+    examples: [
+      `<b>50 hosts → /26</b> (62 usable, a little headroom).`,
+      `<b>Sizing table:</b> /29→6, /28→14, /27→30, /26→62, /25→126, /24→254.`,
+    ],
+    pitfalls: [
+      `Forgetting the −2 (network+broadcast) when checking if a prefix fits.`,
+      `No growth headroom forces re-subnetting later; too much waste bloats segments.`,
+      `Smaller prefix number = larger subnet — easy to invert under pressure.`,
+    ],
+    why: `VLSM / right-sizing is core network design and a frequent "what's the smallest subnet for N hosts?" question. It also ties to segmentation (smaller = tighter blast radius).`,
+    keyPoints: [
+      "Smallest prefix where 2^(32−prefix)−2 ≥ needed hosts.",
+      "Leave modest growth headroom; avoid gross waste.",
+      "Right-sizing = least privilege for address space.",
+    ],
+    references: [
+      { title: "Wikipedia — VLSM", url: "https://en.wikipedia.org/wiki/Variable-length_subnet_masking" },
+      { title: "Cloudflare — What is a subnet?", url: "https://www.cloudflare.com/learning/network-layer/what-is-a-subnet/" },
+    ],
     story: `Least privilege applies to subnets too — don't hand out a /16 for 50 hosts.`,
     concept: `Pick the <b>smallest</b> subnet that still fits the hosts:
 <pre>/26 -> 62 usable   (fits 50)
@@ -702,6 +773,29 @@ L1 Physical     — cables, radio, bits</pre>
   },
   {
     id: "n10", world: "w2", title: "Is It In Range?", xp: 90, kind: "quiz",
+    deepDive: `"Does IP X fall in subnet Y?" is constant ACL/troubleshooting work. Find the block the subnet starts at and whether X lands inside it:
+<pre>/26 -> block size 64 -> blocks .0-.63, .64-.127, .128-.191, .192-.255
+192.168.1.128/26 covers .128 - .191  -> is .130 inside? yes</pre>
+<p>Formally it's <code>(IP AND mask) == (network AND mask)</code>; the block-size method is the fast mental version.</p>`,
+    examples: [
+      `<b>192.168.1.130 in 192.168.1.128/26?</b> block .128–.191 → yes.`,
+      `<b>192.168.1.200 in 192.168.1.128/26?</b> .200 is in the .192–.255 block → no.`,
+    ],
+    pitfalls: [
+      `Using the wrong block size (mis-reading the prefix) puts the boundaries in the wrong place.`,
+      `Boundary values: .128 and .191 are in the block; .127 and .192 are not.`,
+      `Overlapping/typo'd subnets cause silent routing/ACL bugs — double-check boundaries.`,
+    ],
+    why: `Determining membership underlies writing ACLs, debugging "why can't these talk?", and spotting subnet overlaps — a daily network/security task.`,
+    keyPoints: [
+      "Membership = IP falls within the subnet's block.",
+      "Compute block size, find the block, check boundaries.",
+      "Equivalent to (IP AND mask) == network.",
+    ],
+    references: [
+      { title: "Wikipedia — CIDR", url: "https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing" },
+      { title: "RFC 4632 — CIDR", url: "https://datatracker.ietf.org/doc/html/rfc4632" },
+    ],
     story: `ACL troubleshooting is constant "does this IP fall in that block?" work.`,
     concept: `A <code>/26</code> has block size 64 (.0–.63, .64–.127, .128–.191, .192–.255).`,
     task: `Is <code>192.168.1.130</code> inside <code>192.168.1.128/26</code>?`,
@@ -715,6 +809,29 @@ L1 Physical     — cables, radio, bits</pre>
   /* ================= W3: FIREWALLS & ACLS ================= */
   {
     id: "n11", world: "w3", title: "Your First Rule", xp: 90, kind: "firewall",
+    deepDive: `A firewall rule (ACL entry) matches traffic by <b>action, protocol, source, destination, and port</b>, and either permits or drops it. Rules are evaluated <b>top-down, first match wins</b>, and anything unmatched hits the implicit <b>default deny</b>.
+<pre>allow tcp internet dmz 443   # let the world reach the web server on HTTPS
+# everything else -> dropped by default deny</pre>
+<p>This is a stateless packet-filter view; a stateful firewall additionally tracks connections (next lessons).</p>`,
+    examples: [
+      `<b>Permit web:</b> one rule allows internet→dmz:443; SSH (22) and internal access stay blocked by default.`,
+      `<b>Real syntax parallels:</b> AWS security group inbound rule, iptables <code>-A</code>, Cisco <code>permit tcp ... eq 443</code>.`,
+    ],
+    pitfalls: [
+      `Being too broad (allowing a whole zone or <code>any</code> port) opens far more than intended — be specific.`,
+      `Forgetting that the default is deny — you only need to permit what's required.`,
+      `Order matters once you have several rules (covered next).`,
+    ],
+    why: `Writing precise allow rules over an implicit default-deny is the foundation of every firewall/ACL/security-group. Interviewers expect "default deny, permit only what's needed".`,
+    keyPoints: [
+      "Rules match action/proto/src/dst/port; first match wins.",
+      "Default deny — explicitly permit only what's needed.",
+      "Be specific: avoid broad zone/any-port allows.",
+    ],
+    references: [
+      { title: "AWS — Security groups", url: "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" },
+      { title: "NIST SP 800-41r1 — Firewalls", url: "https://csrc.nist.gov/pubs/sp/800/41/r1/final" },
+    ],
     story: `🧱 The simulator is live. Write firewall rules below; every run evaluates them against real traffic flows and shows pass/drop in the topology.`,
     concept: `Rule syntax — one per line:
 <pre>action proto src dst [port]</pre>
@@ -736,6 +853,29 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n12", world: "w3", title: "Default Deny", xp: 100, kind: "firewall",
+    deepDive: `<b>Default deny</b> (allowlist) is the single most important firewall principle: block everything, then permit only the specific flows the business needs. The opposite (default allow + blocklist) is a losing game — you can't enumerate every bad thing.
+<pre>allow tcp internet dmz 80
+allow tcp internet dmz 443
+# NO broad allow -> 22, 3389, everything else is denied</pre>`,
+    examples: [
+      `<b>Open only web:</b> permit 80 and 443 to the DMZ; SSH/RDP and all else are implicitly dropped.`,
+      `<b>Positive security model:</b> same idea as a WAF allowlist or zero-trust "never trust, verify explicitly".`,
+    ],
+    pitfalls: [
+      `Adding a broad "allow any" to "make it work" silently reopens everything — never do this to debug.`,
+      `Missing a legitimately-needed flow breaks the app; enumerate required flows carefully.`,
+      `Leaving temporary permit rules in place after troubleshooting.`,
+    ],
+    why: `"Default deny vs default allow" is a fundamental security-design question. Allowlisting is the expected, defensible answer across firewalls, WAFs, and zero trust.`,
+    keyPoints: [
+      "Default deny + explicit allowlist of required flows.",
+      "You can't blocklist every bad thing — allowlist the good.",
+      "Never add broad 'allow any' to force things to work.",
+    ],
+    references: [
+      { title: "NIST — Zero Trust Architecture (SP 800-207)", url: "https://csrc.nist.gov/pubs/sp/800/207/final" },
+      { title: "OWASP — Positive security model", url: "https://owasp.org/www-community/Positive_security_model" },
+    ],
     story: `A hardened firewall allows only what's needed and drops the rest. Open just web.`,
     concept: `List each permitted flow explicitly; the implicit default-deny blocks the rest. Don't add broad allows.`,
     task: `Allow TCP <code>internet → dmz</code> on <code>80</code> and <code>443</code> only. SSH (22) and RDP (3389) must be denied.`,
@@ -752,6 +892,33 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n13", world: "w3", title: "Order Matters", xp: 120, kind: "firewall",
+    deepDive: `Because evaluation is <b>first match wins</b>, rule order changes behavior. A specific <code>deny</code> placed <i>after</i> a broad <code>allow</code> never fires — the allow already matched.
+<pre># WRONG: telnet is allowed because the broad allow matches first
+allow tcp internal internet any
+deny  tcp internal internet 23
+
+# RIGHT: specific deny first
+deny  tcp internal internet 23
+allow tcp internal internet any</pre>`,
+    examples: [
+      `<b>Exceptions before generals:</b> put narrow deny/allow rules above broad ones.`,
+      `<b>Real impact:</b> misordered ACLs are a top cause of "the rule exists but traffic still passes/blocks".`,
+    ],
+    pitfalls: [
+      `A shadowed rule (unreachable because an earlier rule always matches) is a silent misconfiguration.`,
+      `Appending new rules to the bottom can place them after a catch-all — check position, not just existence.`,
+      `Large ACLs drift into shadowing over time; audit with analyzers.`,
+    ],
+    why: `Rule ordering/shadowing is a classic real-world firewall bug and a favorite interview gotcha. "First match wins, so specific-before-broad" is the key insight.`,
+    keyPoints: [
+      "First match wins — order is behavior.",
+      "Place specific exceptions above broad rules.",
+      "Watch for shadowed (unreachable) rules.",
+    ],
+    references: [
+      { title: "Cisco — ACL order of operations", url: "https://www.cisco.com/c/en/us/support/docs/security/ios-firewall/23602-confaccesslists.html" },
+      { title: "NIST SP 800-41r1 — Firewall policy", url: "https://csrc.nist.gov/pubs/sp/800/41/r1/final" },
+    ],
     story: `First match wins. A specific deny placed AFTER a broad allow never fires — a classic real-world bug. Fix the order.`,
     concept: `These rules are in the wrong order. Because the broad <code>allow</code> is first, the Telnet <code>deny</code> below it is dead. Reorder so Telnet (23) is blocked while other outbound web still works.`,
     task: `Make it so <code>internal → internet</code> is allowed, EXCEPT TCP port <code>23</code> (Telnet), which must be denied.`,
@@ -767,6 +934,29 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n14", world: "w3", title: "Outbound ≠ Inbound", xp: 120, kind: "firewall",
+    deepDive: `A <b>stateful</b> firewall tracks connections in a state table. When an internal host <i>initiates</i> an outbound connection, the firewall automatically permits the <b>return</b> traffic for that established session — you do <b>not</b> open an inbound rule for it.
+<pre>allow tcp internal internet 443   # outbound web; replies auto-allowed
+# the internet still CANNOT initiate inbound to internal (default deny)</pre>
+<p>This is why a stateful firewall needs only the initiating-direction rule; unsolicited inbound stays blocked.</p>`,
+    examples: [
+      `<b>Browsing works, inbound doesn't:</b> internal→internet:443 allowed; internet→internal:anything stays denied.`,
+      `<b>Contrast NACLs:</b> stateless filters (AWS NACLs) require you to allow the return/ephemeral ports explicitly.`,
+    ],
+    pitfalls: [
+      `Confusing stateful with stateless — on a stateless ACL you MUST add return-traffic rules (ephemeral ports).`,
+      `Opening an inbound rule "so replies work" on a stateful firewall needlessly exposes the host.`,
+      `Allowing broad outbound can still enable exfil/C2 — pair with egress filtering (next lesson).`,
+    ],
+    why: `Stateful vs stateless and "why don't I need an inbound rule for replies?" are standard firewall interview questions. Understanding the state table is the differentiator.`,
+    keyPoints: [
+      "Stateful firewalls auto-allow established return traffic.",
+      "Only permit the initiating direction; inbound stays denied.",
+      "Stateless ACLs need explicit return-traffic rules.",
+    ],
+    references: [
+      { title: "Cloudflare — Stateful vs stateless firewall", url: "https://www.cloudflare.com/learning/security/what-is-stateful-inspection/" },
+      { title: "AWS — Security groups (stateful) vs NACLs (stateless)", url: "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html" },
+    ],
     story: `On a <b>stateful</b> firewall, allowing an outbound connection automatically allows its return traffic — but it does NOT let the internet start a new inbound connection.`,
     concept: `You only need to permit the connection's <i>initiating</i> direction. Return packets for established sessions are allowed automatically. Unsolicited inbound stays blocked by default.`,
     task: `Allow internal users to browse HTTPS (<code>internal → internet:443</code>). Do NOT allow the internet to initiate connections inbound to internal.`,
@@ -782,6 +972,29 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n15", world: "w3", title: "Egress Filtering", xp: 130, kind: "firewall",
+    deepDive: `Most firewalls lock down inbound but leave <b>outbound</b> wide open — a gift to malware, which needs egress for <b>C2</b> and <b>data exfiltration</b>. Egress filtering allowlists only sanctioned outbound services.
+<pre>allow tcp internal internet 443   # HTTPS
+allow udp internal internet 53    # DNS
+# SMTP(25), IRC(6667), random high ports -> denied</pre>`,
+    examples: [
+      `<b>Allow only what's needed out:</b> 443 + 53; block 25 (spam/exfil) and odd C2 ports.`,
+      `<b>Force proxying:</b> require outbound web through a filtering proxy so you can inspect/allowlist destinations.`,
+    ],
+    pitfalls: [
+      `DNS (53) and HTTPS (443) are themselves exfil channels (DNS tunneling, HTTPS C2) — egress filtering helps but isn't complete; add inspection/monitoring.`,
+      `Over-tight egress breaks legitimate updates/telemetry — enumerate needs first.`,
+      `Allowing all outbound "for convenience" defeats the control entirely.`,
+    ],
+    why: `Egress filtering is an underused, high-value control that breaks the attacker kill chain (exfil/C2). Calling it out — and noting DNS/HTTPS can still tunnel — signals mature defense thinking.`,
+    keyPoints: [
+      "Allowlist outbound; don't leave egress wide open.",
+      "Chokes malware C2 and data exfiltration.",
+      "DNS/HTTPS can still tunnel — add inspection/monitoring.",
+    ],
+    references: [
+      { title: "SANS — Egress filtering", url: "https://www.sans.org/white-papers/1059/" },
+      { title: "MITRE ATT&CK — Exfiltration", url: "https://attack.mitre.org/tactics/TA0010/" },
+    ],
     story: `Attackers exfiltrate and call home over odd ports. Lock down what internal hosts may send OUT.`,
     concept: `Egress (outbound) filtering limits internal → internet to only sanctioned services, choking malware C2 and data theft.`,
     task: `Allow <code>internal → internet</code> on TCP <code>443</code> and UDP <code>53</code> (DNS) only. Block SMTP (25) and IRC (6667) used for exfil/C2.`,
@@ -800,6 +1013,28 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   /* ================= W4: SEGMENTATION ================= */
   {
     id: "n16", world: "w4", title: "Three-Tier Lockdown", xp: 150, kind: "firewall",
+    deepDive: `The classic secure web architecture is three tiers, each only talking to its neighbour:
+<pre>internet --443--> [DMZ: web] --8080--> [internal: app] --3306--> [db]</pre>
+<p>The database is never reachable from the internet or directly from web — a breach of the web tier still can't touch the DB without going through app. This is <b>segmentation</b>: contain blast radius by allowing only adjacent, required flows.</p>`,
+    examples: [
+      `<b>Permit the chain:</b> internet→dmz:443, dmz→internal:8080, internal→db:3306 — and nothing else.`,
+      `<b>Blocked by design:</b> internet→db, web→db direct, internet→app all denied by default.`,
+    ],
+    pitfalls: [
+      `Allowing the web tier to reach the DB directly (skipping app) defeats the tiering — a common real-world shortcut.`,
+      `Over-broad "internal can reach anything" rules collapse the segmentation.`,
+      `Forgetting management/backup paths — design those explicitly rather than leaving a broad hole.`,
+    ],
+    why: `Three-tier segmentation is a canonical design question ("how would you architect a secure web app network?"). Allowing only adjacent required flows is the textbook answer.`,
+    keyPoints: [
+      "Each tier talks only to its neighbour on the needed port.",
+      "DB unreachable from internet or directly from web.",
+      "Segmentation contains blast radius.",
+    ],
+    references: [
+      { title: "NIST — Zero Trust Architecture (SP 800-207)", url: "https://csrc.nist.gov/pubs/sp/800/207/final" },
+      { title: "AWS — Multi-tier VPC design", url: "https://docs.aws.amazon.com/whitepapers/latest/web-application-hosting-best-practices/network-segmentation.html" },
+    ],
     story: `🔀 Classic web→app→db architecture. Each tier talks ONLY to its neighbour. The database must never be reachable from the internet or directly from web.`,
     concept: `Zones: <code>internet</code> → <code>dmz</code> (web) → <code>internal</code> (app) → <code>db</code> (database). Permit only the adjacent, required flows.`,
     task: `Allow: users→web (internet→dmz:443), web→app (dmz→internal:8080), app→db (internal→db:3306). Everything else (esp. internet→db, web→db) denied.`,
@@ -818,6 +1053,27 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n17", world: "w4", title: "Microsegmentation", xp: 90, kind: "quiz",
+    deepDive: `Traditional segmentation guards the perimeter (north-south). <b>Microsegmentation</b> pushes policy down to the <b>individual workload</b> — often identity/host-based rather than purely IP — to control <b>east-west</b> (lateral) traffic inside a segment.
+<p>So even if an attacker lands on one workload, they can't freely pivot to its neighbours. It's a core enabler of zero trust in data centers / Kubernetes.</p>`,
+    examples: [
+      `<b>Per-workload policy:</b> the web pod may talk to the app pod on 8080 and nothing else — enforced at the workload, not just a zone boundary.`,
+      `<b>Implementations:</b> Kubernetes NetworkPolicies, service mesh mTLS, host-based firewalls, NSX/Illumio.`,
+    ],
+    pitfalls: [
+      `IP-based rules drift as workloads move/scale — microsegmentation uses identity/labels to stay correct.`,
+      `Too granular too fast is unmanageable — start with high-value segments and expand.`,
+      `Without visibility (flow maps) you'll block legitimate east-west traffic.`,
+    ],
+    why: `Microsegmentation and limiting lateral movement are central to zero-trust discussions. Knowing it's identity-based and targets east-west traffic is the depth interviewers want.`,
+    keyPoints: [
+      "Policy at the workload level, not just the perimeter.",
+      "Limits east-west / lateral movement after a breach.",
+      "Identity/label-based; enabler of zero trust.",
+    ],
+    references: [
+      { title: "NIST — Zero Trust Architecture (SP 800-207)", url: "https://csrc.nist.gov/pubs/sp/800/207/final" },
+      { title: "Kubernetes — Network Policies", url: "https://kubernetes.io/docs/concepts/services-networking/network-policies/" },
+    ],
     story: `Zero-trust networking pushes controls down to the workload.`,
     concept: `<b>Microsegmentation</b> enforces per-workload policy (often host/identity based), limiting <b>east-west</b> (lateral) movement inside a segment — not just at the perimeter.`,
     task: `What problem does microsegmentation primarily address?`,
@@ -834,6 +1090,27 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n18", world: "w4", title: "East-West vs North-South", xp: 80, kind: "quiz",
+    deepDive: `<b>North-south</b> traffic crosses the perimeter (client ↔ data center / internet ↔ app). <b>East-west</b> traffic moves <i>between</i> internal systems (server ↔ server, pod ↔ pod).
+<p>Classic defenses (perimeter firewalls) focus north-south; attackers who get inside then move <b>east-west</b> largely unchecked — which is exactly what microsegmentation addresses.</p>`,
+    examples: [
+      `<b>East-west:</b> app server → database inside the data center.`,
+      `<b>North-south:</b> a user on the internet → your web front end.`,
+    ],
+    pitfalls: [
+      `Assuming a strong perimeter is enough — once inside, flat internal networks let attackers roam east-west.`,
+      `Monitoring only north-south (the edge) misses lateral movement entirely.`,
+      `East-west volume is huge; policy/visibility must scale to it.`,
+    ],
+    why: `These directions frame nearly every segmentation and zero-trust conversation. Knowing attackers exploit unchecked east-west traffic is the key security point.`,
+    keyPoints: [
+      "North-south = across the perimeter; east-west = internal/lateral.",
+      "Perimeter defenses miss east-west movement.",
+      "Microsegmentation + internal monitoring close that gap.",
+    ],
+    references: [
+      { title: "Illumio — East-West vs North-South traffic", url: "https://www.illumio.com/cybersecurity-101/east-west-traffic" },
+      { title: "MITRE ATT&CK — Lateral Movement", url: "https://attack.mitre.org/tactics/TA0008/" },
+    ],
     story: `Design conversations constantly use these two directions.`,
     concept: `<b>North-south</b> = traffic in/out of the data center (client ↔ server across the perimeter). <b>East-west</b> = traffic between internal systems (server ↔ server).`,
     task: `Traffic between an app server and a database inside your data center is best described as:`,
@@ -845,6 +1122,29 @@ Rules are read <b>top-down, first match wins</b>, and anything not matched is <b
   },
   {
     id: "n19", world: "w4", title: "Jump-Box Only SSH", xp: 130, kind: "firewall",
+    deepDive: `Administrative access should funnel through a hardened <b>jump box / bastion</b> in a management zone — never directly from the internet or the DMZ. Restrict SSH (22) to the <code>mgmt</code> source only:
+<pre>allow tcp mgmt internal 22
+# internet->internal:22 and dmz->internal:22 are denied</pre>
+<p>The bastion is monitored, MFA-protected, and logged, giving one controlled, auditable choke point for admin access.</p>`,
+    examples: [
+      `<b>Scope admin:</b> only mgmt→internal:22 is allowed; all other SSH sources are denied.`,
+      `<b>Modern variants:</b> SSM Session Manager / Tailscale / Teleport replace open SSH with brokered, audited access.`,
+    ],
+    pitfalls: [
+      `A bastion exposed to the whole internet on 22 just moves the problem — restrict its own inbound and require MFA.`,
+      `Leaving direct SSH paths open "temporarily" becomes permanent and bypasses the control.`,
+      `No session logging on the jump box means no audit trail of admin actions.`,
+    ],
+    why: `Bastion/jump-box design is a standard infrastructure-security question. Funneling admin access through one hardened, logged choke point is the expected pattern.`,
+    keyPoints: [
+      "Admin access only via a hardened, monitored bastion.",
+      "Deny direct SSH from internet/DMZ to internal.",
+      "MFA + session logging on the jump box; consider brokered access.",
+    ],
+    references: [
+      { title: "AWS — Linux bastion hosts", url: "https://aws.amazon.com/solutions/implementations/linux-bastion/" },
+      { title: "AWS — Systems Manager Session Manager", url: "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html" },
+    ],
     story: `Admin access should come from a hardened management zone (jump box) — never straight from the internet or the DMZ.`,
     concept: `Restrict SSH (22) to internal servers so it's permitted ONLY from the <code>mgmt</code> zone.`,
     task: `Allow SSH <code>mgmt → internal:22</code>. Deny SSH to internal from <code>internet</code> and from <code>dmz</code>.`,
