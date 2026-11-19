@@ -2282,6 +2282,28 @@ mTLS: client verifies server cert AND server verifies client cert</pre>`,
   /* ================= W12: CLOUD SECURITY ================= */
   {
     id: "n48", world: "w12", title: "Least Privilege IAM", xp: 100, kind: "quiz",
+    deepDive: `<b>Least privilege</b> = grant only the specific actions on the specific resources an identity needs, for only as long as needed. Wildcards (<code>*:*</code>) are the opposite: one leaked credential then owns the account.
+<pre>GOOD: allow s3:GetObject on arn:aws:s3:::reports/*
+BAD : allow * on *</pre>`,
+    examples: [
+      `<b>Least privilege:</b> a single action scoped to one bucket ARN.`,
+      `<b>Right-size continuously:</b> use last-accessed data / Access Analyzer to prune unused permissions.`,
+    ],
+    pitfalls: [
+      `Granting <code>s3:*</code>/<code>*</code> "to move fast" — it never gets tightened later.`,
+      `Static admin keys instead of short-lived role assumption.`,
+      `Least privilege is ongoing — permissions creep as roles change.`,
+    ],
+    why: `Over-permissioned IAM is the most common serious cloud finding. "What does least privilege mean and how do you keep it?" → specific action+resource, pruned continuously.`,
+    keyPoints: [
+      "Grant minimum action+resource; avoid wildcards.",
+      "Prefer short-lived roles over static admin keys.",
+      "Continuously prune unused permissions.",
+    ],
+    references: [
+      { title: "AWS — Grant least privilege", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege" },
+      { title: "AWS — IAM Access Analyzer", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html" },
+    ],
     story: `☁️ Cloud breaches usually trace back to over-permissive IAM. Grant the minimum.`,
     concept: `<b>Least privilege</b> means a policy grants only the specific actions on the specific resources needed. Wildcards like <code>Action:"*"</code> and <code>Resource:"*"</code> are the opposite — one leaked credential then owns everything.`,
     task: `Which IAM policy statement best follows least privilege?`,
@@ -2298,6 +2320,28 @@ mTLS: client verifies server cert AND server verifies client cert</pre>`,
   },
   {
     id: "n49", world: "w12", title: "Write an IAM Policy", xp: 150, kind: "l7", defaultAction: "block",
+    deepDive: `Cloud authorization is policy evaluated per request: <b>who</b> (principal) can do <b>what</b> (action) on <b>which</b> (resource), under <b>conditions</b>. Deny-by-default, grant the minimum, and an explicit <b>deny</b> always wins:
+<pre>block when resource eq secrets-bucket   # explicit deny beats any allow
+allow when action eq s3:GetObject       # least-privilege grant</pre>`,
+    examples: [
+      `<b>Read-only, scoped:</b> allow <code>s3:GetObject</code> on the reports bucket; deny anything touching secrets; everything else default-denied.`,
+      `<b>AWS reality:</b> effective access = (allows) minus (any explicit deny), capped by SCP/permission boundaries.`,
+    ],
+    pitfalls: [
+      `Wildcards (<code>Action:"*"</code>, <code>Resource:"*"</code>) grant far more than intended — scope both.`,
+      `Forgetting that an explicit <b>Deny</b> overrides any Allow (use it to carve out protected resources).`,
+      `Policies combine (identity + resource + SCP + boundary) — reason about <i>effective</i> permissions, not one document.`,
+    ],
+    why: `Writing least-privilege IAM (and knowing deny-wins + wildcard danger) is core cloud security and a frequent hands-on question.`,
+    keyPoints: [
+      "Principal/action/resource/condition; deny-by-default.",
+      "Explicit Deny overrides Allow; scope actions AND resources.",
+      "Effective access = combined policies capped by SCP/boundaries.",
+    ],
+    references: [
+      { title: "AWS — Policy evaluation logic", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html" },
+      { title: "AWS — IAM best practices", url: "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html" },
+    ],
     story: `The policy simulator now models cloud API calls (<code>action</code> + <code>resource</code>). Deny-by-default: grant an analyst read-only on the reports bucket, and nothing on secrets.`,
     concept: `Rules can match any attribute — here <code>action</code> and <code>resource</code>:
 <pre>allow when action eq s3:GetObject
@@ -2320,6 +2364,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n50", world: "w12", title: "The Public Bucket", xp: 100, kind: "quiz",
+    deepDive: `The archetypal cloud leak: object storage opened to the world. A bucket policy with <code>Principal: "*"</code> allowing <code>s3:GetObject</code> on <code>bucket/*</code> means <b>anyone on the internet</b> can read every object.
+<p>Exposure can come from the bucket policy, object ACLs, or disabled account-level "Block Public Access" — so you must check all sources.</p>`,
+    examples: [
+      `<b>World-readable:</b> <code>Principal:"*"</code> + GetObject = public data leak (behind countless breaches).`,
+      `<b>Prevent:</b> enable account-level Block Public Access so new buckets are private by default.`,
+    ],
+    pitfalls: [
+      `A private bucket can still hold individual objects with public ACLs — check object-level too.`,
+      `"Static site" buckets are legitimately public — allowlist those so remediation doesn't break them.`,
+      `Public via a permissive policy is easy to miss if you only review ACLs.`,
+    ],
+    why: `Public-bucket exposure is the most famous cloud misconfiguration. Knowing the multiple exposure sources and account-level Block Public Access is the expected answer.`,
+    keyPoints: [
+      "Principal:\"*\" + GetObject = world-readable.",
+      "Exposure from policy, ACLs, or account setting — check all.",
+      "Enable account-level Block Public Access by default.",
+    ],
+    references: [
+      { title: "AWS — Blocking public access to S3", url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html" },
+      { title: "OWASP — Cloud security", url: "https://owasp.org/www-project-cloud-security/" },
+    ],
     story: `The classic cloud leak: an object store accidentally opened to the world.`,
     concept: `A bucket policy with <code>Principal: "*"</code> allowing <code>s3:GetObject</code> on <code>arn:aws:s3:::bucket/*</code> means <b>anyone on the internet</b> can read every object — the root cause of countless data leaks.`,
     task: `A bucket policy sets <code>Principal: "*"</code> + <code>Allow s3:GetObject</code> on <code>bucket/*</code>. What does it mean?`,
@@ -2336,6 +2401,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n51", world: "w12", title: "Keys Behind the Encryption", xp: 100, kind: "quiz",
+    deepDive: `Server-side encryption with <b>KMS</b> protects data at rest — but it's only as strong as <b>who can use the key</b>. A permissive <b>key policy</b> (broad <code>kms:Decrypt</code>) lets too many principals decrypt, undoing the protection.
+<p>In AWS, key usage requires permission in both the key policy and IAM; the key policy is the one people forget to audit.</p>`,
+    examples: [
+      `<b>Audit the key, not just the bucket:</b> who holds <code>kms:Decrypt</code> on this key?`,
+      `<b>Tighten:</b> scope decrypt to the specific roles/services that genuinely need it; rotate keys.`,
+    ],
+    pitfalls: [
+      `"It's KMS-encrypted" means little if the key policy grants decrypt broadly or cross-account.`,
+      `Reviewing IAM but not the key policy misses the real exposure.`,
+      `Encryption at rest doesn't stop an attacker who already has valid decrypt access.`,
+    ],
+    why: `"You enabled KMS — what actually determines protection?" → key access (key policy/IAM). This nuance separates checkbox encryption from real data protection.`,
+    keyPoints: [
+      "Encryption strength = how few principals can use the key.",
+      "KMS access = key policy AND IAM — audit both.",
+      "Watch broad/cross-account kms:Decrypt; rotate keys.",
+    ],
+    references: [
+      { title: "AWS — KMS key policies", url: "https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html" },
+      { title: "AWS — KMS best practices", url: "https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html" },
+    ],
     story: `Encryption at rest is only as strong as who can use the key.`,
     concept: `Server-side encryption with <b>KMS</b> protects data at rest, but a permissive <b>key policy / IAM</b> (who may call <code>kms:Decrypt</code>) can undo it — if everyone can use the key, the encryption adds little against an insider or stolen role.`,
     task: `You enable KMS encryption on a bucket. What most determines whether it actually protects the data?`,
@@ -2352,6 +2438,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n52", world: "w12", title: "SSRF to Metadata", xp: 120, kind: "quiz",
+    deepDive: `In the cloud, <b>SSRF</b> is especially dangerous because of the <b>instance metadata service</b> at <code>169.254.169.254</code>, which can hand out the instance's IAM role credentials. An attacker who makes your server fetch that URL steals cloud creds (this fueled a major breach).
+<p>Defenses, layered: enforce <b>IMDSv2</b> (token-required, blocks simple SSRF), block egress to the metadata IP, and validate/allowlist outbound URLs.</p>`,
+    examples: [
+      `<b>Attack:</b> SSRF → <code>http://169.254.169.254/latest/meta-data/iam/security-credentials/</code> → role creds.`,
+      `<b>Defense:</b> IMDSv2 requires a PUT-obtained token that simple SSRF can't get.`,
+    ],
+    pitfalls: [
+      `IMDSv1 (no token) is trivially exploitable via SSRF — enforce IMDSv2 and disable v1.`,
+      `URL allowlists get bypassed by DNS rebinding/redirects — validate the resolved IP and disable redirects.`,
+      `Over-permissioned instance roles make a stolen credential far worse — least-privilege the role too.`,
+    ],
+    why: `Cloud SSRF → metadata credential theft is a landmark cloud vuln (Capital One). IMDSv2 + egress block + URL validation + least-privilege roles is the complete answer.`,
+    keyPoints: [
+      "SSRF to 169.254.169.254 can steal instance role creds.",
+      "Enforce IMDSv2, block metadata egress, validate URLs (resolved IP).",
+      "Least-privilege the instance role to limit damage.",
+    ],
+    references: [
+      { title: "AWS — Use IMDSv2", url: "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html" },
+      { title: "OWASP — SSRF", url: "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" },
+    ],
     story: `A server fetching user-supplied URLs is a gift to attackers in the cloud.`,
     concept: `In <b>SSRF</b>, an attacker makes the server request <code>http://169.254.169.254/...</code> (the instance metadata service) to steal role credentials. Mitigations: enforce <b>IMDSv2</b> (token-required), block egress to the metadata IP, and validate/allowlist outbound URLs.`,
     task: `Your app fetches user-provided URLs; an attacker targets <code>169.254.169.254</code>. Best mitigation?`,
@@ -2368,6 +2475,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n53", world: "w12", title: "Who Did What?", xp: 90, kind: "quiz",
+    deepDive: `Cloud IR depends on the audit trail. <b>CloudTrail</b> records management (and optionally data) <b>API calls</b> — who did what, when, from where — across the account. (VPC Flow Logs capture network traffic; CloudWatch holds metrics/logs — different jobs.)
+<p>Enable it org-wide, send logs to a <b>separate, locked-down</b> account/bucket, and alert on sensitive events (CloudTrail disabled, root login, policy changes).</p>`,
+    examples: [
+      `<b>Investigate:</b> CloudTrail shows which principal created the public bucket or disabled logging, and from what IP.`,
+      `<b>Detect:</b> alert on <code>StopLogging</code>, root usage, mass <code>Delete*</code>, IAM policy changes.`,
+    ],
+    pitfalls: [
+      `Storing logs in the same account an attacker controls lets them tamper/delete — isolate and make immutable.`,
+      `Confusing CloudTrail (API audit) with Flow Logs (network) — they answer different questions.`,
+      `Not alerting on "logging disabled" — a classic attacker first move.`,
+    ],
+    why: `"Which service gives an API audit trail?" (CloudTrail) and "how do you protect the logs?" are standard cloud-IR questions. Isolation + alerting on log tampering is the mature take.`,
+    keyPoints: [
+      "CloudTrail = API-call audit trail (who/what/when/where).",
+      "Flow Logs = network, CloudWatch = metrics/logs — different.",
+      "Centralize to an isolated, immutable store; alert on tampering.",
+    ],
+    references: [
+      { title: "AWS — What is CloudTrail?", url: "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html" },
+      { title: "AWS — CloudTrail security best practices", url: "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html" },
+    ],
     story: `Incident response in the cloud lives or dies on your audit trail.`,
     concept: `<b>CloudTrail</b> records a log of API calls (who did what, when, from where) across the account — essential for investigations and detections. (VPC Flow Logs capture network traffic, not API calls.)`,
     task: `Which service gives an audit trail of all management API calls in an AWS account?`,
@@ -2381,6 +2509,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W13: CONTAINER & K8s SECURITY ================= */
   {
     id: "n54", world: "w13", title: "Containers Aren't VMs", xp: 100, kind: "quiz",
+    deepDive: `Containers share the <b>host kernel</b> (isolated by namespaces + cgroups); VMs each run their own kernel on a hypervisor. So container isolation is <b>weaker</b> — a kernel exploit or a privileged/misconfigured container can <b>escape to the host</b>.
+<p>For stronger isolation of untrusted workloads, use sandboxed runtimes (gVisor, Kata Containers / microVMs) that add a boundary.</p>`,
+    examples: [
+      `<b>Shared kernel risk:</b> a kernel 0-day or privileged container can break out to the node.`,
+      `<b>Stronger isolation:</b> gVisor (user-space kernel) or Kata (lightweight VM per pod) for untrusted tenants.`,
+    ],
+    pitfalls: [
+      `Assuming container = VM-level isolation — it isn't; design multi-tenancy accordingly.`,
+      `Running untrusted/multi-tenant workloads on a shared kernel without sandboxing.`,
+      `Privileged containers / host namespaces erase what isolation there is.`,
+    ],
+    why: `"Why is container isolation weaker than a VM?" (shared kernel) is a near-guaranteed cloud-native question. Mentioning gVisor/Kata for untrusted workloads shows depth.`,
+    keyPoints: [
+      "Containers share the host kernel (namespaces/cgroups); VMs don't.",
+      "Weaker isolation → escapes can reach the host.",
+      "Use gVisor/Kata/microVMs for untrusted workloads.",
+    ],
+    references: [
+      { title: "NIST SP 800-190 — Container security", url: "https://csrc.nist.gov/pubs/sp/800/190/final" },
+      { title: "gVisor — Sandboxed containers", url: "https://gvisor.dev/docs/" },
+    ],
     story: `🐳 The #1 container-security misconception bites teams hard.`,
     concept: `Containers share the host's <b>kernel</b> (isolated by namespaces + cgroups), unlike VMs which each run their own kernel on a hypervisor. So a kernel exploit or a <b>privileged</b>/misconfigured container can escape to the host — weaker isolation than a VM.`,
     task: `Why is container isolation generally weaker than VM isolation?`,
@@ -2397,6 +2546,33 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n55", world: "w13", title: "Harden the Image", xp: 100, kind: "quiz",
+    deepDive: `Most container risk is baked into the <b>image</b> before it runs. Image hygiene:
+<ul>
+<li><b>Minimal base</b> (distroless/alpine) — fewer packages = smaller attack surface.</li>
+<li><b>Non-root</b> user; drop capabilities.</li>
+<li><b>Scan</b> for CVEs in CI (Trivy/Grype).</li>
+<li><b>Pin by digest</b> (<code>@sha256:…</code>), not <code>:latest</code>.</li>
+<li>No secrets baked into layers.</li>
+</ul>`,
+    examples: [
+      `<b>Worst practice:</b> pull <code>:latest</code> and embed an API key in a layer — unpinned and leaks creds.`,
+      `<b>Good:</b> distroless base, non-root, scanned, pinned to a digest.`,
+    ],
+    pitfalls: [
+      `Secrets in image layers persist in every copy/registry — they're effectively public to anyone with the image.`,
+      `<code>:latest</code> breaks reproducibility and lets unreviewed code ship.`,
+      `Fat base images carry CVEs you don't even use.`,
+    ],
+    why: `Image hardening is foundational container security. "What makes a secure image?" → minimal, non-root, scanned, pinned, no secrets — is the expected checklist.`,
+    keyPoints: [
+      "Minimal base + non-root + dropped capabilities.",
+      "Scan in CI; pin by digest, not :latest.",
+      "Never bake secrets into layers.",
+    ],
+    references: [
+      { title: "NIST SP 800-190 — Container security", url: "https://csrc.nist.gov/pubs/sp/800/190/final" },
+      { title: "Docker — Build best practices", url: "https://docs.docker.com/build/building/best-practices/" },
+    ],
     story: `Most container risk is baked into the image before it ever runs.`,
     concept: `Image hygiene: use a <b>minimal</b> base, run as <b>non-root</b>, <b>scan</b> for CVEs, pin to an immutable <b>digest</b> (not <code>:latest</code>), and don't bake secrets in layers.`,
     task: `Which is the <b>worst</b> image practice?`,
@@ -2413,6 +2589,29 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n56", world: "w13", title: "K8s NetworkPolicy", xp: 150, kind: "firewall",
+    deepDive: `By default, <b>every pod can talk to every other pod</b> — a flat network ideal for lateral movement. A Kubernetes <b>NetworkPolicy</b> adds default-deny + explicit allows for pod-to-pod (east-west) traffic, selected by labels/namespaces.
+<pre>frontend --8080--> backend --5432--> database
+# database reachable only from backend; nothing else</pre>
+<p>NetworkPolicies need a CNI that enforces them (Calico, Cilium) — applying one with an unsupported CNI silently does nothing.</p>`,
+    examples: [
+      `<b>Tier the app:</b> allow frontend→backend:8080 and backend→database:5432; deny frontend→database and internet→database.`,
+      `<b>Default-deny:</b> a policy selecting all pods with no ingress makes the namespace deny-by-default.`,
+    ],
+    pitfalls: [
+      `No enforcing CNI = NetworkPolicies are accepted but ignored — verify your CNI supports them.`,
+      `Policies are namespaced and additive (allow-only); forgetting a default-deny leaves everything open.`,
+      `Label/selector mistakes silently widen or break connectivity.`,
+    ],
+    why: `Pod-to-pod segmentation via NetworkPolicy is core Kubernetes security and the microsegmentation story in K8s. Interviewers probe the default-allow problem and CNI dependency.`,
+    keyPoints: [
+      "Pods are default-allow; NetworkPolicy adds default-deny + explicit allows.",
+      "Selected by labels/namespaces; needs an enforcing CNI (Calico/Cilium).",
+      "Segments east-west traffic to limit lateral movement.",
+    ],
+    references: [
+      { title: "Kubernetes — Network Policies", url: "https://kubernetes.io/docs/concepts/services-networking/network-policies/" },
+      { title: "Cilium — Network policy", url: "https://docs.cilium.io/en/stable/security/policy/" },
+    ],
     story: `By default, every pod in a cluster can talk to every other pod. A <b>NetworkPolicy</b> fixes that with default-deny + explicit allows. The firewall simulator models pod-to-pod flows (zones = tiers).`,
     concept: `Same rule engine: <code>action proto src dst [port]</code>, default-deny. Here zones are app tiers: <code>frontend</code>, <code>backend</code>, <code>database</code>, plus <code>internet</code>.`,
     task: `Allow <code>frontend → backend:8080</code> and <code>backend → database:5432</code>. The database must NOT be reachable from the frontend or the internet.`,
@@ -2429,6 +2628,28 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n57", world: "w13", title: "RBAC & Service Accounts", xp: 110, kind: "quiz",
+    deepDive: `Every pod runs as a <b>service account</b>; a compromised pod inherits that SA's Kubernetes API rights. Scope each workload's SA to the <b>narrowest Role</b> (namespaced) possible — never cluster-admin.
+<pre>Role (namespaced): get/list configmaps  ->  RoleBinding  ->  the pod's SA</pre>
+<p>Also disable auto-mounting the SA token where it isn't needed — otherwise the API credential sits inside every pod.</p>`,
+    examples: [
+      `<b>Scoped:</b> a web pod gets a Role for <code>get/list configmaps</code> in its namespace — nothing more.`,
+      `<b>Dangerous:</b> binding the default SA to cluster-admin means one popped pod owns the cluster.`,
+    ],
+    pitfalls: [
+      `The <b>default</b> service account often has more than needed and its token auto-mounts — disable automount or scope it.`,
+      `ClusterRoleBindings grant cluster-wide power; prefer namespaced Roles/RoleBindings.`,
+      `Wildcard verbs/resources (<code>*</code>) in a Role defeat least privilege.`,
+    ],
+    why: `K8s RBAC + service-account least privilege is central to limiting breach impact. "How would you scope a pod's permissions?" → narrow namespaced Role bound to its SA, token automount off.`,
+    keyPoints: [
+      "Pods inherit their service account's API rights.",
+      "Bind a narrow namespaced Role; never cluster-admin.",
+      "Disable SA token automount where unneeded.",
+    ],
+    references: [
+      { title: "Kubernetes — RBAC", url: "https://kubernetes.io/docs/reference/access-authn-authz/rbac/" },
+      { title: "Kubernetes — Service accounts", url: "https://kubernetes.io/docs/concepts/security/service-accounts/" },
+    ],
     story: `A compromised pod inherits its service account's rights. Least privilege matters here too.`,
     concept: `In Kubernetes RBAC, bind each workload's <b>service account</b> to the narrowest Role possible. Granting <b>cluster-admin</b> (or the default SA broad rights) means one popped pod can take over the whole cluster.`,
     task: `A web pod only needs to read config maps in its namespace. What's the right RBAC approach?`,
@@ -2445,6 +2666,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n58", world: "w13", title: "Secrets in the Cluster", xp: 110, kind: "quiz",
+    deepDive: `Kubernetes <b>Secret</b> values are only <b>base64-encoded</b> in etcd by default — encoding, not encryption. Anyone with etcd or broad API access can read them. Harden by:
+<ul>
+<li>Enabling <b>encryption at rest</b> for etcd (KMS provider).</li>
+<li>Restricting RBAC on Secrets (get/list is sensitive).</li>
+<li>Using an <b>external vault</b> (Vault, Secrets Store CSI) so secrets aren't stored in the cluster at all.</li>
+</ul>`,
+    examples: [
+      `<b>Reality check:</b> <code>kubectl get secret -o yaml | base64 -d</code> reveals the value — it was never encrypted.`,
+      `<b>Hardened:</b> etcd encryption + tight RBAC, or pull from Vault via CSI at runtime.`,
+    ],
+    pitfalls: [
+      `Assuming K8s Secrets are encrypted — they're base64 unless you enable encryption at rest.`,
+      `Broad <code>get secrets</code> RBAC hands out all credentials.`,
+      `Secrets in env vars leak via <code>describe</code>/logs — prefer mounted files or a vault.`,
+    ],
+    why: `"Are Kubernetes Secrets encrypted?" is a classic gotcha — the answer is "base64 by default; enable encryption at rest / use a vault." It signals real K8s security knowledge.`,
+    keyPoints: [
+      "K8s Secrets = base64 (not encrypted) by default.",
+      "Enable etcd encryption at rest; tighten Secret RBAC.",
+      "Prefer an external vault / CSI for real secret management.",
+    ],
+    references: [
+      { title: "Kubernetes — Encrypt secret data at rest", url: "https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/" },
+      { title: "Kubernetes — Good practices for Secrets", url: "https://kubernetes.io/docs/concepts/security/secrets-good-practices/" },
+    ],
     story: `Kubernetes Secrets are base64, not encrypted by default — handle with care.`,
     concept: `K8s Secret values are only <b>base64-encoded</b> in etcd unless you enable <b>encryption at rest</b> (or use an external vault/CSI). Don't bake secrets into images or plain env; restrict RBAC on Secrets and enable etcd encryption.`,
     task: `Which statement about Kubernetes Secrets is correct?`,
@@ -2461,6 +2707,33 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n59", world: "w13", title: "Pod Security", xp: 110, kind: "quiz",
+    deepDive: `The pod's <code>securityContext</code> is an attack surface. Harden it to shrink escape potential:
+<ul>
+<li><code>runAsNonRoot: true</code>, specific non-zero UID</li>
+<li><code>readOnlyRootFilesystem: true</code></li>
+<li>Drop all Linux <b>capabilities</b> (add back only what's needed)</li>
+<li>No <code>privileged</code>, no <code>hostPID/hostNetwork/hostPath</code></li>
+</ul>
+<p>The <b>Pod Security Standards</b> (privileged / baseline / restricted) codify these tiers.</p>`,
+    examples: [
+      `<b>Worst combo:</b> <code>privileged: true</code> + a <code>hostPath</code> mount of <code>/</code> = direct host takeover.`,
+      `<b>Restricted profile:</b> non-root, read-only rootfs, all caps dropped, no host namespaces.`,
+    ],
+    pitfalls: [
+      `Privileged + hostPath / host namespaces effectively give node-level access.`,
+      `Adding broad capabilities (<code>CAP_SYS_ADMIN</code> ≈ root) defeats hardening.`,
+      `Setting runAsNonRoot but the image defaults to root and no UID is specified → it fails or runs root.`,
+    ],
+    why: `"Which pod settings are dangerous / how do you harden a pod?" is standard. Naming privileged + hostPath as the worst and citing Pod Security Standards shows real depth.`,
+    keyPoints: [
+      "Harden securityContext: non-root, read-only rootfs, drop caps.",
+      "No privileged / host namespaces / hostPath to sensitive paths.",
+      "Use the restricted Pod Security Standard as the target.",
+    ],
+    references: [
+      { title: "Kubernetes — Pod Security Standards", url: "https://kubernetes.io/docs/concepts/security/pod-security-standards/" },
+      { title: "Kubernetes — Security context", url: "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/" },
+    ],
     story: `The pod spec itself is an attack surface. Tighten the securityContext.`,
     concept: `Harden pods: <code>runAsNonRoot</code>, <code>readOnlyRootFilesystem</code>, <b>drop all capabilities</b>, no <code>privileged</code>, no <code>hostPath</code>/host namespaces. These shrink the blast radius of a compromised container.`,
     task: `Which pod setting most increases the risk of a host takeover?`,
@@ -2477,6 +2750,30 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n60", world: "w13", title: "Stop It at Admission", xp: 120, kind: "quiz",
+    deepDive: `The best place to stop an insecure pod is <b>before it runs</b>. <b>Admission controllers</b> evaluate every create/update request and can <b>reject</b> non-compliant workloads:
+<ul>
+<li><b>Pod Security Admission</b> (built-in) enforces the baseline/restricted standards per namespace.</li>
+<li><b>OPA/Gatekeeper</b> and <b>Kyverno</b> enforce custom policy-as-code (no :latest, no privileged, signed images only…).</li>
+</ul>`,
+    examples: [
+      `<b>Prevent, not detect:</b> a privileged or unsigned pod is rejected at <code>kubectl apply</code>.`,
+      `<b>Policy as code:</b> a Kyverno rule requires resource limits and a non-root user on every pod.`,
+    ],
+    pitfalls: [
+      `Audit-only (detect) without enforce (deny) lets bad pods run — pair detection with admission.`,
+      `Cluster-wide hard denies without exceptions break legitimate workloads — use per-namespace policy + waivers.`,
+      `Admission webhooks that fail open (or are down) can be bypassed — plan failure behavior.`,
+    ],
+    why: `"How do you prevent insecure pods from being scheduled?" → admission control (PSA / OPA-Gatekeeper / Kyverno). Prevention-over-detection with policy-as-code is the modern answer.`,
+    keyPoints: [
+      "Admission controllers reject non-compliant pods at deploy time.",
+      "Pod Security Admission (built-in) + OPA/Kyverno (custom policy).",
+      "Prevent > detect; use namespaced policy + waivers; mind fail-open.",
+    ],
+    references: [
+      { title: "Kubernetes — Admission controllers", url: "https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/" },
+      { title: "Kyverno — Policy as code", url: "https://kyverno.io/docs/" },
+    ],
     story: `The best place to block an insecure pod is before it ever runs.`,
     concept: `<b>Admission controllers</b> (Pod Security Admission, or policy engines like <b>OPA/Gatekeeper</b> and Kyverno) evaluate every create/update request and <b>reject</b> non-compliant pods at deploy time — preventive, not just detective.`,
     task: `How do you prevent privileged or unscanned pods from ever being scheduled?`,
@@ -2495,6 +2792,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   /* ================= W14: DETECTION ENGINEERING / SIEM ================= */
   {
     id: "n61", world: "w14", title: "What a SIEM Does", xp: 90, kind: "quiz",
+    deepDive: `A <b>SIEM</b> (Security Information and Event Management) is the SOC's central brain: it <b>ingests</b> logs from everywhere (endpoints, network, cloud, identity, apps), <b>normalizes</b> them to a common schema, <b>correlates</b> across sources, and raises <b>alerts</b> on detection rules — plus storage for hunting and compliance.
+<p>Modern "next-gen SIEM" adds analytics/UEBA and tight SOAR integration.</p>`,
+    examples: [
+      `<b>Cross-source correlation:</b> a firewall deny + an IDS alert + a failed login tied to one incident.`,
+      `<b>Tools:</b> Splunk, Microsoft Sentinel, Elastic, CrowdStrike NG-SIEM.`,
+    ],
+    pitfalls: [
+      `"Collect everything" explodes cost and noise — onboard the highest-value sources first.`,
+      `Garbage in, garbage out: without normalization/parsing, correlation across sources fails.`,
+      `A SIEM detects/alerts; it doesn't block (that's firewalls/EDR/SOAR).`,
+    ],
+    why: `"What does a SIEM do?" is a baseline SOC question. Ingest → normalize → correlate → alert (+ store for hunt/compliance) is the complete answer.`,
+    keyPoints: [
+      "SIEM ingests, normalizes, correlates, and alerts across sources.",
+      "Central store for hunting and compliance; NG-SIEM adds UEBA/SOAR.",
+      "Prioritize high-value log sources; normalize for correlation.",
+    ],
+    references: [
+      { title: "Microsoft — What is a SIEM?", url: "https://www.microsoft.com/en-us/security/business/security-101/what-is-siem" },
+      { title: "CrowdStrike — Next-Gen SIEM", url: "https://www.crowdstrike.com/en-us/platform/next-gen-siem/" },
+    ],
     story: `🚨 The SOC's central nervous system.`,
     concept: `A <b>SIEM</b> (Security Information and Event Management) <b>aggregates logs</b> from many sources (endpoints, network, cloud, identity), <b>normalizes and correlates</b> them, and raises <b>alerts</b> on detection rules — giving one place to hunt and investigate.`,
     task: `What is a SIEM's core job?`,
@@ -2511,6 +2829,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n62", world: "w14", title: "Detect vs Prevent", xp: 90, kind: "quiz",
+    deepDive: `Security controls split into <b>preventive</b> (stop it happening — firewall, IPS, MFA, WAF), <b>detective</b> (notice it — SIEM, IDS, EDR alerts), and <b>responsive/corrective</b> (act — SOAR, IR). A <b>SIEM is primarily detective</b>: it surfaces alerts; it doesn't block traffic itself.
+<p>You need all three — prevention fails eventually, so detection + response limit the damage (and dwell time).</p>`,
+    examples: [
+      `<b>Preventive:</b> firewall/IPS/MFA. <b>Detective:</b> SIEM/IDS/EDR. <b>Responsive:</b> SOAR playbooks, IR team.`,
+      `<b>Defense in depth:</b> assume prevention fails; detection + fast response contain the breach.`,
+    ],
+    pitfalls: [
+      `Treating detection as optional because "we have a firewall" — prevention always eventually fails.`,
+      `Expecting a SIEM to block — it alerts; enforcement comes from other controls / SOAR.`,
+      `Detection without response capacity = alerts nobody acts on.`,
+    ],
+    why: `Preventive vs detective vs responsive is a foundational framing. Knowing a SIEM is detective (and why you still need it) is the point.`,
+    keyPoints: [
+      "Preventive (block), detective (notice), responsive (act) — need all.",
+      "SIEM is detective; it alerts, it doesn't block.",
+      "Prevention fails eventually → detection + response limit damage.",
+    ],
+    references: [
+      { title: "NIST — Security & Privacy Controls (SP 800-53)", url: "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final" },
+      { title: "Cloudflare — IDS vs IPS", url: "https://www.cloudflare.com/learning/security/what-is-an-intrusion-detection-system/" },
+    ],
     story: `Know what a SIEM does and doesn't do on its own.`,
     concept: `A SIEM is primarily <b>detective</b> — it surfaces alerts for humans/automation to act on. It doesn't block traffic itself (that's firewalls/IPS/EDR). Blocking actions come from integrations, often driven by <b>SOAR</b>.`,
     task: `A SIEM by itself primarily provides:`,
@@ -2527,6 +2866,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n63", world: "w14", title: "Map to MITRE ATT&CK", xp: 100, kind: "quiz",
+    deepDive: `<b>MITRE ATT&CK</b> is a knowledge base of real-world adversary <b>tactics</b> (the "why" — e.g., Persistence, Lateral Movement) and <b>techniques</b> (the "how" — e.g., T1110 Brute Force). Mapping your detections to ATT&CK reveals <b>coverage gaps</b> and gives everyone a shared vocabulary.
+<p>It's the backbone of detection engineering, threat hunting, and purple-team exercises.</p>`,
+    examples: [
+      `<b>Coverage map:</b> chart which techniques you can detect vs not — the blank cells are your roadmap.`,
+      `<b>Shared language:</b> "we saw T1059 (command/scripting) into T1003 (credential dumping)".`,
+    ],
+    pitfalls: [
+      `Chasing 100% technique coverage is unrealistic — prioritize techniques relevant to your threat model/assets.`,
+      `Mapping a detection to a tactic once and never revisiting as adversaries evolve.`,
+      `Confusing tactics (goal) with techniques (method).`,
+    ],
+    why: `ATT&CK is the lingua franca of modern detection/hunting. "How do you measure detection coverage?" → map detections to ATT&CK and find the gaps.`,
+    keyPoints: [
+      "ATT&CK = adversary tactics (why) + techniques (how), real-world.",
+      "Map detections to it to find and prioritize coverage gaps.",
+      "Shared vocabulary for detection, hunting, purple teaming.",
+    ],
+    references: [
+      { title: "MITRE ATT&CK — Enterprise matrix", url: "https://attack.mitre.org/matrices/enterprise/" },
+      { title: "MITRE — ATT&CK Navigator (coverage mapping)", url: "https://mitre-attack.github.io/attack-navigator/" },
+    ],
     story: `Great detection programs speak a common language of adversary behavior.`,
     concept: `<b>MITRE ATT&CK</b> is a knowledge base of real-world adversary <b>tactics and techniques</b> (TTPs). Mapping detections to ATT&CK shows coverage gaps and standardizes how teams describe threats.`,
     task: `What is MITRE ATT&CK used for?`,
@@ -2543,6 +2903,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n64", world: "w14", title: "Tune the Noise", xp: 100, kind: "quiz",
+    deepDive: `Detections are judged by their error rates. A <b>false positive</b> (benign flagged as malicious) wastes analyst time; too many cause <b>alert fatigue</b>, so real alerts get ignored. A <b>false negative</b> (missed real attack) is the silent killer. Tuning raises <b>signal-to-noise</b> — better thresholds, allowlists, enrichment — without over-tuning into misses.
+<pre>Precision = TP / (TP + FP)   Recall = TP / (TP + FN)</pre>`,
+    examples: [
+      `<b>Fatigue:</b> a rule firing 500×/day (almost all benign) gets muted — then misses the real one.`,
+      `<b>Tune:</b> add context (asset value, user baseline), allowlist known-good, raise the bar precisely.`,
+    ],
+    pitfalls: [
+      `Over-tuning to kill false positives creates false negatives (missed attacks) — balance precision and recall.`,
+      `"More alerts = safer" is false — noise hides signal.`,
+      `No feedback loop from analysts means noisy rules never improve.`,
+    ],
+    why: `Alert tuning/triage is half of detection engineering. Knowing FP/FN trade-offs (precision vs recall) and alert fatigue is exactly the SOC maturity interviewers probe.`,
+    keyPoints: [
+      "False positives cause fatigue; false negatives are missed attacks.",
+      "Tune for signal-to-noise; balance precision vs recall.",
+      "Use analyst feedback to improve rules continuously.",
+    ],
+    references: [
+      { title: "MITRE — Alert triage / detection engineering", url: "https://center-for-threat-informed-defense.github.io/summiting-the-pyramid/" },
+      { title: "Elastic — Tuning detection rules", url: "https://www.elastic.co/guide/en/security/current/rules-ui-management.html" },
+    ],
     story: `Alert fatigue gets breaches missed. Tuning is half of detection engineering.`,
     concept: `A <b>false positive</b> is a benign event flagged as malicious. Too many cause <b>alert fatigue</b>, so real alerts get ignored. Tuning (better thresholds, allowlists, enrichment) raises signal-to-noise. Beware over-tuning into <b>false negatives</b> (missed real attacks).`,
     task: `A rule fires 500 times a day, almost all benign. The biggest risk is:`,
@@ -2559,6 +2940,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n65", world: "w14", title: "Portable Rules: Sigma", xp: 100, kind: "quiz",
+    deepDive: `<b>Sigma</b> is a vendor-neutral, YAML-based format for detection rules. You write the logic once and <b>convert</b> it to each backend's query language (Splunk SPL, Microsoft KQL, Elastic, etc.) — avoiding lock-in and enabling community sharing of detections.
+<p>Think of it as "the Snort/YARA of SIEM logs": a common grammar for log-based detections.</p>`,
+    examples: [
+      `<b>Write once, run anywhere:</b> a Sigma rule for suspicious PowerShell converts to SPL and KQL.`,
+      `<b>Share:</b> the SigmaHQ repo publishes community detections you can import and tune.`,
+    ],
+    pitfalls: [
+      `Converted rules still need field mapping to your schema (ECS/OCSF) and local tuning.`,
+      `A rule that's portable isn't automatically low-noise — tune per environment.`,
+      `Sigma covers log-based detection; network/file detections use Snort/Suricata/YARA.`,
+    ],
+    why: `Detection-as-code and portability are modern SOC practice. "What's Sigma?" → vendor-neutral detection rules convertible to any SIEM — is the expected answer.`,
+    keyPoints: [
+      "Sigma = vendor-neutral YAML detection rules.",
+      "Convert to SPL/KQL/Elastic; share via SigmaHQ.",
+      "Still map fields to your schema and tune locally.",
+    ],
+    references: [
+      { title: "SigmaHQ — Detection rules", url: "https://github.com/SigmaHQ/sigma" },
+      { title: "Sigma — Documentation", url: "https://sigmahq.io/docs/guide/getting-started.html" },
+    ],
     story: `Write a detection once, run it on any SIEM.`,
     concept: `<b>Sigma</b> is a vendor-agnostic, YAML-based format for detection rules. You author logic once and convert it to each backend's query language (Splunk SPL, KQL, Elastic, etc.) — avoiding lock-in and enabling sharing.`,
     task: `What problem does Sigma solve?`,
@@ -2575,6 +2977,31 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n66", world: "w14", title: "Behavior & Anomalies", xp: 100, kind: "quiz",
+    deepDive: `Some attacks have no fixed signature but look <b>abnormal</b>. <b>UEBA</b> (User & Entity Behavior Analytics) baselines normal behavior per user/host and flags deviations:
+<ul>
+<li><b>Impossible travel</b> — logins from distant locations minutes apart.</li>
+<li>Odd-hours access, first-time admin actions, sudden data-access spikes.</li>
+</ul>
+<p>It catches credential abuse and insider threats that signatures miss — at the cost of more tuning and false positives.</p>`,
+    examples: [
+      `<b>Impossible travel:</b> NYC login, then Singapore 5 minutes later → anomaly.`,
+      `<b>Behavioral:</b> a service account suddenly interactive-logging-in at 3am.`,
+    ],
+    pitfalls: [
+      `Behavioral models need a clean baseline — anomalies during the learning period poison it.`,
+      `VPNs/travel/shared accounts generate benign "impossible travel" — enrich to cut false positives.`,
+      `Anomaly ≠ malicious; it's a lead that needs investigation.`,
+    ],
+    why: `Signature vs behavioral detection (and UEBA/impossible travel) is a standard detection question. Knowing anomaly detection catches credential abuse signatures miss is the depth.`,
+    keyPoints: [
+      "UEBA baselines normal behavior and flags deviations.",
+      "Catches credential abuse/insider threats signatures miss.",
+      "Anomaly = lead, not verdict; needs a clean baseline + enrichment.",
+    ],
+    references: [
+      { title: "Microsoft — UEBA in Sentinel", url: "https://learn.microsoft.com/en-us/azure/sentinel/identify-threats-with-entity-behavior-analytics" },
+      { title: "MITRE ATT&CK — Valid Accounts (T1078)", url: "https://attack.mitre.org/techniques/T1078/" },
+    ],
     story: `Some attacks have no signature — but they look abnormal.`,
     concept: `<b>UEBA</b> (User & Entity Behavior Analytics) baselines normal behavior and flags <b>deviations</b> — e.g., <b>impossible travel</b> (logins from two distant countries minutes apart), odd hours, or sudden data access spikes. It catches credential abuse that signatures miss.`,
     task: `A user logs in from New York and 5 minutes later from Singapore. This detection is best described as:`,
@@ -2591,6 +3018,27 @@ Remember: deny-by-default, first match wins, so a <b>block</b> above a broad <b>
   },
   {
     id: "n67", world: "w14", title: "Automate Response: SOAR", xp: 110, kind: "quiz",
+    deepDive: `<b>SOAR</b> (Security Orchestration, Automation and Response) runs <b>playbooks</b> that automatically enrich alerts and take action — isolate a host, disable an account, block an IP, open a ticket. It slashes response time and <b>dwell time</b> (how long an attacker goes undetected/active).
+<p>Automate the clear-cut, high-confidence actions; keep humans in the loop for ambiguous or destructive ones.</p>`,
+    examples: [
+      `<b>Playbook:</b> critical EDR alert → auto-enrich (threat intel, asset owner) → network-isolate host → create ticket.`,
+      `<b>Gated action:</b> mass account disable requires analyst approval before executing.`,
+    ],
+    pitfalls: [
+      `Over-automating destructive actions (mass isolation/disable) can cause self-inflicted outages — gate them.`,
+      `Playbooks drift as tools change; test and version them.`,
+      `Automating on low-confidence alerts amplifies false positives into real impact.`,
+    ],
+    why: `SOAR and reducing dwell time/MTTR are central to modern SOC operations. "What does SOAR add over a SIEM?" → automated enrichment + response playbooks is the answer.`,
+    keyPoints: [
+      "SOAR automates enrichment + response via playbooks.",
+      "Cuts response time and attacker dwell time.",
+      "Automate high-confidence actions; gate destructive ones.",
+    ],
+    references: [
+      { title: "CrowdStrike — What is SOAR?", url: "https://www.crowdstrike.com/en-us/cybersecurity-101/next-gen-siem/security-orchestration-automation-and-response-soar/" },
+      { title: "Microsoft — Automation in Sentinel (SOAR)", url: "https://learn.microsoft.com/en-us/azure/sentinel/automation" },
+    ],
     story: `Detection is only half the job — response speed decides the damage.`,
     concept: `<b>SOAR</b> (Security Orchestration, Automation and Response) runs <b>playbooks</b> that automatically enrich alerts and take action (isolate a host, disable an account, block an IP), cutting response time and reducing <b>dwell time</b> — how long an attacker stays undetected.`,
     task: `What does SOAR add on top of a SIEM?`,
