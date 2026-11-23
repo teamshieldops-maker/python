@@ -465,10 +465,25 @@ function copyBackup() {
   else { document.execCommand("copy"); done(); }
 }
 
+/* ---------------- durable storage (automatic) ---------------- */
+// Ask the browser to make this origin's storage persistent so it isn't
+// auto-evicted (storage pressure, Safari ITP, etc.). No user action needed.
+async function requestPersistence() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      const already = await navigator.storage.persisted();
+      if (!already) await navigator.storage.persist();
+    }
+  } catch (e) { /* not supported — localStorage still used */ }
+}
+
 /* ---------------- boot ---------------- */
 function render() { renderSidebar(); renderHUD(); renderLesson(); }
 window.addEventListener("DOMContentLoaded", () => {
   load(); render();
+  requestPersistence();
+  window.addEventListener("beforeunload", save);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
   document.getElementById("reset-progress").onclick = resetProgress;
   const wire = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   wire("backup-btn", openBackup);
