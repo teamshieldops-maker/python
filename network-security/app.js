@@ -13,10 +13,15 @@ const state = {
 };
 
 /* ---------------- persistence ---------------- */
-function save() {
+function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    xp: state.xp, completed: state.completed, currentLessonId: state.currentLessonId,
+    xp: state.xp, completed: state.completed, currentLessonId: state.currentLessonId, updated: state.updated || 0,
   }));
+}
+function save() {
+  state.updated = Date.now();
+  persist();
+  scheduleSync();
 }
 function load() {
   try {
@@ -24,6 +29,7 @@ function load() {
     state.xp = d.xp || 0;
     state.completed = d.completed || [];
     state.currentLessonId = d.currentLessonId || LESSONS[0].id;
+    state.updated = d.updated || 0;
   } catch (e) {}
 }
 
@@ -420,15 +426,109 @@ function resetProgress() {
   render(); toast("Fresh start! 🍀");
 }
 
-/* ---------------- backup / restore progress ---------------- */
+/* ================= CLOUD SYNC (one-time code, no login) =================
+   Progress stored in a free cloud blob keyed by a sync code. One code covers
+   BOTH quests (shared origin). Every call is fail-safe — network errors fall
+   back to localStorage and never break the app. */
+const APP_KEY = "network-quest";
+const SYNC_BASE = "https://jsonblob.com/api/jsonBlob";
+const SYNC_ID_KEY = "quest-sync-id";
+let syncTimer = null;
+
+function getSyncId() { return localStorage.getItem(SYNC_ID_KEY) || ""; }
+function setSyncId(id) { if (id) localStorage.setItem(SYNC_ID_KEY, id); }
+function clearSyncId() { localStorage.removeItem(SYNC_ID_KEY); }
+function mySection() { return { xp: state.xp, completed: state.completed, current: state.currentLessonId, updated: state.updated || Date.now() }; }
+
+function mergeSection(sec) {
+  if (!sec) return false;
+  const before = state.completed.length;
+  const union = Array.from(new Set([...(state.completed || []), ...((sec.completed) || [])]));
+  const changed = union.length !== before || (Number(sec.xp) || 0) > state.xp;
+  state.completed = union;
+  state.xp = Math.max(state.xp, Number(sec.xp) || 0);
+  return changed;
+}
+
+async function pullSync() {
+  const id = getSyncId(); if (!id) return;
+  try {
+    const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } });
+    if (!r.ok) return;
+    const blob = await r.json();
+    if (mergeSection(blob[APP_KEY])) { persist(); render(); toast("☁ Synced from your other device"); }
+    updateSyncUI();
+  } catch (e) {}
+}
+function scheduleSync() { if (!getSyncId()) return; clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 1500); }
+async function pushSync() {
+  const id = getSyncId(); if (!id) return;
+  try {
+    let blob = {};
+    try { const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } }); if (r.ok) blob = await r.json(); } catch (e) {}
+    blob[APP_KEY] = mySection();
+    await fetch(SYNC_BASE + "/" + id, { method: "PUT", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(blob) });
+    updateSyncUI("ok");
+  } catch (e) { updateSyncUI("err"); }
+}
+async function enableSync() {
+  try {
+    const body = {}; body[APP_KEY] = mySection();
+    const r = await fetch(SYNC_BASE, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
+    let id = r.headers.get("X-jsonblob-id") || (r.headers.get("Location") || "").split("/").pop();
+    if (!id) throw new Error("no id");
+    setSyncId(id); updateSyncUI(); toast("☁ Cloud sync enabled");
+  } catch (e) { toast("Couldn't enable sync — check your connection and retry."); }
+}
+async function connectSync() {
+  const input = document.getElementById("sync-code-input");
+  const id = (input ? input.value : "").trim();
+  if (!id) { toast("Paste a sync code first."); return; }
+  try {
+    const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } });
+    if (!r.ok) { toast("That sync code wasn't found."); return; }
+    const blob = await r.json();
+    setSyncId(id);
+    mergeSection(blob[APP_KEY]);
+    persist(); await pushSync();
+    render(); updateSyncUI();
+    toast("☁ Connected & synced");
+  } catch (e) { toast("Couldn't connect — check your connection."); }
+}
+function disconnectSync() { clearSyncId(); updateSyncUI(); toast("Cloud sync turned off (progress stays on this device)."); }
+
+function updateSyncUI(flag) {
+  const on = !!getSyncId();
+  const status = document.getElementById("sync-status");
+  const codeWrap = document.getElementById("sync-code-wrap");
+  const codeOut = document.getElementById("sync-code-out");
+  const enableBtn = document.getElementById("sync-enable");
+  const disconnectBtn = document.getElementById("sync-disconnect");
+  if (!status) return;
+  if (on) {
+    status.innerHTML = "Cloud sync: <b style='color:var(--good)'>ON</b>" + (flag === "err" ? " <span style='color:var(--warn)'>(will retry — offline)</span>" : "");
+    if (codeOut) codeOut.value = getSyncId();
+    if (codeWrap) codeWrap.style.display = "";
+    if (enableBtn) enableBtn.style.display = "none";
+    if (disconnectBtn) disconnectBtn.style.display = "";
+  } else {
+    status.innerHTML = "Cloud sync: <b style='color:var(--muted)'>OFF</b>";
+    if (codeWrap) codeWrap.style.display = "none";
+    if (enableBtn) enableBtn.style.display = "";
+    if (disconnectBtn) disconnectBtn.style.display = "none";
+  }
+}
+
+/* ---------------- manual backup (fallback) ---------------- */
 function exportCode() {
-  const data = { v: 1, app: "network-quest", xp: state.xp, completed: state.completed, current: state.currentLessonId };
+  const data = { v: 1, app: APP_KEY, xp: state.xp, completed: state.completed, current: state.currentLessonId };
   return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 function openBackup() {
   const ta = document.getElementById("backup-code");
   if (ta) ta.value = exportCode();
   const msg = document.getElementById("backup-msg"); if (msg) msg.textContent = "";
+  updateSyncUI();
   document.getElementById("backup-modal").classList.add("show");
 }
 function closeBackup() { document.getElementById("backup-modal").classList.remove("show"); }
@@ -457,13 +557,13 @@ function downloadBackup() {
   document.body.appendChild(a); a.click(); a.remove();
   toast("Downloaded your backup 📄");
 }
-function copyBackup() {
-  const ta = document.getElementById("backup-code");
-  ta.select();
-  const done = () => toast("Copied! Keep it somewhere safe 📋");
-  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done).catch(() => { document.execCommand("copy"); done(); });
-  else { document.execCommand("copy"); done(); }
+function copyText(val) {
+  const done = () => toast("Copied! 📋");
+  if (navigator.clipboard) navigator.clipboard.writeText(val).then(done).catch(done);
+  else done();
 }
+function copyBackup() { copyText(document.getElementById("backup-code").value); }
+function copySyncCode() { copyText(getSyncId()); }
 
 /* ---------------- durable storage (automatic) ---------------- */
 // Ask the browser to make this origin's storage persistent so it isn't
@@ -482,8 +582,9 @@ function render() { renderSidebar(); renderHUD(); renderLesson(); }
 window.addEventListener("DOMContentLoaded", () => {
   load(); render();
   requestPersistence();
-  window.addEventListener("beforeunload", save);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
+  pullSync();
+  window.addEventListener("beforeunload", () => { persist(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { persist(); } else { pullSync(); } });
   document.getElementById("reset-progress").onclick = resetProgress;
   const wire = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   wire("backup-btn", openBackup);
@@ -491,4 +592,8 @@ window.addEventListener("DOMContentLoaded", () => {
   wire("copy-code", copyBackup);
   wire("download-code", downloadBackup);
   wire("restore-code", restoreFromCode);
+  wire("sync-enable", enableSync);
+  wire("sync-connect", connectSync);
+  wire("sync-disconnect", disconnectSync);
+  wire("sync-copy", copySyncCode);
 });

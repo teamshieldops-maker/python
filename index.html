@@ -33,7 +33,7 @@
         <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
         <div class="xp-sub"><span id="xp-into">0 / 150</span> to next level</div>
       </div>
-      <button id="backup-btn" class="mini-btn" title="Backup / restore your progress">💾 backup</button>
+      <button id="backup-btn" class="mini-btn" title="Sync / backup your progress">☁ sync</button>
       <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
     </div>
   </header>
@@ -52,15 +52,35 @@
 
   <div id="backup-modal" class="modal-overlay">
     <div class="modal">
-      <div class="modal-title">💾 Backup / Restore Progress</div>
-      <p class="modal-text">Your progress auto-saves in this browser. But browsers can clear site data (private mode, privacy settings, a different device/browser) — so to keep it safe, <b>Copy</b> or <b>Download</b> this code and store it. To restore, paste a saved code and hit <b>Restore</b>.</p>
-      <textarea id="backup-code" class="backup-code" spellcheck="false" placeholder="Paste a saved backup code here to restore…"></textarea>
-      <div class="modal-btns">
-        <button id="copy-code" class="btn">📋 Copy</button>
-        <button id="download-code" class="btn">⬇ Download</button>
-        <button id="restore-code" class="btn check">♻ Restore</button>
-        <button id="close-modal" class="btn ghost">Close</button>
+      <div class="modal-title">☁ Sync your progress</div>
+      <p id="sync-status" class="modal-text">Cloud sync: OFF</p>
+      <p class="modal-text">Turn on cloud sync to keep progress across all your devices <b>automatically</b>. You get one <b>sync code</b> — enter it once on each device and everything stays in sync (it covers both quests).</p>
+      <button id="sync-enable" class="btn check">☁ Enable automatic sync</button>
+      <div id="sync-code-wrap" style="display:none">
+        <label class="modal-label">Your sync code — enter this on your other devices:</label>
+        <div class="sync-row">
+          <input id="sync-code-out" class="backup-code sync-input" readonly>
+          <button id="sync-copy" class="btn" title="Copy">📋</button>
+        </div>
+        <button id="sync-disconnect" class="btn ghost">Turn off sync on this device</button>
       </div>
+      <div class="modal-sep"></div>
+      <label class="modal-label">Have a sync code from another device? Paste it:</label>
+      <div class="sync-row">
+        <input id="sync-code-input" class="backup-code sync-input" placeholder="paste sync code…">
+        <button id="sync-connect" class="btn check">Connect</button>
+      </div>
+      <details class="manual-details">
+        <summary>Manual backup (offline fallback)</summary>
+        <p class="modal-text">A one-off code you can copy/download now and paste back later to restore by hand — no internet needed.</p>
+        <textarea id="backup-code" class="backup-code" spellcheck="false" placeholder="Paste a saved backup code here to restore…"></textarea>
+        <div class="modal-btns">
+          <button id="copy-code" class="btn">📋 Copy</button>
+          <button id="download-code" class="btn">⬇ Download</button>
+          <button id="restore-code" class="btn">♻ Restore</button>
+        </div>
+      </details>
+      <div class="modal-btns" style="margin-top:14px"><button id="close-modal" class="btn ghost">Close</button></div>
       <div id="backup-msg" class="backup-msg"></div>
     </div>
   </div>
