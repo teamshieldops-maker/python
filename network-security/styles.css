@@ -137,8 +137,9 @@ code { font-family: "JetBrains Mono", Consolas, monospace; background: #081020; 
 .flow-path small { color: var(--muted); font-weight: 400; }
 
 .toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel2); border: 1px solid var(--accent); color: var(--ink);
-  padding: 13px 22px; border-radius: 12px; font-size: 14.5px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; z-index: 1000; max-width: 90vw; text-align: center; }
+  padding: 13px 22px; border-radius: 12px; font-size: 14.5px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; z-index: 3000; max-width: 90vw; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sync-msg { margin: 8px 0; font-size: 13px; min-height: 1em; }
 
 @media (max-width: 760px) {
   .flow-row { grid-template-columns: 1fr 1fr; }

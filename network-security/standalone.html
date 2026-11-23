@@ -144,8 +144,9 @@ code { font-family: "JetBrains Mono", Consolas, monospace; background: #081020; 
 .flow-path small { color: var(--muted); font-weight: 400; }
 
 .toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel2); border: 1px solid var(--accent); color: var(--ink);
-  padding: 13px 22px; border-radius: 12px; font-size: 14.5px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; z-index: 1000; max-width: 90vw; text-align: center; }
+  padding: 13px 22px; border-radius: 12px; font-size: 14.5px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; z-index: 3000; max-width: 90vw; text-align: center; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sync-msg { margin: 8px 0; font-size: 13px; min-height: 1em; }
 
 @media (max-width: 760px) {
   .flow-row { grid-template-columns: 1fr 1fr; }
@@ -234,6 +235,7 @@ code { font-family: "JetBrains Mono", Consolas, monospace; background: #081020; 
       <p id="sync-status" class="modal-text">Cloud sync: OFF</p>
       <p class="modal-text">Turn on cloud sync to keep progress across all your devices <b>automatically</b>. You get one <b>sync code</b> — enter it once on each device and everything stays in sync (it covers both quests).</p>
       <button id="sync-enable" class="btn check">☁ Enable automatic sync</button>
+      <div id="sync-msg" class="sync-msg"></div>
       <div id="sync-code-wrap" style="display:none">
         <label class="modal-label">Your sync code — enter this on your other devices:</label>
         <div class="sync-row">
@@ -4846,10 +4848,21 @@ function resetProgress() {
    BOTH quests (shared origin). Every call is fail-safe — network errors fall
    back to localStorage and never break the app. */
 const APP_KEY = "network-quest";
-const SYNC_BASE = "https://jsonblob.com/api/jsonBlob";
+const SB_URL = "https://ymzokfvbfmetzsygmxsh.supabase.co/rest/v1/progress";
+const SB_KEY = "sb_publishable_FlOsN7qt1YpKbnvDeaxGJg_Tx73AYr3";
+const SB_HEADERS = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json" };
 const SYNC_ID_KEY = "quest-sync-id";
 let syncTimer = null;
 
+function fetchT(url, opts, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 15000);
+  return fetch(url, Object.assign({ signal: ctrl.signal }, opts || {})).finally(() => clearTimeout(t));
+}
+function setSyncMsg(text, isError) {
+  const el = document.getElementById("sync-msg");
+  if (el) { el.textContent = text || ""; el.style.color = isError ? "var(--bad)" : "var(--good)"; }
+}
 function getSyncId() { return localStorage.getItem(SYNC_ID_KEY) || ""; }
 function setSyncId(id) { if (id) localStorage.setItem(SYNC_ID_KEY, id); }
 function clearSyncId() { localStorage.removeItem(SYNC_ID_KEY); }
@@ -4865,52 +4878,69 @@ function mergeSection(sec) {
   return changed;
 }
 
+function newSyncCode() {
+  try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
+}
+async function sbGet(code) {
+  const r = await fetchT(SB_URL + "?code=eq." + encodeURIComponent(code) + "&select=data", { headers: SB_HEADERS });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const rows = await r.json();
+  return (rows && rows[0] && rows[0].data) ? rows[0].data : {};
+}
+async function sbPut(code, data) {
+  const r = await fetchT(SB_URL, { method: "POST", headers: Object.assign({ "Prefer": "resolution=merge-duplicates" }, SB_HEADERS), body: JSON.stringify({ code: code, data: data, updated: new Date().toISOString() }) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+}
+
 async function pullSync() {
   const id = getSyncId(); if (!id) return;
   try {
-    const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } });
-    if (!r.ok) return;
-    const blob = await r.json();
-    if (mergeSection(blob[APP_KEY])) { persist(); render(); toast("☁ Synced from your other device"); }
+    const data = await sbGet(id);
+    if (mergeSection(data[APP_KEY])) { persist(); render(); toast("☁ Synced from your other device"); }
     updateSyncUI();
-  } catch (e) {}
+  } catch (e) { /* offline — ignore */ }
 }
-function scheduleSync() { if (!getSyncId()) return; clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 1500); }
+function scheduleSync() { if (!getSyncId()) return; clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 1200); }
 async function pushSync() {
   const id = getSyncId(); if (!id) return;
   try {
-    let blob = {};
-    try { const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } }); if (r.ok) blob = await r.json(); } catch (e) {}
-    blob[APP_KEY] = mySection();
-    await fetch(SYNC_BASE + "/" + id, { method: "PUT", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(blob) });
+    let data = {};
+    try { data = await sbGet(id); } catch (e) {}
+    data[APP_KEY] = mySection();
+    await sbPut(id, data);
     updateSyncUI("ok");
   } catch (e) { updateSyncUI("err"); }
 }
 async function enableSync() {
+  setSyncMsg("Enabling cloud sync…");
   try {
-    const body = {}; body[APP_KEY] = mySection();
-    const r = await fetch(SYNC_BASE, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
-    let id = r.headers.get("X-jsonblob-id") || (r.headers.get("Location") || "").split("/").pop();
-    if (!id) throw new Error("no id");
-    setSyncId(id); updateSyncUI(); toast("☁ Cloud sync enabled");
-  } catch (e) { toast("Couldn't enable sync — check your connection and retry."); }
+    const code = newSyncCode();
+    const data = {}; data[APP_KEY] = mySection();
+    await sbPut(code, data);
+    setSyncId(code); updateSyncUI();
+    setSyncMsg("✅ Cloud sync enabled — copy your code below and enter it on your other devices.");
+    toast("☁ Cloud sync enabled");
+  } catch (e) {
+    setSyncMsg("Couldn't enable sync: " + ((e && e.message) || "network error") + ". Try again, or use Manual backup below.", true);
+  }
 }
 async function connectSync() {
   const input = document.getElementById("sync-code-input");
   const id = (input ? input.value : "").trim();
-  if (!id) { toast("Paste a sync code first."); return; }
+  if (!id) { setSyncMsg("Paste a sync code first.", true); return; }
+  setSyncMsg("Connecting…");
   try {
-    const r = await fetch(SYNC_BASE + "/" + id, { headers: { Accept: "application/json" } });
-    if (!r.ok) { toast("That sync code wasn't found."); return; }
-    const blob = await r.json();
+    const data = await sbGet(id);
     setSyncId(id);
-    mergeSection(blob[APP_KEY]);
+    mergeSection(data[APP_KEY]);
     persist(); await pushSync();
     render(); updateSyncUI();
+    setSyncMsg("✅ Connected & synced.");
     toast("☁ Connected & synced");
-  } catch (e) { toast("Couldn't connect — check your connection."); }
+  } catch (e) { setSyncMsg("Couldn't connect: " + ((e && e.message) || "network error") + ".", true); }
 }
-function disconnectSync() { clearSyncId(); updateSyncUI(); toast("Cloud sync turned off (progress stays on this device)."); }
+function disconnectSync() { clearSyncId(); updateSyncUI(); setSyncMsg("Cloud sync turned off (progress stays on this device)."); }
 
 function updateSyncUI(flag) {
   const on = !!getSyncId();
