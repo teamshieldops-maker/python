@@ -546,6 +546,17 @@ async function sbPut(code, data) {
   const r = await fetchT(SB_URL, { method: "POST", headers: Object.assign({ "Prefer": "resolution=merge-duplicates" }, SB_HEADERS), body: JSON.stringify({ code: code, data: data, updated: new Date().toISOString() }) });
   if (!r.ok) throw new Error("HTTP " + r.status);
 }
+// Short, easy-to-type 4-digit code (1000–9999). We check Supabase that it's
+// free before handing it out so two people can never collide on the same code.
+function rand4() { return String(Math.floor(1000 + Math.random() * 9000)); }
+async function freeSyncCode() {
+  for (let i = 0; i < 25; i++) {
+    const c = rand4();
+    const existing = await sbGet(c);               // throws on network error -> caller handles
+    if (!existing || Object.keys(existing).length === 0) return c;
+  }
+  return newSyncCode();                             // fallback: unique UUID if all 4-digit tries were taken
+}
 
 async function pullSync() {
   const id = getSyncId(); if (!id) return;
@@ -569,7 +580,7 @@ async function pushSync() {
 async function enableSync() {
   setSyncMsg("Enabling cloud sync…");
   try {
-    const code = newSyncCode();
+    const code = await freeSyncCode();
     const data = {}; data[APP_KEY] = mySection();
     await sbPut(code, data);
     setSyncId(code); updateSyncUI();
