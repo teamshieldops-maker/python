@@ -33,6 +33,7 @@
         <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
         <div class="xp-sub"><span id="xp-into">0 / 150</span> to next level</div>
       </div>
+      <button id="backup-btn" class="mini-btn" title="Backup / restore your progress">💾 backup</button>
       <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
     </div>
   </header>
@@ -48,6 +49,21 @@
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <div id="backup-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">💾 Backup / Restore Progress</div>
+      <p class="modal-text">Your progress auto-saves in this browser. But browsers can clear site data (private mode, privacy settings, a different device/browser) — so to keep it safe, <b>Copy</b> or <b>Download</b> this code and store it. To restore, paste a saved code and hit <b>Restore</b>.</p>
+      <textarea id="backup-code" class="backup-code" spellcheck="false" placeholder="Paste a saved backup code here to restore…"></textarea>
+      <div class="modal-btns">
+        <button id="copy-code" class="btn">📋 Copy</button>
+        <button id="download-code" class="btn">⬇ Download</button>
+        <button id="restore-code" class="btn check">♻ Restore</button>
+        <button id="close-modal" class="btn ghost">Close</button>
+      </div>
+      <div id="backup-msg" class="backup-msg"></div>
+    </div>
+  </div>
 
   <script src="env.js"></script>
   <script src="lessons.js"></script>

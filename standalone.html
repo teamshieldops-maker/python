@@ -244,6 +244,17 @@ code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; backgrou
 .sec-refs a { color: var(--accent2); text-decoration: none; }
 .sec-refs a:hover { text-decoration: underline; }
 
+/* ---------- backup / restore modal ---------- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 22px; max-width: 540px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
+.modal-title { font-weight: 800; font-size: 18px; margin-bottom: 8px; }
+.modal-text { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+.backup-code { width: 100%; height: 96px; resize: vertical; background: #0a1020; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); padding: 10px 12px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+.backup-code:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.backup-msg { margin-top: 10px; font-size: 13px; color: var(--bad); min-height: 1em; }
+
 </style>
   <!-- Pyodide: runs real Python in your browser -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
@@ -273,6 +284,7 @@ code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; backgrou
         <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
         <div class="xp-sub"><span id="xp-into">0 / 150</span> to next level</div>
       </div>
+      <button id="backup-btn" class="mini-btn" title="Backup / restore your progress">💾 backup</button>
       <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
     </div>
   </header>
@@ -288,6 +300,21 @@ code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; backgrou
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <div id="backup-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">💾 Backup / Restore Progress</div>
+      <p class="modal-text">Your progress auto-saves in this browser. But browsers can clear site data (private mode, privacy settings, a different device/browser) — so to keep it safe, <b>Copy</b> or <b>Download</b> this code and store it. To restore, paste a saved code and hit <b>Restore</b>.</p>
+      <textarea id="backup-code" class="backup-code" spellcheck="false" placeholder="Paste a saved backup code here to restore…"></textarea>
+      <div class="modal-btns">
+        <button id="copy-code" class="btn">📋 Copy</button>
+        <button id="download-code" class="btn">⬇ Download</button>
+        <button id="restore-code" class="btn check">♻ Restore</button>
+        <button id="close-modal" class="btn ghost">Close</button>
+      </div>
+      <div id="backup-msg" class="backup-msg"></div>
+    </div>
+  </div>
 
   <script>
 /* ============================================================
@@ -5976,6 +6003,51 @@ function resetProgress() {
   toast("Fresh start! Good luck 🍀");
 }
 
+/* ---------------- backup / restore progress ---------------- */
+function exportCode() {
+  const data = { v: 1, app: "python-quest", xp: state.xp, completed: state.completed, current: state.currentLessonId };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+function openBackup() {
+  const ta = document.getElementById("backup-code");
+  if (ta) ta.value = exportCode();
+  const msg = document.getElementById("backup-msg"); if (msg) msg.textContent = "";
+  document.getElementById("backup-modal").classList.add("show");
+}
+function closeBackup() { document.getElementById("backup-modal").classList.remove("show"); }
+function restoreFromCode() {
+  const ta = document.getElementById("backup-code");
+  const msg = document.getElementById("backup-msg");
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob((ta.value || "").trim()))));
+    if (!data || !Array.isArray(data.completed)) throw new Error("invalid");
+    state.xp = Number(data.xp) || 0;
+    state.completed = data.completed;
+    state.currentLessonId = data.current || LESSONS[0].id;
+    save();
+    closeBackup();
+    render();
+    toast("✅ Progress restored!");
+  } catch (e) {
+    if (msg) msg.textContent = "That code didn't look right — paste the full backup code and try Restore again.";
+  }
+}
+function downloadBackup() {
+  const blob = new Blob([exportCode()], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "python-quest-progress.txt";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Downloaded your backup 📄");
+}
+function copyBackup() {
+  const ta = document.getElementById("backup-code");
+  ta.select();
+  const done = () => toast("Copied! Keep it somewhere safe 📋");
+  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done).catch(() => { document.execCommand("copy"); done(); });
+  else { document.execCommand("copy"); done(); }
+}
+
 /* ---------------- master render ---------------- */
 function render() {
   renderSidebar();
@@ -5988,6 +6060,12 @@ window.addEventListener("DOMContentLoaded", () => {
   load();
   render();
   document.getElementById("reset-progress").onclick = resetProgress;
+  const wire = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  wire("backup-btn", openBackup);
+  wire("close-modal", closeBackup);
+  wire("copy-code", copyBackup);
+  wire("download-code", downloadBackup);
+  wire("restore-code", restoreFromCode);
   initPython();
 });
 

@@ -420,9 +420,60 @@ function resetProgress() {
   render(); toast("Fresh start! 🍀");
 }
 
+/* ---------------- backup / restore progress ---------------- */
+function exportCode() {
+  const data = { v: 1, app: "network-quest", xp: state.xp, completed: state.completed, current: state.currentLessonId };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+function openBackup() {
+  const ta = document.getElementById("backup-code");
+  if (ta) ta.value = exportCode();
+  const msg = document.getElementById("backup-msg"); if (msg) msg.textContent = "";
+  document.getElementById("backup-modal").classList.add("show");
+}
+function closeBackup() { document.getElementById("backup-modal").classList.remove("show"); }
+function restoreFromCode() {
+  const ta = document.getElementById("backup-code");
+  const msg = document.getElementById("backup-msg");
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob((ta.value || "").trim()))));
+    if (!data || !Array.isArray(data.completed)) throw new Error("invalid");
+    state.xp = Number(data.xp) || 0;
+    state.completed = data.completed;
+    state.currentLessonId = data.current || LESSONS[0].id;
+    save();
+    closeBackup();
+    render();
+    toast("✅ Progress restored!");
+  } catch (e) {
+    if (msg) msg.textContent = "That code didn't look right — paste the full backup code and try Restore again.";
+  }
+}
+function downloadBackup() {
+  const blob = new Blob([exportCode()], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "network-quest-progress.txt";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Downloaded your backup 📄");
+}
+function copyBackup() {
+  const ta = document.getElementById("backup-code");
+  ta.select();
+  const done = () => toast("Copied! Keep it somewhere safe 📋");
+  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done).catch(() => { document.execCommand("copy"); done(); });
+  else { document.execCommand("copy"); done(); }
+}
+
 /* ---------------- boot ---------------- */
 function render() { renderSidebar(); renderHUD(); renderLesson(); }
 window.addEventListener("DOMContentLoaded", () => {
   load(); render();
   document.getElementById("reset-progress").onclick = resetProgress;
+  const wire = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  wire("backup-btn", openBackup);
+  wire("close-modal", closeBackup);
+  wire("copy-code", copyBackup);
+  wire("download-code", downloadBackup);
+  wire("restore-code", restoreFromCode);
 });

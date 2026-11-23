@@ -165,3 +165,14 @@ code { font-family: "JetBrains Mono", Consolas, monospace; background: #081020; 
 .sec-refs .sec-h { color: var(--muted); }
 .sec-refs a { color: var(--accent2); text-decoration: none; }
 .sec-refs a:hover { text-decoration: underline; }
+
+/* ---------- backup / restore modal ---------- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; padding: 22px; max-width: 540px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
+.modal-title { font-weight: 800; font-size: 18px; margin-bottom: 8px; }
+.modal-text { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+.backup-code { width: 100%; height: 96px; resize: vertical; background: #081020; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); padding: 10px 12px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; word-break: break-all; }
+.backup-code:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.backup-msg { margin-top: 10px; font-size: 13px; color: var(--bad); min-height: 1em; }
