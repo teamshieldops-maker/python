@@ -540,7 +540,8 @@ async function sbGet(code) {
   const r = await fetchT(SB_URL + "?code=eq." + encodeURIComponent(code) + "&select=data", { headers: SB_HEADERS });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const rows = await r.json();
-  return (rows && rows[0] && rows[0].data) ? rows[0].data : {};
+  if (!rows || !rows[0]) return null;          // no such code exists
+  return rows[0].data || {};
 }
 async function sbPut(code, data) {
   const r = await fetchT(SB_URL, { method: "POST", headers: Object.assign({ "Prefer": "resolution=merge-duplicates" }, SB_HEADERS), body: JSON.stringify({ code: code, data: data, updated: new Date().toISOString() }) });
@@ -561,7 +562,7 @@ async function freeSyncCode() {
 async function pullSync() {
   const id = getSyncId(); if (!id) return;
   try {
-    const data = await sbGet(id);
+    const data = await sbGet(id) || {};
     if (mergeSection(data[APP_KEY])) { persist(); renderSidebar(); renderHUD(); renderLesson(); toast("☁ Synced from your other device"); }
     updateSyncUI();
   } catch (e) { /* offline — ignore */ }
@@ -571,8 +572,9 @@ async function pushSync() {
   const id = getSyncId(); if (!id) return;
   try {
     let data = {};
-    try { data = await sbGet(id); } catch (e) {}
-    data[APP_KEY] = mySection();
+    try { data = await sbGet(id) || {}; } catch (e) {}
+    mergeSection(data[APP_KEY]);      // fold any remote progress into local FIRST so a push can never shrink it
+    data[APP_KEY] = mySection();      // then store the union
     await sbPut(id, data);
     updateSyncUI("ok");
   } catch (e) { updateSyncUI("err"); }
@@ -597,12 +599,19 @@ async function connectSync() {
   setSyncMsg("Connecting…");
   try {
     const data = await sbGet(id);
+    if (!data) { setSyncMsg("No data found for code \"" + id + "\". Check the digits, and make sure sync is enabled on the device that has your progress.", true); return; }
+    const sec = data[APP_KEY];
     setSyncId(id);
-    mergeSection(data[APP_KEY]);
+    mergeSection(sec);
+    if (sec && sec.current) state.currentLessonId = sec.current;   // jump to where you left off
     persist(); await pushSync();
     renderSidebar(); renderHUD(); renderLesson(); updateSyncUI();
-    setSyncMsg("✅ Connected & synced.");
-    toast("☁ Connected & synced");
+    if (!sec || !(sec.completed && sec.completed.length)) {
+      setSyncMsg("Connected to \"" + id + "\", but it has no saved progress for this quest yet. Enable sync on the device that has your progress, then use the code it shows.", true);
+    } else {
+      setSyncMsg("✅ Connected — restored " + state.completed.length + " completed lesson(s), " + state.xp + " XP.");
+      toast("☁ Connected & synced");
+    }
   } catch (e) { setSyncMsg("Couldn't connect: " + ((e && e.message) || "network error") + ".", true); }
 }
 function disconnectSync() { clearSyncId(); updateSyncUI(); setSyncMsg("Cloud sync turned off (progress stays on this device)."); }
