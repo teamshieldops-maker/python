@@ -1,0 +1,16 @@
+{
+  "name": "it-english-coach",
+  "version": "1.0.0",
+  "description": "Interactive workplace-English trainer for IT professionals: 168 phrases, model sentences and six drill modes.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "keywords": ["english", "vocabulary", "spaced-repetition", "workplace-communication"],
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^31.0.1"
+  }
+}

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IT English Coach</title>
+<meta name="description" content="Interactive workplace-English trainer for IT professionals: vocabulary, model sentences, drills and speaking practice.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="brand" id="homeBtn" title="Home">
+    <span class="brand-mark">IT</span>
+    <span class="brand-text">English&nbsp;Coach</span>
+  </button>
+
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="Search a phrase, e.g. blocked, deadline, doubt&hellip;" autocomplete="off" aria-label="Search phrases">
+    <div id="searchResults" class="search-results" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="streak" id="streak" title="Days practised in a row"></div>
+    <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
+  </div>
+</header>
+
+<main id="view" class="view"></main>
+
+<!-- ============ TEMPLATES ============ -->
+
+<template id="tpl-home">
+  <section class="stack">
+    <div class="hero">
+      <h1>Speak like the most articulate person in the room.</h1>
+      <p class="lede">
+        <strong data-count="phrases"></strong> real workplace phrases, model sentences and
+        six drill modes built for software engineers, testers, analysts and support staff
+        working in English every day.
+      </p>
+      <div class="hero-actions">
+        <button class="btn primary" data-go="review">
+          <span class="btn-label">Today&rsquo;s review</span>
+          <span class="btn-sub" id="dueCount"></span>
+        </button>
+        <button class="btn" data-go="dialogues">Speaking practice</button>
+      </div>
+    </div>
+
+    <div class="progress-strip">
+      <div class="pm"><b id="statMastered">0</b><span>mastered</span></div>
+      <div class="pm"><b id="statLearning">0</b><span>learning</span></div>
+      <div class="pm"><b id="statUnseen">0</b><span>not started</span></div>
+      <div class="pm"><b id="statAccuracy">&ndash;</b><span>quiz accuracy</span></div>
+    </div>
+
+    <h2 class="section-title">Choose a situation</h2>
+    <div class="deck-grid" id="deckGrid"></div>
+
+    <div class="tip-card">
+      <h3>How to get the most out of this</h3>
+      <ol>
+        <li><b>Learn</b> a deck once, reading each sentence aloud. Hearing your own voice is the point.</li>
+        <li><b>Drill</b> it with flashcards and the quiz until the phrase arrives without effort.</li>
+        <li><b>Shadow</b> the dialogues &mdash; play the line, then repeat it at the same speed and rhythm.</li>
+        <li>Come back to <b>Today&rsquo;s review</b> daily. Ten minutes beats a two-hour session on Sunday.</li>
+      </ol>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-deck">
+  <section class="stack">
+    <button class="back" data-icon="arrowL" data-go="home"><span>All situations</span></button>
+    <div class="deck-head">
+      <span class="deck-icon" id="deckIcon"></span>
+      <div>
+        <h1 id="deckName"></h1>
+        <p class="lede" id="deckBlurb"></p>
+      </div>
+    </div>
+    <div class="mode-grid">
+      <button class="mode" data-mode="learn">
+        <b>Learn</b><span>Read and listen to every phrase with a model sentence.</span>
+      </button>
+      <button class="mode" data-mode="flash">
+        <b>Flashcards</b><span>See the meaning, recall the phrase. Spaced repetition.</span>
+      </button>
+      <button class="mode" data-mode="quiz">
+        <b>Quiz</b><span>Multiple choice on meaning and usage.</span>
+      </button>
+      <button class="mode" data-mode="cloze">
+        <b>Fill the gap</b><span>Complete a real sentence with the right phrase.</span>
+      </button>
+      <button class="mode" data-mode="fixit">
+        <b>Spot the mistake</b><span>Choose the natural version of an awkward sentence.</span>
+      </button>
+      <button class="mode" data-mode="speak">
+        <b>Say it</b><span>Read sentences aloud and have them checked.</span>
+      </button>
+    </div>
+    <div class="deck-progress" id="deckProgress"></div>
+  </section>
+</template>
+
+<template id="tpl-drill">
+  <section class="stack drill-wrap">
+    <div class="drill-top">
+      <button class="back" data-icon="arrowL" id="drillExit"><span>Back</span></button>
+      <div class="bar"><i id="drillBar"></i></div>
+      <div class="drill-count" id="drillCount"></div>
+    </div>
+    <div id="drillBody"></div>
+  </section>
+</template>
+
+<template id="tpl-dialogues">
+  <section class="stack">
+    <button class="back" data-icon="arrowL" data-go="home"><span>Home</span></button>
+    <h1>Speaking practice</h1>
+    <p class="lede">
+      Short, realistic scripts. Play a line, then say it back at the same pace.
+      Shadowing full sentences trains rhythm and stress, which is what actually makes
+      speech easy to follow &mdash; more than individual sounds do.
+    </p>
+    <div class="dlg-list" id="dlgList"></div>
+  </section>
+</template>
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
