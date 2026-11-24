@@ -1036,18 +1036,19 @@ devices.append("PC-3")  # add
 len(devices)            # 3
 devices[0]              # "PC-1" (starts at 0)
 devices[-1]             # last</pre>`,
-    task: `Append <code>"TABLET-03"</code> to the inventory, then store the new count in <code>total</code>.`,
-    starter: `devices = ["LAPTOP-01", "LAPTOP-02", "PHONE-07"]\n\n# add + count\n`,
+    task: `Append every name in <code>new_devices</code> to <code>inventory</code>, then set <code>total</code> to the new device count and <code>last_three</code> to the last three device names (use a slice).`,
+    starter: `inventory = ["LAPTOP-01", "LAPTOP-02", "PHONE-07"]\nnew_devices = ["TABLET-03", "KIOSK-04", "VM-05"]\n\n# onboard each new device, then report total and the last three names\n`,
     check: `
-if 'total' not in globals():
-    _feedback = "Store the count in total."
-elif len(devices) == 4 and devices[-1] == "TABLET-03" and total == 4:
-    _passed = True; _feedback = "Inventory now holds 4. Lists grow with .append(). 📝"
+_exp_last = ["TABLET-03", "KIOSK-04", "VM-05"]
+if 'total' not in globals() or 'last_three' not in globals():
+    _feedback = "Set both total and last_three."
+elif total == 6 and inventory[:3] == ["LAPTOP-01", "LAPTOP-02", "PHONE-07"] and last_three == _exp_last:
+    _passed = True; _feedback = "Six devices onboarded; a tail slice grabbed the newest three. 📝"
 else:
-    _feedback = f"Expected 4 ending in 'TABLET-03'. Got devices={devices}, total={globals().get('total')}."
+    _feedback = f"Expected total=6 and last_three={_exp_last}. Got total={globals().get('total')}, last_three={globals().get('last_three')}."
 `,
-    hints: ['devices.append("TABLET-03")', 'total = len(devices)', 'Do both lines'],
-    solution: `devices = ["LAPTOP-01", "LAPTOP-02", "PHONE-07"]\n\ndevices.append("TABLET-03")\ntotal = len(devices)\nprint(devices, total)`,
+    hints: ['Loop new_devices and append each name onto inventory.', 'len() gives the count; a negative slice like names[-3:] grabs the tail.', 'Build both results — the count comes from len, and the newest names from a tail slice of the grown list.'],
+    solution: `inventory = ["LAPTOP-01", "LAPTOP-02", "PHONE-07"]\nnew_devices = ["TABLET-03", "KIOSK-04", "VM-05"]\n\nfor name in new_devices:\n    inventory.append(name)\ntotal = len(inventory)\nlast_three = inventory[-3:]\nprint(inventory, total, last_three)`,
   },
   {
     id: "l7", world: "w2", title: "A Device Has Properties", xp: 60,
@@ -1082,18 +1083,20 @@ device.keys() / .values() / .items()  # iterate</pre>
     concept: `<pre>device = {"name": "PC-1", "os": "Windows", "compliant": True}
 device["os"]            # "Windows"
 device["os"] = "Win11"  # change</pre>`,
-    task: `Build <code>device</code> with <code>name</code>="LAPTOP-01", <code>os</code>="Windows", <code>compliant</code>=True. Read the OS into <code>device_os</code>.`,
-    starter: `# Build the dict, then read its os\n`,
+    task: `Build <code>device</code> with <code>name</code>="LAPTOP-01", <code>os</code>="Windows", <code>compliant</code>=False and <code>risk_score</code>=85. Read its OS into <code>device_os</code>, then set <code>needs_review</code> to True when the device is non-compliant OR its risk_score is at least 70.`,
+    starter: `# Build the device dict, then derive device_os and needs_review\n`,
     check: `
 if 'device' not in globals() or not isinstance(device, dict):
     _feedback = "Create a dict named device."
-elif device.get("name")=="LAPTOP-01" and device.get("os")=="Windows" and device.get("compliant") is True and globals().get("device_os")=="Windows":
-    _passed = True; _feedback = "One box, all the facts — the backbone of everything ahead. 🗂️"
+elif (device.get("name")=="LAPTOP-01" and device.get("os")=="Windows"
+      and device.get("compliant") is False and device.get("risk_score")==85
+      and globals().get("device_os")=="Windows" and globals().get("needs_review") is True):
+    _passed = True; _feedback = "Built the record and derived a decision straight from its fields. 🗂️"
 else:
-    _feedback = "Make device = {'name':'LAPTOP-01','os':'Windows','compliant':True} and device_os = device['os']."
+    _feedback = "Build the full device dict, set device_os from its os, and needs_review from the compliant/risk_score fields."
 `,
-    hints: ['Keys & string values need quotes; True does not.', 'device = {"name":"LAPTOP-01","os":"Windows","compliant":True}', 'device_os = device["os"]'],
-    solution: `device = {"name": "LAPTOP-01", "os": "Windows", "compliant": True}\ndevice_os = device["os"]\nprint(device_os)`,
+    hints: ['Keys and string values need quotes; True/False and numbers do not.', 'Read a field with device["os"]; combine two conditions with or.', 'needs_review should be True when the device is non-compliant or its score crosses the threshold — build it from both fields.'],
+    solution: `device = {"name": "LAPTOP-01", "os": "Windows", "compliant": False, "risk_score": 85}\ndevice_os = device["os"]\nneeds_review = (not device["compliant"]) or device["risk_score"] >= 70\nprint(device_os, needs_review)`,
   },
   {
     id: "l8", world: "w2", title: "The Tag Map", xp: 60,
@@ -1128,20 +1131,21 @@ device_tags["PC-3"] = []                   # add a new device
     ],
     concept: `<pre>device_tags = {"PC-1": ["windows", "corporate"]}
 device_tags["PC-1"].append("compliant")</pre>`,
-    task: `Create <code>device_tags</code> mapping <code>"LAPTOP-01"</code> to <code>["windows","corporate"]</code>, then append <code>"compliant"</code> to it.`,
-    starter: `# Build + add a tag\n`,
+    task: `Build <code>device_tags</code> mapping <code>"LAPTOP-01"</code> → <code>["windows","corporate"]</code> and <code>"PHONE-07"</code> → <code>["ios"]</code>. Then append <code>"compliant"</code> to LAPTOP-01's tags, add a new device <code>"VM-09"</code> with an empty tag list, and store LAPTOP-01's tags (sorted) in <code>laptop01_tags</code>.`,
+    starter: `# Build the map, then update it three ways\n`,
     check: `
 if 'device_tags' not in globals() or not isinstance(device_tags, dict):
     _feedback = "Create device_tags."
+elif (sorted(device_tags.get("LAPTOP-01", [])) == ["compliant", "corporate", "windows"]
+      and device_tags.get("PHONE-07") == ["ios"]
+      and device_tags.get("VM-09") == []
+      and globals().get("laptop01_tags") == ["compliant", "corporate", "windows"]):
+    _passed = True; _feedback = "Nested map updated: new tag, new device, and a sorted view. 🏷️"
 else:
-    _t = device_tags.get("LAPTOP-01", [])
-    if {"windows","corporate","compliant"}.issubset(set(_t)):
-        _passed = True; _feedback = "device -> list of tags. That's a tagging system. 🏷️"
-    else:
-        _feedback = f"LAPTOP-01 should have windows, corporate AND compliant. Got {_t}."
+    _feedback = "LAPTOP-01 needs windows+corporate+compliant, PHONE-07 stays ['ios'], add VM-09 as [], and laptop01_tags = sorted LAPTOP-01 tags."
 `,
-    hints: ['device_tags = {"LAPTOP-01": ["windows","corporate"]}', 'device_tags["LAPTOP-01"].append("compliant")', 'Both lines'],
-    solution: `device_tags = {"LAPTOP-01": ["windows", "corporate"]}\ndevice_tags["LAPTOP-01"].append("compliant")\nprint(device_tags)`,
+    hints: ['Dict values can be lists: {"LAPTOP-01": ["windows","corporate"], ...}.', 'Reach the inner list with device_tags["LAPTOP-01"] then .append(...); add a device with a brand-new key.', "Finish by storing a sorted copy of LAPTOP-01's tag list — sorted() hands back a fresh list."],
+    solution: `device_tags = {"LAPTOP-01": ["windows", "corporate"], "PHONE-07": ["ios"]}\ndevice_tags["LAPTOP-01"].append("compliant")\ndevice_tags["VM-09"] = []\nlaptop01_tags = sorted(device_tags["LAPTOP-01"])\nprint(device_tags, laptop01_tags)`,
   },
   {
     id: "l9", world: "w2", title: "Kill the Duplicates", xp: 60,
@@ -1174,19 +1178,20 @@ x in myset               # fast membership</pre>
     ],
     concept: `<pre>set(["a", "a", "b"])   # {"a", "b"}
 sorted(set(...))        # back to a sorted list</pre>`,
-    task: `From <code>raw_tags</code> (has duplicates), build <code>unique</code> — a sorted list of the distinct tags.`,
-    starter: `raw_tags = ["windows", "corporate", "windows", "compliant", "corporate"]\n\n# unique = ?\n`,
+    task: `From <code>raw_tags</code> (has duplicates) build <code>unique</code> — the sorted distinct tags. Then, using the <code>allowed</code> policy set, build <code>unapproved</code> — the sorted tags that appear in raw_tags but are not allowed.`,
+    starter: `raw_tags = ["windows", "corporate", "windows", "jailbroken", "corporate", "byod"]\nallowed = {"windows", "corporate", "compliant", "managed"}\n\n# unique = ?   unapproved = ?\n`,
     check: `
-_exp = ["compliant", "corporate", "windows"]
-if 'unique' not in globals():
-    _feedback = "Create unique."
-elif unique == _exp:
-    _passed = True; _feedback = "Deduped and sorted. Sets are a cleanup superpower. 🧹"
+_exp_u = ["byod", "corporate", "jailbroken", "windows"]
+_exp_bad = ["byod", "jailbroken"]
+if 'unique' not in globals() or 'unapproved' not in globals():
+    _feedback = "Create both unique and unapproved."
+elif unique == _exp_u and unapproved == _exp_bad:
+    _passed = True; _feedback = "Deduped, then diffed against policy — a real access-review move. 🧹"
 else:
-    _feedback = f"Expected {_exp}, got {unique}. Try sorted(set(raw_tags))."
+    _feedback = f"Expected unique={_exp_u} and unapproved={_exp_bad}. Got {globals().get('unique')} / {globals().get('unapproved')}."
 `,
-    hints: ['Remove dupes with set()', 'Sort with sorted()', 'unique = sorted(set(raw_tags))'],
-    solution: `raw_tags = ["windows", "corporate", "windows", "compliant", "corporate"]\n\nunique = sorted(set(raw_tags))\nprint(unique)`,
+    hints: ['set() drops duplicates; sorted() turns a set back into an ordered list.', 'Set difference a - b keeps the items in a that are not in b.', 'The unapproved tags are whatever is left after subtracting the allowed set from the distinct tags.'],
+    solution: `raw_tags = ["windows", "corporate", "windows", "jailbroken", "corporate", "byod"]\nallowed = {"windows", "corporate", "compliant", "managed"}\n\nunique = sorted(set(raw_tags))\nunapproved = sorted(set(raw_tags) - allowed)\nprint(unique, unapproved)`,
   },
   {
     id: "l10", world: "w2", title: "Count the Compliant", xp: 70,
@@ -1218,18 +1223,18 @@ len([d for d in devices if not d["compliant"]])  # count via list</pre>
     concept: `<code>sum()</code> over booleans counts the True ones (True==1):
 <pre>sum(1 for d in devices if d["compliant"])</pre>
 or add inside a loop.`,
-    task: `From <code>devices</code>, store the number of compliant devices in <code>compliant_count</code> (should be 2).`,
-    starter: `devices = [\n    {"name": "A", "compliant": True},\n    {"name": "B", "compliant": False},\n    {"name": "C", "compliant": True},\n]\n\n# compliant_count = ?\n`,
+    task: `From <code>devices</code>, set <code>compliant_count</code> to the number of compliant devices and <code>rate</code> to the compliance percentage (compliant ÷ total × 100), rounded to the nearest whole number.`,
+    starter: `devices = [\n    {"name": "A", "compliant": True},\n    {"name": "B", "compliant": False},\n    {"name": "C", "compliant": True},\n    {"name": "D", "compliant": True},\n]\n\n# compliant_count = ?   rate = ?\n`,
     check: `
-if 'compliant_count' not in globals():
-    _feedback = "Create compliant_count."
-elif compliant_count == 2:
-    _passed = True; _feedback = "Aggregation unlocked — the basis of every dashboard. 📈"
+if 'compliant_count' not in globals() or 'rate' not in globals():
+    _feedback = "Create both compliant_count and rate."
+elif compliant_count == 3 and rate == 75:
+    _passed = True; _feedback = "Count and rate — the two numbers every compliance dashboard shows. 📈"
 else:
-    _feedback = f"Expected 2, got {compliant_count}."
+    _feedback = f"Expected compliant_count=3 and rate=75. Got {globals().get('compliant_count')} / {globals().get('rate')}."
 `,
-    hints: ['Count where d["compliant"] is True', 'sum(1 for d in devices if d["compliant"])', 'compliant_count = sum(1 for d in devices if d["compliant"])'],
-    solution: `devices = [\n    {"name": "A", "compliant": True},\n    {"name": "B", "compliant": False},\n    {"name": "C", "compliant": True},\n]\n\ncompliant_count = sum(1 for d in devices if d["compliant"])\nprint(compliant_count)`,
+    hints: ['Count matches with sum(1 for d in devices if ...).', 'A percentage is matches / total * 100; wrap it in round() for a whole number.', 'Derive rate from the count and len(devices) rather than hard-coding the number.'],
+    solution: `devices = [\n    {"name": "A", "compliant": True},\n    {"name": "B", "compliant": False},\n    {"name": "C", "compliant": True},\n    {"name": "D", "compliant": True},\n]\n\ncompliant_count = sum(1 for d in devices if d["compliant"])\nrate = round(compliant_count / len(devices) * 100)\nprint(compliant_count, rate)`,
   },
 
   /* ================= WORLD 3: LOGIC & FLOW ================= */
@@ -1270,18 +1275,19 @@ elif os_name in ("macOS", "iOS"):
 else:
     platform = "other"</pre>
 4-space indent marks what's "inside". <code>in (...)</code> checks membership.`,
-    task: `<code>os_name</code> is "macOS". Set <code>platform_tag</code>: Windows→"microsoft", macOS/iOS→"apple", else "other".`,
-    starter: `os_name = "macOS"\n\n# decide platform_tag\n`,
+    task: `Loop <code>devices</code> and build <code>platform_tags</code> — a dict mapping each device name to its platform: Windows→"microsoft", macOS/iOS→"apple", anything else→"other".`,
+    starter: `devices = [\n    {"name": "LAPTOP-01", "os": "Windows"},\n    {"name": "MAC-02", "os": "macOS"},\n    {"name": "IPHONE-03", "os": "iOS"},\n    {"name": "PI-04", "os": "Linux"},\n]\n\n# build platform_tags\n`,
     check: `
-if 'platform_tag' not in globals():
-    _feedback = "Set platform_tag."
-elif platform_tag == "apple":
-    _passed = True; _feedback = "Decision logic online — macOS -> apple. 🍎"
+_exp = {"LAPTOP-01": "microsoft", "MAC-02": "apple", "IPHONE-03": "apple", "PI-04": "other"}
+if 'platform_tags' not in globals():
+    _feedback = "Build platform_tags."
+elif platform_tags == _exp:
+    _passed = True; _feedback = "One rule applied to the whole fleet — microsoft / apple / other. 🍎"
 else:
-    _feedback = f"os_name is 'macOS' so platform_tag should be 'apple'. Got '{platform_tag}'."
+    _feedback = f"Expected {_exp}, got {globals().get('platform_tags')}."
 `,
-    hints: ['Colon after each condition, then indent', 'elif os_name in ("macOS","iOS"):', 'See the concept block for the full shape'],
-    solution: `os_name = "macOS"\n\nif os_name == "Windows":\n    platform_tag = "microsoft"\nelif os_name in ("macOS", "iOS"):\n    platform_tag = "apple"\nelse:\n    platform_tag = "other"\nprint(platform_tag)`,
+    hints: ['Start platform_tags = {} and loop the devices.', 'Inside the loop branch on the OS with if/elif/else; in ("macOS","iOS") covers both Apple cases.', "Store each branch's result in the dict under the device name — the else branch catches everything unmatched."],
+    solution: `devices = [\n    {"name": "LAPTOP-01", "os": "Windows"},\n    {"name": "MAC-02", "os": "macOS"},\n    {"name": "IPHONE-03", "os": "iOS"},\n    {"name": "PI-04", "os": "Linux"},\n]\n\nplatform_tags = {}\nfor d in devices:\n    os_name = d["os"]\n    if os_name == "Windows":\n        platform_tags[d["name"]] = "microsoft"\n    elif os_name in ("macOS", "iOS"):\n        platform_tags[d["name"]] = "apple"\n    else:\n        platform_tags[d["name"]] = "other"\nprint(platform_tags)`,
   },
   {
     id: "l12", world: "w3", title: "Sweep the Fleet", xp: 70,
@@ -1365,19 +1371,19 @@ else:
     ],
     concept: `<pre>names = [d["name"] for d in devices if not d["compliant"]]</pre>
 Read: give me d["name"], for each d in devices, where not compliant.`,
-    task: `Build <code>non_compliant</code> — names of all devices where <code>compliant</code> is False — in one line.`,
-    starter: `devices = [\n    {"name": "LAPTOP-01", "compliant": True},\n    {"name": "PHONE-07",  "compliant": False},\n    {"name": "SERVER-09", "compliant": False},\n]\n\n# one-line filter\n`,
+    task: `In one comprehension build <code>flagged</code> — the device names UPPER-cased, for every device that is non-compliant AND has <code>risk_score</code> ≥ 70. Sort the result.`,
+    starter: `devices = [\n    {"name": "laptop-01", "compliant": True,  "risk_score": 90},\n    {"name": "phone-07",  "compliant": False, "risk_score": 40},\n    {"name": "server-09", "compliant": False, "risk_score": 85},\n    {"name": "kiosk-02",  "compliant": False, "risk_score": 75},\n]\n\n# one-line comprehension, then sort\n`,
     check: `
-_exp = ["PHONE-07", "SERVER-09"]
-if 'non_compliant' not in globals():
-    _feedback = "Build non_compliant."
-elif sorted(non_compliant) == sorted(_exp):
-    _passed = True; _feedback = "Clean one-liner — very Pythonic. 😎"
+_exp = ["KIOSK-02", "SERVER-09"]
+if 'flagged' not in globals():
+    _feedback = "Build flagged."
+elif flagged == _exp:
+    _passed = True; _feedback = "Transform plus a compound filter in one clean line. 😎"
 else:
-    _feedback = f"Expected {_exp}, got {non_compliant}."
+    _feedback = f"Expected {_exp}, got {globals().get('flagged')}."
 `,
-    hints: ['[ VALUE for d in devices if CONDITION ]', 'if not d["compliant"]', 'non_compliant = [d["name"] for d in devices if not d["compliant"]]'],
-    solution: `devices = [\n    {"name": "LAPTOP-01", "compliant": True},\n    {"name": "PHONE-07",  "compliant": False},\n    {"name": "SERVER-09", "compliant": False},\n]\n\nnon_compliant = [d["name"] for d in devices if not d["compliant"]]\nprint(non_compliant)`,
+    hints: ['[ transform for d in devices if condition ] — here the transform is .upper() on the name.', 'Combine two conditions with and: non-compliant and risk_score >= 70.', 'Wrap the whole comprehension in sorted() so the flagged names come back in order.'],
+    solution: `devices = [\n    {"name": "laptop-01", "compliant": True,  "risk_score": 90},\n    {"name": "phone-07",  "compliant": False, "risk_score": 40},\n    {"name": "server-09", "compliant": False, "risk_score": 85},\n    {"name": "kiosk-02",  "compliant": False, "risk_score": 75},\n]\n\nflagged = sorted(d["name"].upper() for d in devices if not d["compliant"] and d["risk_score"] >= 70)\nprint(flagged)`,
   },
   {
     id: "l14", world: "w3", title: "Don't Crash on Bad Data", xp: 80,
@@ -1426,7 +1432,7 @@ elif battery == -1:
 else:
     _feedback = f"'N/A' can't become an int, so battery should be -1. Got {battery}."
 `,
-    hints: ['Wrap int(raw) in try:', 'except ValueError: battery = -1', 'try:\\n    battery = int(raw)\\nexcept ValueError:\\n    battery = -1'],
+    hints: ['Wrap int(raw) in try:', 'except ValueError: battery = -1', 'Put the int() call inside the try and set the fallback in the except, so a bad value lands on -1 instead of crashing.'],
     solution: `raw = "N/A"\n\ntry:\n    battery = int(raw)\nexcept ValueError:\n    battery = -1\nprint(battery)`,
   },
   {
@@ -1476,7 +1482,7 @@ elif processed == 4 and len(queue) == 0:
 else:
     _feedback = f"Expected processed==4 and empty queue. Got processed={globals().get('processed')}, queue={queue}."
 `,
-    hints: ['while queue:', 'queue.pop(); processed += 1', 'while queue:\\n    queue.pop()\\n    processed += 1'],
+    hints: ['while queue:', 'queue.pop(); processed += 1', 'Loop while the queue is still non-empty, removing one item and bumping the counter each pass until nothing is left.'],
     solution: `queue = ["DEV-1", "DEV-2", "DEV-3", "DEV-4"]\nprocessed = 0\n\nwhile queue:\n    queue.pop()\n    processed += 1\nprint(processed, queue)`,
   },
 
@@ -1514,18 +1520,18 @@ make_tag("Windows")   # call it -> "windows"</pre>
     return os_name.lower()
 
 make_tag("Windows")   # "windows"</pre>`,
-    task: `Write <code>make_tag(os_name)</code> returning the OS name lowercased.`,
-    starter: `# define make_tag\n`,
+    task: `Write <code>device_label(name, os_name)</code> that returns the name UPPER-cased and the OS lower-cased joined by a slash — e.g. <code>device_label("laptop-01", "Windows")</code> → <code>"LAPTOP-01/windows"</code>.`,
+    starter: `# define device_label(name, os_name)\n`,
     check: `
-if 'make_tag' not in globals() or not callable(make_tag):
-    _feedback = "Define def make_tag(os_name):"
-elif make_tag("Windows")=="windows" and make_tag("macOS")=="macos":
-    _passed = True; _feedback = "Reusable tool built. Write once, call forever. 🔧"
+if 'device_label' not in globals() or not callable(device_label):
+    _feedback = "Define def device_label(name, os_name):"
+elif device_label("laptop-01", "Windows")=="LAPTOP-01/windows" and device_label("MAC-02", "macOS")=="MAC-02/macos":
+    _passed = True; _feedback = "One tool, two inputs, a clean normalized label. 🔧"
 else:
-    _feedback = "make_tag should return os_name.lower()."
+    _feedback = "Return an f-string: name.upper(), a slash, then os_name.lower()."
 `,
-    hints: ['def make_tag(os_name):', 'return os_name.lower()', 'def make_tag(os_name):\\n    return os_name.lower()'],
-    solution: `def make_tag(os_name):\n    return os_name.lower()\n\nprint(make_tag("Windows"))`,
+    hints: ['Define def device_label(name, os_name): then return a value.', 'Normalize each part: .upper() on the name, .lower() on the OS.', 'Join the two normalized parts with a slash inside one returned f-string.'],
+    solution: `def device_label(name, os_name):\n    return f"{name.upper()}/{os_name.lower()}"\n\nprint(device_label("laptop-01", "Windows"))`,
   },
   {
     id: "l17", world: "w4", title: "The Tag Factory", xp: 90,
@@ -1606,18 +1612,20 @@ device["owner"]                   # KeyError if missing!</pre>
     ],
     concept: `<pre>device.get("owner")               # None if missing
 device.get("owner", "unassigned") # fallback</pre>`,
-    task: `Write <code>get_owner(device)</code> returning the owner, or <code>"unassigned"</code> if missing.`,
-    starter: `# define get_owner(device)\n`,
+    task: `Write <code>describe(device)</code> returning <code>f"{owner} / {os_name}"</code>, where <code>owner</code> falls back to <code>"unassigned"</code> and <code>os_name</code> falls back to <code>"unknown"</code> when those keys are missing.`,
+    starter: `# define describe(device)\n`,
     check: `
-if 'get_owner' not in globals() or not callable(get_owner):
-    _feedback = "Define def get_owner(device):"
-elif get_owner({"owner":"alice"})=="alice" and get_owner({"name":"PC-1"})=="unassigned":
-    _passed = True; _feedback = "Crash-proof lookups — real data won't break you. 🛡️"
+if 'describe' not in globals() or not callable(describe):
+    _feedback = "Define def describe(device):"
+elif (describe({"owner": "alice", "os": "Windows"})=="alice / Windows"
+      and describe({"name": "PC-1"})=="unassigned / unknown"
+      and describe({"os": "iOS"})=="unassigned / iOS"):
+    _passed = True; _feedback = "Crash-proof lookups — missing fields fall back instead of exploding. 🛡️"
 else:
-    _feedback = 'Use device.get("owner", "unassigned").'
+    _feedback = 'Use device.get("owner", "unassigned") and device.get("os", "unknown"), then combine them.'
 `,
-    hints: ['.get(key, fallback)', 'return device.get("owner","unassigned")', 'def get_owner(device):\\n    return device.get("owner","unassigned")'],
-    solution: `def get_owner(device):\n    return device.get("owner", "unassigned")\n\nprint(get_owner({"name":"PC-1"}))`,
+    hints: ['.get(key, default) returns the default instead of raising when a key is absent.', 'Read both owner and os, each with its own fallback value.', 'Combine the two safely-read values into one returned f-string — never use [] on fields that might be missing.'],
+    solution: `def describe(device):\n    owner = device.get("owner", "unassigned")\n    os_name = device.get("os", "unknown")\n    return f"{owner} / {os_name}"\n\nprint(describe({"name": "PC-1"}))`,
   },
   {
     id: "l19", world: "w4", title: "Default Arguments", xp: 90,
@@ -1670,7 +1678,7 @@ else:
     hints: [
       'Default goes in the signature: prefix="auto"',
       "Return an f-string: f\"{prefix}:{device['os'].lower()}\"",
-      `def tag_device(device, prefix="auto"):\n    return f"{prefix}:{device['os'].lower()}"`,
+      'Give prefix its default in the signature, then return an f-string that drops in the prefix and the lower-cased OS.',
     ],
     solution: `def tag_device(device, prefix="auto"):\n    return f"{prefix}:{device['os'].lower()}"\n\nprint(tag_device({"os":"Windows"}))\nprint(tag_device({"os":"iOS"}, "manual"))`,
   },
@@ -1711,18 +1719,19 @@ last = date(2026, 9, 15)
 today = date(2026, 11, 13)
 gap = (today - last).days    # 59</pre>
 Subtracting dates gives a timedelta; <code>.days</code> is the number of days.`,
-    task: `Compute <code>days_since</code> = days between <code>last_seen</code> and <code>today</code> (should be 59).`,
-    starter: `from datetime import date\nlast_seen = date(2026, 9, 15)\ntoday = date(2026, 11, 13)\n\n# days_since = ?\n`,
+    task: `Given <code>today</code> and a list of <code>devices</code> each with a <code>last_seen</code> date, build <code>stale</code> — the sorted names of devices last seen more than 30 days ago — and set <code>max_gap</code> to the largest days-since value across the fleet.`,
+    starter: `from datetime import date\ntoday = date(2026, 11, 13)\ndevices = [\n    {"name": "LAPTOP-01", "last_seen": date(2026, 11, 10)},\n    {"name": "PHONE-07",  "last_seen": date(2026, 9, 1)},\n    {"name": "SERVER-09", "last_seen": date(2026, 10, 1)},\n]\n\n# stale = ?   max_gap = ?\n`,
     check: `
-if 'days_since' not in globals():
-    _feedback = "Create days_since."
-elif days_since == 59:
-    _passed = True; _feedback = "Date math down. Stale-device hunting is now possible. 📅"
+_exp = ["PHONE-07", "SERVER-09"]
+if 'stale' not in globals() or 'max_gap' not in globals():
+    _feedback = "Create both stale and max_gap."
+elif sorted(stale) == _exp and max_gap == 73:
+    _passed = True; _feedback = "Date math across the fleet — stale devices found, worst gap flagged. 📅"
 else:
-    _feedback = f"Expected 59, got {days_since}. Try (today - last_seen).days."
+    _feedback = f"Expected stale={_exp} and max_gap=73. Got {globals().get('stale')} / {globals().get('max_gap')}."
 `,
-    hints: ['Subtract the dates', 'Take .days', 'days_since = (today - last_seen).days'],
-    solution: `from datetime import date\nlast_seen = date(2026, 9, 15)\ntoday = date(2026, 11, 13)\n\ndays_since = (today - last_seen).days\nprint(days_since)`,
+    hints: ['Subtracting two dates gives a timedelta; its .days is the gap in days.', 'Loop the devices, compute each gap, and collect names where the gap passes 30.', 'Track the biggest gap separately — max() over every device gap gives max_gap.'],
+    solution: `from datetime import date\ntoday = date(2026, 11, 13)\ndevices = [\n    {"name": "LAPTOP-01", "last_seen": date(2026, 11, 10)},\n    {"name": "PHONE-07",  "last_seen": date(2026, 9, 1)},\n    {"name": "SERVER-09", "last_seen": date(2026, 10, 1)},\n]\n\nstale = []\ngaps = []\nfor d in devices:\n    gap = (today - d["last_seen"]).days\n    gaps.append(gap)\n    if gap > 30:\n        stale.append(d["name"])\nstale = sorted(stale)\nmax_gap = max(gaps)\nprint(stale, max_gap)`,
   },
 
   /* ================= WORLD 5: INTUNE SIMULATOR ================= */
@@ -1769,7 +1778,7 @@ elif count == 6:
 else:
     _feedback = f"Expected 6, got {count}. Use count = len(intune.list_devices())."
 `,
-    hints: ['Call intune.list_devices()', 'Wrap it in len()', 'count = len(intune.list_devices())'],
+    hints: ['Call intune.list_devices()', 'Wrap it in len()', 'Count the devices the portal returns — len() over the fetched list gives the fleet size.'],
     solution: `devices = intune.list_devices()\ncount = len(devices)\nprint(count)`,
   },
   {
@@ -1809,7 +1818,7 @@ if _d and "corporate" in _d["tags"]:
 else:
     _feedback = "DEV-001 needs the 'corporate' tag. Use intune.add_tag('DEV-001', 'corporate')."
 `,
-    hints: ['Use intune.add_tag', 'Two arguments: device id, then tag', 'intune.add_tag("DEV-001", "corporate")'],
+    hints: ['Use intune.add_tag', 'Two arguments: device id, then tag', 'Call the tag method with the device id first and the tag name second.'],
     solution: `intune.add_tag("DEV-001", "corporate")\nprint(intune.get_device("DEV-001"))`,
   },
   {
@@ -1856,7 +1865,7 @@ elif not _ok:
 else:
     _feedback = "Only non-compliant devices should get 'review' — a compliant one got tagged."
 `,
-    hints: ['Loop for d in intune.list_devices()', 'if not d["compliant"]:', 'intune.add_tag(d["id"], "review")'],
+    hints: ['Loop for d in intune.list_devices()', 'if not d["compliant"]:', 'Inside the loop, tag each non-compliant device by passing its id and the review tag.'],
     solution: `for d in intune.list_devices():\n    if not d["compliant"]:\n        intune.add_tag(d["id"], "review")\nprint("done")`,
   },
   {
@@ -1894,7 +1903,7 @@ if _d and _d["compliant"] is True:
 else:
     _feedback = "DEV-003 should be compliant. Use intune.set_compliance('DEV-003', True)."
 `,
-    hints: ['Use intune.set_compliance', 'Second arg is True', 'intune.set_compliance("DEV-003", True)'],
+    hints: ['Use intune.set_compliance', 'Second arg is True', 'Flip the device to compliant by calling set_compliance with its id and True.'],
     solution: `intune.set_compliance("DEV-003", True)\nprint(intune.get_device("DEV-003"))`,
   },
   {
@@ -1946,7 +1955,7 @@ if _tagged == _stale_ids and len(_stale_ids) == 2:
 else:
     _feedback = f"'stale' should be on exactly {sorted(_stale_ids)}. You tagged {sorted(_tagged)}."
 `,
-    hints: ['Parse with datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()', 'Compare (NOW - seen).days > 30', 'Then intune.add_tag(d["id"], "stale")'],
+    hints: ['Parse with datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()', 'Compare (NOW - seen).days > 30', 'When the gap crosses 30 days, tag that device as stale using its id.'],
     solution: `from datetime import datetime\n\nfor d in intune.list_devices():\n    seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()\n    if (NOW - seen).days > 30:\n        intune.add_tag(d["id"], "stale")\nprint("done")`,
   },
   {
@@ -1995,7 +2004,7 @@ else:
     hints: [
       'Loop the fleet and append one row per device',
       "Row format: f\"{d['name']},{d['compliant']}\"",
-      "report.append(f\"{d['name']},{d['compliant']}\")",
+      'For each device, append one CSV row built from its name and compliant fields, comma-separated.',
     ],
     solution: `report = ["deviceName,compliant"]\nfor d in intune.list_devices():\n    report.append(f"{d['name']},{d['compliant']}")\nprint("\\n".join(report))`,
   },
@@ -2040,7 +2049,7 @@ elif token and graph.token:
 else:
     _feedback = "Call graph.authenticate(client_id, client_secret, tenant_id) and store it in token."
 `,
-    hints: ['Use graph.authenticate', 'Pass all three values', 'token = graph.authenticate(client_id, client_secret, tenant_id)'],
+    hints: ['Use graph.authenticate', 'Pass all three values', 'Pass the three credentials to the authenticate call and keep whatever it returns as your token.'],
     solution: `client_id = "app-1234"\nclient_secret = "s3cr3t"\ntenant_id = "contoso.onmicrosoft.com"\n\ntoken = graph.authenticate(client_id, client_secret, tenant_id)\nprint(token)`,
   },
   {
@@ -2083,7 +2092,7 @@ if globals().get("first_name") == "LAPTOP-01":
 else:
     _feedback = 'Do resp = graph.get(url); data = resp.json(); first_name = data["value"][0]["deviceName"].'
 `,
-    hints: ['resp = graph.get(url)', 'data = resp.json()', 'first_name = data["value"][0]["deviceName"]'],
+    hints: ['resp = graph.get(url)', 'data = resp.json()', 'Drill into the parsed JSON: the device list lives under "value"; take the first item and read its deviceName.'],
     solution: `graph.authenticate("app-1234", "secret", "contoso")\nurl = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\n\nresp = graph.get(url)\ndata = resp.json()\nfirst_name = data["value"][0]["deviceName"]\nprint(resp.status_code, first_name)`,
   },
   {
@@ -2135,7 +2144,7 @@ elif sorted(all_names) == ["IPHONE-22","KIOSK-03","LAPTOP-01","MACBOOK-07","PIXE
 else:
     _feedback = f"Expected 6 names across pages, got {len(all_names)}: {all_names}. Follow data.get('@odata.nextLink')."
 `,
-    hints: ['Use while url:', 'Append each d["deviceName"]', 'url = data.get("@odata.nextLink")  # None ends the loop'],
+    hints: ['Use while url:', 'Append each d["deviceName"]', "Reassign url to the response's next-page link each pass; when that link is absent the while condition stops the loop."],
     solution: `graph.authenticate("app-1234", "secret", "contoso")\nurl = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\n\nall_names = []\nwhile url:\n    data = graph.get(url).json()\n    for d in data["value"]:\n        all_names.append(d["deviceName"])\n    url = data.get("@odata.nextLink")\nprint(all_names)`,
   },
   {
@@ -2175,7 +2184,7 @@ if globals().get("resp") is not None and getattr(resp, "status_code", None) == 2
 else:
     _feedback = 'Use resp = graph.patch(url, json={"complianceState": "compliant"}).'
 `,
-    hints: ['Use graph.patch(url, json={...})', 'Body: {"complianceState": "compliant"}', 'resp = graph.patch(url, json={"complianceState": "compliant"})'],
+    hints: ['Use graph.patch(url, json={...})', 'Body: {"complianceState": "compliant"}', 'Send a PATCH to the device URL with a small JSON body that sets its compliance state.'],
     solution: `graph.authenticate("app-1234", "secret", "contoso")\nurl = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/DEV-005"\n\nresp = graph.patch(url, json={"complianceState": "compliant"})\nprint(resp.status_code)`,
   },
   {
@@ -2224,7 +2233,7 @@ elif graph._flaky == 0:
 else:
     _feedback = f"Keep looping until status_code == 200 (it takes a few tries). status={globals().get('status')}."
 `,
-    hints: ['Loop with for attempt in range(5):', 'resp = graph.flaky_get(url)', 'if resp.status_code == 200: status = 200; break'],
+    hints: ['Loop with for attempt in range(5):', 'resp = graph.flaky_get(url)', 'On a successful status code, record it and break out so you stop retrying.'],
     solution: `url = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\nstatus = None\n\nfor attempt in range(5):\n    resp = graph.flaky_get(url)\n    if resp.status_code == 200:\n        status = 200\n        break\nprint(status)`,
   },
 
@@ -2269,7 +2278,7 @@ elif sorted(critical_hosts) == ["LAPTOP-01", "SERVER-01"]:
 else:
     _feedback = f"Expected ['LAPTOP-01','SERVER-01'], got {critical_hosts}."
 `,
-    hints: ['Loop falcon.list_detections()', 'if det["severity"] in ("critical","high")', 'critical_hosts = [d["hostname"] for d in falcon.list_detections() if d["severity"] in ("critical","high")]'],
+    hints: ['Loop falcon.list_detections()', 'if det["severity"] in ("critical","high")', 'Collect the hostname of every detection whose severity is critical or high.'],
     solution: `critical_hosts = [d["hostname"] for d in falcon.list_detections() if d["severity"] in ("critical", "high")]\nprint(critical_hosts)`,
   },
   {
@@ -2311,7 +2320,7 @@ if _crit and all(d["status"] == "resolved" for d in _crit):
 else:
     _feedback = "Every critical detection should have status 'resolved'. Use falcon.resolve(det['id'])."
 `,
-    hints: ['Loop detections', 'if d["severity"]=="critical":', 'falcon.resolve(d["id"])'],
+    hints: ['Loop detections', 'if d["severity"]=="critical":', 'Inside the loop, resolve each critical detection by passing its id.'],
     solution: `for d in falcon.list_detections():\n    if d["severity"] == "critical":\n        falcon.resolve(d["id"])\nprint(falcon.list_detections())`,
   },
   {
@@ -2357,7 +2366,7 @@ elif sorted(bad_found) == ["abc123", "password"]:
 else:
     _feedback = f"Expected ['abc123','password'], got {bad_found}. Hash each with hashlib.md5(s.encode()).hexdigest()."
 `,
-    hints: ['Hash: hashlib.md5(s.encode()).hexdigest()', 'Check membership in KNOWN_BAD_HASHES', 'bad_found = [s for s in samples if hashlib.md5(s.encode()).hexdigest() in KNOWN_BAD_HASHES]'],
+    hints: ['Hash: hashlib.md5(s.encode()).hexdigest()', 'Check membership in KNOWN_BAD_HASHES', 'Keep each sample whose MD5 digest turns up in the known-bad set.'],
     solution: `import hashlib\nsamples = ["abc123", "hello", "password"]\n\nbad_found = [s for s in samples if hashlib.md5(s.encode()).hexdigest() in KNOWN_BAD_HASHES]\nprint(bad_found)`,
   },
   {
@@ -2423,16 +2432,7 @@ else:
       'Rule 1: if not d["compliant"]: intune.add_tag(did, "quarantine")',
       'Rule 2: seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date(); if (NOW - seen).days > 30: intune.add_tag(did, "stale")',
       'Rule 3: if not d["managed"]: intune.add_tag(did, "byod")',
-      `from datetime import datetime
-for d in intune.list_devices():
-    did = d["id"]
-    if not d["compliant"]:
-        intune.add_tag(did, "quarantine")
-    seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()
-    if (NOW - seen).days > 30:
-        intune.add_tag(did, "stale")
-    if not d["managed"]:
-        intune.add_tag(did, "byod")`,
+      'Walk every device once and apply the three rules in turn — quarantine when non-compliant, stale past 30 days, byod when unmanaged.',
     ],
     solution: `from datetime import datetime\n\nfor d in intune.list_devices():\n    did = d["id"]\n    if not d["compliant"]:\n        intune.add_tag(did, "quarantine")\n    seen = datetime.strptime(d["lastSeen"], "%Y-%m-%d").date()\n    if (NOW - seen).days > 30:\n        intune.add_tag(did, "stale")\n    if not d["managed"]:\n        intune.add_tag(did, "byod")\nprint("remediation complete")`,
   },
@@ -2489,7 +2489,7 @@ else:
     else:
         _feedback = f"Expected {_exp}, got {_got}."
 `,
-    hints: ["Use yield inside a for-loop over intune.list_devices().", "Only yield when d['compliant'] is True.", "names = list(compliant_names())"],
+    hints: ["Use yield inside a for-loop over intune.list_devices().", "Only yield when d['compliant'] is True.", "Materialise your generator by passing it to list(), storing the pulled names."],
     solution: `def compliant_names():\n    for d in intune.list_devices():\n        if d["compliant"]:\n            yield d["name"]\n\nnames = list(compliant_names())\nprint(names)`,
   },
   {
@@ -2603,7 +2603,7 @@ elif getattr(d, "name", None) == "LAPTOP-01" and getattr(d, "os", None) == "Wind
 else:
     _feedback = "d should be Device('LAPTOP-01','Windows',True) with .name/.os/.compliant."
 `,
-    hints: ["Decorate the class with @dataclass.", "Fields use type hints: name: str", 'd = Device("LAPTOP-01", "Windows", True)'],
+    hints: ["Decorate the class with @dataclass.", "Fields use type hints: name: str", 'Create an instance by calling the class with its three field values in order.'],
     solution: `from dataclasses import dataclass\n\n@dataclass\nclass Device:\n    name: str\n    os: str\n    compliant: bool\n\nd = Device("LAPTOP-01", "Windows", True)\nprint(d)`,
   },
   {
@@ -2652,7 +2652,7 @@ elif ips == ["10.0.0.5", "192.168.1.20"]:
 else:
     _feedback = f"Expected ['10.0.0.5','192.168.1.20'], got {ips}."
 `,
-    hints: ["Use re.findall with a digit-dot pattern.", 'Pattern: r"\\d+\\.\\d+\\.\\d+\\.\\d+"', 'ips = re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", log)'],
+    hints: ["Use re.findall with a digit-dot pattern.", 'Pattern: r"\\d+\\.\\d+\\.\\d+\\.\\d+"', 'Use re.findall with an IPv4-shaped pattern (four dot-separated digit runs) to pull every address out of the log.'],
     solution: `import re\nlog = "2026-11-13 login from 10.0.0.5 failed; retry from 192.168.1.20"\n\nips = re.findall(r"\\d+\\.\\d+\\.\\d+\\.\\d+", log)\nprint(ips)`,
   },
   {
@@ -2763,7 +2763,7 @@ if globals().get("role") == "admin" and isinstance(globals().get("claims"), dict
 else:
     _feedback = 'Split on ".", take index 1, pad to a multiple of 4, base64.urlsafe_b64decode, json.loads, then claims["role"].'
 `,
-    hints: ["token.split('.')[1] is the payload.", 'Pad: part += "=" * (-len(part) % 4)', 'claims = json.loads(base64.urlsafe_b64decode(part)); role = claims["role"]'],
+    hints: ["token.split('.')[1] is the payload.", 'Pad: part += "=" * (-len(part) % 4)', 'Base64-decode the payload segment, JSON-parse it, then read the role claim from the resulting dict.'],
     solution: `import base64, json\ntoken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsInJvbGUiOiJhZG1pbiIsImF1ZCI6ImludHVuZS1hcGkiLCJleHAiOjk5OTk5OTk5OTl9.c2lnbmF0dXJl"\n\npart = token.split(".")[1]\npart += "=" * (-len(part) % 4)\nclaims = json.loads(base64.urlsafe_b64decode(part))\nrole = claims["role"]\nprint(role)`,
   },
   {
@@ -2812,7 +2812,7 @@ elif valid is True:
 else:
     _feedback = "valid should be a boolean from two checks: exp > now_ts AND aud == 'intune-api'."
 `,
-    hints: ["Expired means claims['exp'] <= now_ts.", "Combine with 'and'.", 'valid = claims["exp"] > now_ts and claims["aud"] == "intune-api"'],
+    hints: ["Expired means claims['exp'] <= now_ts.", "Combine with 'and'.", 'The token is valid only when it has not expired AND its audience matches — combine both checks with and.'],
     solution: `claims = {"aud": "intune-api", "exp": 1000}\nnow_ts = 2000\n\nvalid = claims["exp"] > now_ts and claims["aud"] == "intune-api"\nprint(valid)`,
   },
   {
@@ -2854,7 +2854,7 @@ elif _h["Authorization"].startswith("Bearer ") and graph.token and _h["Authoriza
 else:
     _feedback = 'headers = {"Authorization": f"Bearer {token}"} after graph.authenticate(...).'
 `,
-    hints: ["token = graph.authenticate('app','secret','tenant')", 'Use an f-string: f"Bearer {token}"', 'headers = {"Authorization": f"Bearer {token}"}'],
+    hints: ["token = graph.authenticate('app','secret','tenant')", 'Use an f-string: f"Bearer {token}"', 'Build a headers dict whose Authorization value is the word Bearer followed by the token.'],
     solution: `token = graph.authenticate("app-1234", "secret", "contoso")\nheaders = {"Authorization": f"Bearer {token}"}\nprint(headers)`,
   },
   {
@@ -2899,7 +2899,7 @@ elif require_scope(["a", "b"], "b") is True and require_scope(["a"], "z") is Fal
 else:
     _feedback = "require_scope should return (needed in granted), and allowed should be True."
 `,
-    hints: ["return needed in granted", "Call it with the Read.All scope.", 'allowed = require_scope(granted, "DeviceManagementManagedDevices.Read.All")'],
+    hints: ["return needed in granted", "Call it with the Read.All scope.", 'Call your scope check with the granted list and the Read.All scope, keeping the boolean result.'],
     solution: `granted = ["DeviceManagementManagedDevices.Read.All", "User.Read"]\n\ndef require_scope(granted, needed):\n    return needed in granted\n\nallowed = require_scope(granted, "DeviceManagementManagedDevices.Read.All")\nprint(allowed)`,
   },
   {
@@ -3050,7 +3050,7 @@ elif globals().get("status") == 200:
 else:
     _feedback = f"Loop graph.flaky_get until status_code == 200; set status. Got {globals().get('status')}."
 `,
-    hints: ["Loop with for _ in range(5):", "Return the response when status_code == 200.", "status = fetch_with_retry(url).status_code"],
+    hints: ["Loop with for _ in range(5):", "Return the response when status_code == 200.", "Call your retry helper on the URL and read status_code off whatever response it returns."],
     solution: `url = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"\n\ndef fetch_with_retry(url, max_tries=5):\n    for _ in range(max_tries):\n        resp = graph.flaky_get(url)\n        if resp.status_code == 200:\n            return resp\n    return resp\n\nstatus = fetch_with_retry(url).status_code\nprint(status)`,
   },
   {
@@ -3094,7 +3094,7 @@ elif len(leaks) == 2 and any("AKIA" in x for x in leaks) and any("sk_live" in x 
 else:
     _feedback = f"Expected 2 secret lines (AWS key + api_key), got {leaks}."
 `,
-    hints: ["Split with config.splitlines().", "Keep lines where re.search(pattern, line) matches.", 'leaks = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]'],
+    hints: ["Split with config.splitlines().", "Keep lines where re.search(pattern, line) matches.", 'Keep each config line that matches a secret pattern (an AWS key or an sk_live_ token).'],
     solution: `import re\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123\\nlog_level=info"\n\nleaks = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]\nprint(leaks)`,
   },
   {
@@ -3135,7 +3135,7 @@ elif sorted(vulnerable) == ["pyyaml", "requests"]:
 else:
     _feedback = f"Expected ['pyyaml','requests'], got {sorted(vulnerable) if isinstance(vulnerable, list) else vulnerable}."
 `,
-    hints: ["Build 'pkg==ver' and test membership in KNOWN_VULN.", 'f"{pkg}=={ver}" in KNOWN_VULN', 'vulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in KNOWN_VULN)'],
+    hints: ["Build 'pkg==ver' and test membership in KNOWN_VULN.", 'f"{pkg}=={ver}" in KNOWN_VULN', 'For each installed package build its "name==version" string and keep the ones in the known-vulnerable set; sort the result.'],
     solution: `installed = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1", "log4j==2.14.0"}\n\nvulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in KNOWN_VULN)\nprint(vulnerable)`,
   },
   {
@@ -3191,7 +3191,7 @@ else:
     hints: [
       "Reuse your SCA: vulnerable = sorted(pkg for pkg,ver in installed.items() if f'{pkg}=={ver}' in known_vuln)",
       'Secrets: [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]',
-      "passed = not vulnerable and not secrets",
+      'The gate passes only when neither vulnerable packages nor secrets were found — combine both findings.',
     ],
     solution: `import re\ninstalled = {"requests": "2.19.0", "flask": "2.3.0", "pyyaml": "5.1"}\nconfig = "db_host=localhost\\naws_key=AKIAIOSFODNN7EXAMPLE\\napi_key=sk_live_abc123"\nKNOWN_VULN = {"requests==2.19.0", "pyyaml==5.1"}\n\ndef pipeline_gate(installed, config, known_vuln):\n    vulnerable = sorted(pkg for pkg, ver in installed.items() if f"{pkg}=={ver}" in known_vuln)\n    secrets = [l for l in config.splitlines() if re.search(r"AKIA[0-9A-Z]{16}|sk_live_\\w+", l)]\n    return {"vulnerable": vulnerable, "secrets": len(secrets), "passed": not vulnerable and not secrets}\n\nreport = pipeline_gate(installed, config, KNOWN_VULN)\nprint(report)`,
   },
@@ -3240,7 +3240,7 @@ elif failed_count == 3:
 else:
     _feedback = f"Expected 3, got {failed_count}. Try Counter(statuses)['failed']."
 `,
-    hints: ["Wrap the list: Counter(statuses)", "Index it: counts['failed']", "failed_count = Counter(statuses)['failed']"],
+    hints: ["Wrap the list: Counter(statuses)", "Index it: counts['failed']", "Build a Counter of the statuses, then index it with the key you care about."],
     solution: `from collections import Counter\nstatuses = ["ok", "failed", "ok", "failed", "failed"]\n\nfailed_count = Counter(statuses)["failed"]\nprint(failed_count)`,
   },
   {
@@ -3281,7 +3281,7 @@ elif top_ip == "10.0.0.9":
 else:
     _feedback = f"Expected '10.0.0.9', got {top_ip}. Use Counter(ips).most_common(1)[0][0]."
 `,
-    hints: ["Counter(ips).most_common(1) gives a list of (value, count).", "Grab [0][0] for the value.", "top_ip = Counter(ips).most_common(1)[0][0]"],
+    hints: ["Counter(ips).most_common(1) gives a list of (value, count).", "Grab [0][0] for the value.", "most_common(1) returns a single (value, count) pair in a list — reach in for just the value."],
     solution: `from collections import Counter\nips = ["10.0.0.9", "10.0.0.2", "10.0.0.9", "10.0.0.9", "192.168.1.5", "10.0.0.2"]\n\ntop_ip = Counter(ips).most_common(1)[0][0]\nprint(top_ip)`,
   },
   {
@@ -3328,7 +3328,7 @@ elif sorted(repeat_offenders) == ["alice"]:
 else:
     _feedback = f"Expected ['alice'], got {repeat_offenders}. Count FAILs per user, keep those >= 3."
 `,
-    hints: ["Split each line: user, status = line.split()", "Tally fails in a Counter when status == 'FAIL'.", "repeat_offenders = [u for u, n in fails.items() if n >= 3]"],
+    hints: ["Split each line: user, status = line.split()", "Tally fails in a Counter when status == 'FAIL'.", "After tallying fails per user, keep the users whose count reaches the threshold."],
     solution: `from collections import Counter\nlog_lines = ["alice FAIL", "bob OK", "alice FAIL", "alice FAIL", "bob OK"]\n\nfails = Counter()\nfor line in log_lines:\n    user, status = line.split()\n    if status == "FAIL":\n        fails[user] += 1\nrepeat_offenders = [u for u, n in fails.items() if n >= 3]\nprint(repeat_offenders)`,
   },
   {
@@ -3357,9 +3357,9 @@ else:
       { title: "Python Tutorial — Looping techniques", url: "https://docs.python.org/3/tutorial/datastructures.html#looping-techniques" },
     ],
     story: `A good report shows the top offenders, ranked. Build one.`,
-    concept: `<code>most_common(n)</code> returns the top n as <code>(value, count)</code> tuples, already sorted:
-<pre>Counter(events).most_common(2)
-# [('login', 5), ('logout', 3)]</pre>`,
+    concept: `<code>Counter.most_common(n)</code> returns the top <code>n</code> entries as <code>(value, count)</code> tuples, already sorted high→low:
+<pre>Counter(["a","a","b","c","c","c"]).most_common(1)
+# [('c', 3)]</pre>`,
     task: `From <code>events</code>, build <code>report</code> = the top 2 most common events as a list of (event, count) tuples.`,
     starter: `from collections import Counter\nevents = ["login", "login", "logout", "login", "error", "logout"]\n\n# report = top 2\n`,
     check: `
@@ -3368,9 +3368,9 @@ if 'report' not in globals():
 elif list(report) == [("login", 3), ("logout", 2)]:
     _passed = True; _feedback = "A ranked report in one call — ready to hand to the SOC lead. 📋"
 else:
-    _feedback = f"Expected [('login',3),('logout',2)], got {report}. Use Counter(events).most_common(2)."
+    _feedback = f"Expected [('login',3),('logout',2)], got {report}. Ask the Counter for its two most common entries."
 `,
-    hints: ["Counter(events).most_common(2)", "It's already sorted by count, descending.", "report = Counter(events).most_common(2)"],
+    hints: ["Counter tallies how often each item appears.", "It has a method that returns the N highest-frequency entries, already sorted by count.", "Ask the Counter for its two most common entries in a single call."],
     solution: `from collections import Counter\nevents = ["login", "login", "logout", "login", "error", "logout"]\n\nreport = Counter(events).most_common(2)\nprint(report)`,
   },
   {
@@ -3421,7 +3421,7 @@ else:
     hints: [
       "Split three tokens: ip, user, result = line.split()",
       "Tally only when result == 'FAIL', keyed by ip.",
-      "flagged = sorted(ip for ip, n in fails.items() if n >= 5)",
+      'Tally failures per source IP, then keep and sort the IPs that cross the threshold.',
     ],
     solution: `from collections import Counter\nlog_lines = [\n    "10.0.0.9 alice FAIL", "10.0.0.9 alice FAIL", "10.0.0.9 bob FAIL",\n    "10.0.0.9 bob FAIL", "10.0.0.9 carol FAIL",\n    "10.0.0.2 dave OK", "10.0.0.2 dave FAIL", "192.168.1.5 eve OK",\n]\n\nfails = Counter()\nfor line in log_lines:\n    ip, user, result = line.split()\n    if result == "FAIL":\n        fails[ip] += 1\nflagged = sorted(ip for ip, n in fails.items() if n >= 5)\nprint(flagged)`,
   },
@@ -3468,7 +3468,7 @@ elif sorted(public_buckets) == ["customer-backups", "public-assets"]:
 else:
     _feedback = f"Expected ['customer-backups','public-assets'], got {public_buckets}."
 `,
-    hints: ["Loop aws.list_buckets().", "Keep b['name'] where b['public'] is True.", "public_buckets = [b['name'] for b in aws.list_buckets() if b['public']]"],
+    hints: ["Loop aws.list_buckets().", "Keep b['name'] where b['public'] is True.", "Collect the name of every bucket whose public flag is set."],
     solution: `public_buckets = [b["name"] for b in aws.list_buckets() if b["public"]]\nprint(public_buckets)`,
   },
   {
@@ -3510,7 +3510,7 @@ if not _still_public:
 else:
     _feedback = f"These are still public: {_still_public}. Loop and call aws.block_public_access(name)."
 `,
-    hints: ["Loop the buckets.", "if b['public']: aws.block_public_access(b['name'])"],
+    hints: ["Loop the buckets.", "Inside the loop, when a bucket is public, call the block method with its name."],
     solution: `for b in aws.list_buckets():\n    if b["public"]:\n        aws.block_public_access(b["name"])\nprint("locked down")`,
   },
   {
@@ -3549,7 +3549,7 @@ elif sorted(unencrypted) == ["customer-backups", "terraform-state"]:
 else:
     _feedback = f"Expected ['customer-backups','terraform-state'], got {unencrypted}."
 `,
-    hints: ["if not b['encrypted']", "unencrypted = [b['name'] for b in aws.list_buckets() if not b['encrypted']]"],
+    hints: ["if not b['encrypted']", "Collect the names of buckets whose encrypted flag is false."],
     solution: `unencrypted = [b["name"] for b in aws.list_buckets() if not b["encrypted"]]\nprint(unencrypted)`,
   },
   {
@@ -3589,7 +3589,7 @@ if not _still:
 else:
     _feedback = f"Still unencrypted: {_still}. Loop and call aws.enable_encryption(name)."
 `,
-    hints: ["Loop the buckets.", "if not b['encrypted']: aws.enable_encryption(b['name'])"],
+    hints: ["Loop the buckets.", "Inside the loop, when a bucket lacks encryption, enable it by name."],
     solution: `for b in aws.list_buckets():\n    if not b["encrypted"]:\n        aws.enable_encryption(b["name"])\nprint("encrypted")`,
   },
   {
@@ -3630,7 +3630,7 @@ elif sorted(risky_policies) == ["AdminLegacy", "BackupSvc"]:
 else:
     _feedback = f"Expected ['AdminLegacy','BackupSvc'], got {risky_policies}."
 `,
-    hints: ["Loop aws.list_policies().", "Check any('*' in a for a in p['actions']).", "risky_policies = [p['name'] for p in aws.list_policies() if any('*' in a for a in p['actions'])]"],
+    hints: ["Loop aws.list_policies().", "Check any('*' in a for a in p['actions']).", "Keep each policy that has any action containing a wildcard — any() over its actions answers that."],
     solution: `risky_policies = [p["name"] for p in aws.list_policies() if any("*" in a for a in p["actions"])]\nprint(risky_policies)`,
   },
   {
@@ -3742,7 +3742,7 @@ elif sorted(privileged) == ["debug-shell"]:
 else:
     _feedback = f"Expected ['debug-shell'], got {privileged}."
 `,
-    hints: ["Loop k8s.list_pods().", "Keep p['name'] where p['privileged'].", "privileged = [p['name'] for p in k8s.list_pods() if p['privileged']]"],
+    hints: ["Loop k8s.list_pods().", "Keep p['name'] where p['privileged'].", "Collect the names of pods whose privileged flag is set."],
     solution: `privileged = [p["name"] for p in k8s.list_pods() if p["privileged"]]\nprint(privileged)`,
   },
   {
@@ -3785,7 +3785,7 @@ elif sorted(unsafe) == ["api-5d", "debug-shell"]:
 else:
     _feedback = f"Expected ['api-5d','debug-shell'], got {unsafe}."
 `,
-    hints: ["Condition: p['runAsRoot'] or not p['limits']", "unsafe = [p['name'] for p in k8s.list_pods() if p['runAsRoot'] or not p['limits']]"],
+    hints: ["Condition: p['runAsRoot'] or not p['limits']", "A pod is unsafe when it runs as root OR has no limits — collect those names."],
     solution: `unsafe = [p["name"] for p in k8s.list_pods() if p["runAsRoot"] or not p["limits"]]\nprint(unsafe)`,
   },
   {
@@ -3826,7 +3826,7 @@ elif sorted(latest_images) == ["api-5d", "debug-shell"]:
 else:
     _feedback = f"Expected ['api-5d','debug-shell'], got {latest_images}."
 `,
-    hints: ["Use p['image'].endswith(':latest').", "latest_images = [p['name'] for p in k8s.list_pods() if p['image'].endswith(':latest')]"],
+    hints: ["Use p['image'].endswith(':latest').", "Keep pods whose image tag ends with :latest."],
     solution: `latest_images = [p["name"] for p in k8s.list_pods() if p["image"].endswith(":latest")]\nprint(latest_images)`,
   },
   {
@@ -3866,7 +3866,7 @@ elif sorted(leaky_pods) == ["api-5d"]:
 else:
     _feedback = f"Expected ['api-5d'], got {leaky_pods}."
 `,
-    hints: ["A non-empty list is truthy: if p['envSecrets']", "leaky_pods = [p['name'] for p in k8s.list_pods() if p['envSecrets']]"],
+    hints: ["A non-empty list is truthy: if p['envSecrets']", "A non-empty envSecrets list is truthy — keep those pod names."],
     solution: `leaky_pods = [p["name"] for p in k8s.list_pods() if p["envSecrets"]]\nprint(leaky_pods)`,
   },
   {
@@ -3978,7 +3978,7 @@ elif fail_count == 6 and isinstance(globals().get("failed_logins"), list):
 else:
     _feedback = f"Expected 6 failed logins, got {globals().get('fail_count')}."
 `,
-    hints: ["Filter on e['type']=='login' and e['result']=='fail'.", "failed_logins = [e for e in siem.list_events() if e['type']=='login' and e['result']=='fail']", "fail_count = len(failed_logins)"],
+    hints: ["Filter on e['type']=='login' and e['result']=='fail'.", "failed_logins = [e for e in siem.list_events() if e['type']=='login' and e['result']=='fail']", "Once you have the failed-login events, the count is just how many there are."],
     solution: `failed_logins = [e for e in siem.list_events() if e["type"] == "login" and e["result"] == "fail"]\nfail_count = len(failed_logins)\nprint(fail_count)`,
   },
   {
@@ -4023,7 +4023,7 @@ elif sorted(brute_force) == ["alice"]:
 else:
     _feedback = f"Expected ['alice'], got {brute_force}."
 `,
-    hints: ["Counter over failed-login users.", "Keep users with count >= 5.", "brute_force = [u for u, n in fails.items() if n >= 5]"],
+    hints: ["Counter over failed-login users.", "Keep users with count >= 5.", "Tally failed logins per user with a Counter, then keep users at or above the threshold."],
     solution: `from collections import Counter\nfails = Counter(e["user"] for e in siem.list_events() if e["type"] == "login" and e["result"] == "fail")\nbrute_force = [u for u, n in fails.items() if n >= 5]\nprint(brute_force)`,
   },
   {
@@ -4067,7 +4067,7 @@ elif sorted(compromised) == ["alice"]:
 else:
     _feedback = f"Expected ['alice'], got {compromised}. (carol logged in but had no fails.)"
 `,
-    hints: ["Count fails per user with Counter.", "Collect the set of users with a success.", "compromised = [u for u in success_users if fails[u] >= 5]"],
+    hints: ["Count fails per user with Counter.", "Collect the set of users with a success.", "Among users who have a successful login, keep the ones whose failure count crosses the threshold."],
     solution: `from collections import Counter\nevents = siem.list_events()\nfails = Counter(e["user"] for e in events if e["type"] == "login" and e["result"] == "fail")\nsuccess_users = {e["user"] for e in events if e["type"] == "login" and e["result"] == "success"}\ncompromised = [u for u in success_users if fails[u] >= 5]\nprint(compromised)`,
   },
   {
@@ -4107,7 +4107,7 @@ elif sorted(malware_hosts) == ["PC2"]:
 else:
     _feedback = f"Expected ['PC2'], got {malware_hosts}."
 `,
-    hints: ["Filter process events whose name is in KNOWN_BAD_PROCESSES.", "malware_hosts = [e['host'] for e in siem.list_events() if e['type']=='process' and e['name'] in KNOWN_BAD_PROCESSES]"],
+    hints: ["Filter process events whose name is in KNOWN_BAD_PROCESSES.", "Keep the host of every process event whose name is in the known-bad set."],
     solution: `malware_hosts = [e["host"] for e in siem.list_events() if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES]\nprint(malware_hosts)`,
   },
   {
@@ -4155,7 +4155,7 @@ else:
     else:
         _feedback = f"Expected [{{'host':'PC2','severity':'critical'}}], got {_a}."
 `,
-    hints: ["Return a list of dicts with host + severity.", 'severity is "critical"', 'alerts = detect_malware(siem.list_events())'],
+    hints: ["Return a list of dicts with host + severity.", 'severity is "critical"', 'Feed the event stream into your detector and keep the alerts it returns.'],
     solution: `def detect_malware(events):\n    return [{"host": e["host"], "severity": "critical"} for e in events if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES]\n\nalerts = detect_malware(siem.list_events())\nprint(alerts)`,
   },
   {
@@ -4264,7 +4264,7 @@ elif sorted(stale) == ["db-password", "legacy-token"]:
 else:
     _feedback = f"Expected ['db-password','legacy-token'], got {stale}."
 `,
-    hints: ["Filter s['age_days'] > 90.", "stale = [s['name'] for s in vault.list_secrets() if s['age_days'] > 90]"],
+    hints: ["Filter s['age_days'] > 90.", "Collect the names of secrets older than the 90-day threshold."],
     solution: `stale = [s["name"] for s in vault.list_secrets() if s["age_days"] > 90]\nprint(stale)`,
   },
   {
@@ -4306,7 +4306,7 @@ if not _still:
 else:
     _feedback = f"Still stale: {_still}. Loop and call vault.rotate(name) where age_days > 90."
 `,
-    hints: ["Loop the secrets.", "if s['age_days'] > 90: vault.rotate(s['name'])"],
+    hints: ["Loop the secrets.", "Inside the loop, rotate any secret whose age passes the threshold."],
     solution: `for s in vault.list_secrets():\n    if s["age_days"] > 90:\n        vault.rotate(s["name"])\nprint("rotated")`,
   },
   {
@@ -4349,7 +4349,7 @@ if _s and _s.get("revoked") is True:
 else:
     _feedback = "legacy-token should be revoked. Use vault.revoke('legacy-token')."
 `,
-    hints: ["Use vault.revoke with the secret name.", "vault.revoke('legacy-token')"],
+    hints: ["Use vault.revoke with the secret name.", "Revoke the leaked secret by name."],
     solution: `vault.revoke("legacy-token")\nprint(vault.list_secrets())`,
   },
   {
@@ -4411,7 +4411,7 @@ else:
     hints: [
       "Collect stale names FIRST (age_days > 90), sorted.",
       "Rotate each, then vault.revoke(leaked).",
-      'Return {"rotated": stale, "revoked": leaked}.',
+      'Return a dict reporting which secrets you rotated and which you revoked.',
     ],
     solution: `def secrets_hygiene(vault, leaked):\n    stale = sorted(s["name"] for s in vault.list_secrets() if s["age_days"] > 90)\n    for name in stale:\n        vault.rotate(name)\n    vault.revoke(leaked)\n    return {"rotated": stale, "revoked": leaked}\n\nreport = secrets_hygiene(vault, "legacy-token")\nprint(report)`,
   },
@@ -4455,7 +4455,7 @@ elif list(timeline) == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
 else:
     _feedback = f"Expected ids 1..10 ordered by ts, got {timeline}."
 `,
-    hints: ["Sort events by e['ts'].", "timeline = [e['id'] for e in sorted(siem.list_events(), key=lambda e: e['ts'])]"],
+    hints: ["Sort events by e['ts'].", "Sort the events by their timestamp, then pull out each id in that order."],
     solution: `timeline = [e["id"] for e in sorted(siem.list_events(), key=lambda e: e["ts"])]\nprint(timeline)`,
   },
   {
@@ -4494,7 +4494,7 @@ elif sorted(pc1_users) == ["alice"]:
 else:
     _feedback = f"Expected ['alice'], got {pc1_users}."
 `,
-    hints: ["Filter events where e['host']=='PC1'.", "Use a set of users to dedupe.", "pc1_users = sorted({e['user'] for e in siem.list_events() if e['host']=='PC1'})"],
+    hints: ["Filter events where e['host']=='PC1'.", "Use a set of users to dedupe.", "Gather the users seen on that host into a set to dedupe, then sort."],
     solution: `pc1_users = sorted({e["user"] for e in siem.list_events() if e["host"] == "PC1"})\nprint(pc1_users)`,
   },
   {
@@ -4534,7 +4534,7 @@ elif sorted(iocs) == ["mimikatz.exe"]:
 else:
     _feedback = f"Expected ['mimikatz.exe'], got {iocs}."
 `,
-    hints: ["Process events whose name is in KNOWN_BAD_PROCESSES.", "iocs = sorted({e['name'] for e in siem.list_events() if e['type']=='process' and e['name'] in KNOWN_BAD_PROCESSES})"],
+    hints: ["Process events whose name is in KNOWN_BAD_PROCESSES.", "Collect the distinct process names that match the known-bad set, sorted."],
     solution: `iocs = sorted({e["name"] for e in siem.list_events() if e["type"] == "process" and e["name"] in KNOWN_BAD_PROCESSES})\nprint(iocs)`,
   },
   {
@@ -4681,7 +4681,7 @@ elif sorted(no_rotation) == ["key-backups", "key-legacy"]:
 else:
     _feedback = f"Expected ['key-backups','key-legacy'], got {no_rotation}."
 `,
-    hints: ["Filter on not k['rotation'].", "no_rotation = [k['id'] for k in aws.list_keys() if not k['rotation']]"],
+    hints: ["Filter on not k['rotation'].", "Collect the ids of keys whose rotation flag is off."],
     solution: `no_rotation = [k["id"] for k in aws.list_keys() if not k["rotation"]]\nprint(no_rotation)`,
   },
   {
@@ -4723,7 +4723,7 @@ if not _left:
 else:
     _feedback = f"Still not rotating: {_left}. Loop and call aws.enable_key_rotation(id)."
 `,
-    hints: ["Loop the keys.", "if not k['rotation']: aws.enable_key_rotation(k['id'])"],
+    hints: ["Loop the keys.", "Inside the loop, enable rotation on any key that lacks it."],
     solution: `for k in aws.list_keys():\n    if not k["rotation"]:\n        aws.enable_key_rotation(k["id"])\nprint("rotation enabled")`,
   },
   {
@@ -4762,7 +4762,7 @@ elif sorted(public_keys) == ["key-legacy"]:
 else:
     _feedback = f"Expected ['key-legacy'], got {public_keys}."
 `,
-    hints: ["Filter on k['public'].", "public_keys = [k['id'] for k in aws.list_keys() if k['public']]"],
+    hints: ["Filter on k['public'].", "Collect the ids of keys whose public flag is set."],
     solution: `public_keys = [k["id"] for k in aws.list_keys() if k["public"]]\nprint(public_keys)`,
   },
   {
@@ -4802,7 +4802,7 @@ elif sorted(admins_no_mfa) == ["root-ops"]:
 else:
     _feedback = f"Expected ['root-ops'], got {admins_no_mfa}."
 `,
-    hints: ["Condition: u['admin'] and not u['mfa'].", "admins_no_mfa = [u['name'] for u in aws.list_users() if u['admin'] and not u['mfa']]"],
+    hints: ["Condition: u['admin'] and not u['mfa'].", "Keep users who are admins AND lack MFA."],
     solution: `admins_no_mfa = [u["name"] for u in aws.list_users() if u["admin"] and not u["mfa"]]\nprint(admins_no_mfa)`,
   },
   {
@@ -4915,7 +4915,7 @@ elif sorted(spoofing) == ["legacy-admin", "public-cdn"]:
 else:
     _feedback = f"Expected ['legacy-admin','public-cdn'], got {spoofing}."
 `,
-    hints: ["Filter not c['authenticated'].", "spoofing = [c['name'] for c in components if not c['authenticated']]"],
+    hints: ["Filter not c['authenticated'].", "Collect components that are not authenticated — those carry the spoofing risk."],
     solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nspoofing = [c["name"] for c in components if not c["authenticated"]]\nprint(spoofing)`,
   },
   {
@@ -4954,7 +4954,7 @@ elif sorted(unencrypted) == ["legacy-admin"]:
 else:
     _feedback = f"Expected ['legacy-admin'], got {unencrypted}."
 `,
-    hints: ["Filter not c['encrypted'].", "unencrypted = [c['name'] for c in components if not c['encrypted']]"],
+    hints: ["Filter not c['encrypted'].", "Collect components whose encrypted flag is false."],
     solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nunencrypted = [c["name"] for c in components if not c["encrypted"]]\nprint(unencrypted)`,
   },
   {
@@ -4993,7 +4993,7 @@ elif sorted(injectable) == ["legacy-admin", "payment-svc"]:
 else:
     _feedback = f"Expected ['legacy-admin','payment-svc'], got {injectable}."
 `,
-    hints: ["Filter not c['validates_input'].", "injectable = [c['name'] for c in components if not c['validates_input']]"],
+    hints: ["Filter not c['validates_input'].", "Collect components that do not validate their input."],
     solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\ninjectable = [c["name"] for c in components if not c["validates_input"]]\nprint(injectable)`,
   },
   {
@@ -5032,7 +5032,7 @@ elif sorted(no_logging) == ["legacy-admin"]:
 else:
     _feedback = f"Expected ['legacy-admin'], got {no_logging}."
 `,
-    hints: ["Filter not c['logs'].", "no_logging = [c['name'] for c in components if not c['logs']]"],
+    hints: ["Filter not c['logs'].", "Collect components that do not log — those leave repudiation gaps."],
     solution: `components = [\n    {"name": "login-api", "authenticated": True, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "legacy-admin", "authenticated": False, "encrypted": False, "validates_input": False, "logs": False},\n    {"name": "public-cdn", "authenticated": False, "encrypted": True, "validates_input": True, "logs": True},\n    {"name": "payment-svc", "authenticated": True, "encrypted": True, "validates_input": False, "logs": True},\n]\n\nno_logging = [c["name"] for c in components if not c["logs"]]\nprint(no_logging)`,
   },
   {
@@ -5148,7 +5148,7 @@ elif sorted(idor) == ["/orders/2", "/orders/4"]:
 else:
     _feedback = f"Expected ['/orders/2','/orders/4'], got {idor}."
 `,
-    hints: ["Compare r['user'] != r['owner'].", "idor = [r['path'] for r in requests if r['user'] != r['owner']]"],
+    hints: ["Compare r['user'] != r['owner'].", "Keep the path of every request where the acting user differs from the resource owner."],
     solution: `requests = [\n    {"user": "u1", "owner": "u1", "path": "/orders/1"},\n    {"user": "u1", "owner": "u2", "path": "/orders/2"},\n    {"user": "u3", "owner": "u3", "path": "/orders/9"},\n    {"user": "u3", "owner": "u1", "path": "/orders/4"},\n]\n\nidor = [r["path"] for r in requests if r["user"] != r["owner"]]\nprint(idor)`,
   },
   {
@@ -5198,7 +5198,7 @@ else:
     else:
         _feedback = f"Public URL should be True; metadata/localhost/private should be False. Got {_a}/{_b}/{_c}/{_d}."
 `,
-    hints: ["Lowercase the url, check if any blocked substring is in it -> False.", "Otherwise return True if it starts with http:// or https://.", 'blocked = ["169.254.169.254","localhost","127.0.0.1","://10.","://192.168.","://172.16."]'],
+    hints: ["Lowercase the url, check if any blocked substring is in it -> False.", "Otherwise return True if it starts with http:// or https://.", 'Keep a list of dangerous host/network substrings and reject the URL when any of them appears in it.'],
     solution: `def is_safe_url(url):\n    low = url.lower()\n    blocked = ["169.254.169.254", "localhost", "127.0.0.1", "://10.", "://192.168.", "://172.16."]\n    if any(b in low for b in blocked):\n        return False\n    return low.startswith("http://") or low.startswith("https://")\n\nprint(is_safe_url("http://169.254.169.254/latest/meta-data/"))`,
   },
   {
@@ -5242,7 +5242,7 @@ else:
     else:
         _feedback = f"'/dashboard' True; '//evil.com' and 'https://evil.com' False. Got {_a}/{_b}/{_c}."
 `,
-    hints: ["Must start with '/'.", "Must NOT start with '//'.", "return target.startswith('/') and not target.startswith('//')"],
+    hints: ["Must start with '/'.", "Must NOT start with '//'.", "A safe redirect target starts with a single slash but not a double slash — require both conditions."],
     solution: `def safe_redirect(target):\n    return target.startswith("/") and not target.startswith("//")\n\nprint(safe_redirect("//evil.com"))`,
   },
   {
@@ -5287,7 +5287,7 @@ else:
     else:
         _feedback = f"Match=True, empty=False, mismatch=False. Got {_a}/{_b}/{_c}."
 `,
-    hints: ["Reject empty tokens.", "Require exact match.", "return bool(form_token) and form_token == session_token"],
+    hints: ["Reject empty tokens.", "Require exact match.", "Reject empty tokens and require the form token to exactly match the session token."],
     solution: `def csrf_ok(session_token, form_token):\n    return bool(form_token) and form_token == session_token\n\nprint(csrf_ok("abc123", "wrong"))`,
   },
   {
@@ -5347,7 +5347,7 @@ else:
     hints: [
       "Append a reason string for each failing check.",
       "Reuse is_safe_url for the SSRF check.",
-      'allowed = not reasons; return {"allowed": allowed, "reasons": sorted(reasons)}.',
+      'The request is allowed only when no reasons were collected — return that flag alongside the sorted reasons.',
     ],
     solution: `def is_safe_url(url):\n    low = url.lower()\n    blocked = ["169.254.169.254", "localhost", "127.0.0.1", "://10.", "://192.168.", "://172.16."]\n    if any(b in low for b in blocked):\n        return False\n    return low.startswith("http://") or low.startswith("https://")\n\nreq = {"user": "u1", "owner": "u2", "url": "http://169.254.169.254/latest", "redirect": "//evil.com", "csrf_session": "abc", "csrf_form": "xyz"}\n\ndef gate(req):\n    reasons = []\n    if req["user"] != req["owner"]:\n        reasons.append("idor")\n    if not is_safe_url(req["url"]):\n        reasons.append("ssrf")\n    if not (req["redirect"].startswith("/") and not req["redirect"].startswith("//")):\n        reasons.append("redirect")\n    if not (req["csrf_form"] and req["csrf_form"] == req["csrf_session"]):\n        reasons.append("csrf")\n    return {"allowed": not reasons, "reasons": sorted(reasons)}\n\nresult = gate(req)\nprint(result)`,
   },
@@ -5392,7 +5392,7 @@ elif len(pii_records) == 2 and "user John, email john@acme.com" in pii_records a
 else:
     _feedback = f"Expected the email and SSN records (2), got {pii_records}."
 `,
-    hints: ["Keep records where re.search(pattern, r) matches.", "Pattern: email OR ssn with | alternation.", 'pii_records = [r for r in records if re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", r)]'],
+    hints: ["Keep records where re.search(pattern, r) matches.", "Pattern: email OR ssn with | alternation.", 'Keep each record that matches the PII pattern (an email or an SSN, joined with alternation).'],
     solution: `import re\nrecords = [\n    "user John, email john@acme.com",\n    "note: call vendor tomorrow",\n    "ssn 123-45-6789 on file",\n    "ticket closed",\n]\n\npii_records = [r for r in records if re.search(r"\\w+@\\w+\\.\\w+|\\d{3}-\\d{2}-\\d{4}", r)]\nprint(pii_records)`,
   },
   {
@@ -5431,7 +5431,7 @@ elif sorted(expired) == [1, 3]:
 else:
     _feedback = f"Expected [1,3], got {expired}."
 `,
-    hints: ["Filter r['age_days'] > 365.", "expired = sorted(r['id'] for r in records if r['age_days'] > 365)"],
+    hints: ["Filter r['age_days'] > 365.", "Collect the ids of records older than the retention window, sorted."],
     solution: `records = [\n    {"id": 1, "age_days": 400},\n    {"id": 2, "age_days": 100},\n    {"id": 3, "age_days": 800},\n    {"id": 4, "age_days": 30},\n]\n\nexpired = sorted(r["id"] for r in records if r["age_days"] > 365)\nprint(expired)`,
   },
   {
@@ -5472,7 +5472,7 @@ elif sorted(over_privileged) == ["ben"]:
 else:
     _feedback = f"Expected ['ben'], got {over_privileged}."
 `,
-    hints: ["Excess = set(u['scopes']) - ROLE_SCOPES[u['role']].", "Keep users where that set is non-empty.", "over_privileged = sorted(u['name'] for u in users if set(u['scopes']) - ROLE_SCOPES[u['role']])"],
+    hints: ["Excess = set(u['scopes']) - ROLE_SCOPES[u['role']].", "Keep users where that set is non-empty.", "A user is over-privileged when their scopes minus the role's allowed scopes is non-empty — keep and sort those names."],
     solution: `ROLE_SCOPES = {"analyst": {"read"}, "admin": {"read", "write", "delete"}}\nusers = [\n    {"name": "amy", "role": "analyst", "scopes": ["read"]},\n    {"name": "ben", "role": "analyst", "scopes": ["read", "delete"]},\n    {"name": "cara", "role": "admin", "scopes": ["read", "write"]},\n]\n\nover_privileged = sorted(u["name"] for u in users if set(u["scopes"]) - ROLE_SCOPES[u["role"]])\nprint(over_privileged)`,
   },
   {
@@ -5512,7 +5512,7 @@ elif sorted(missing) == ["access_review", "mfa"]:
 else:
     _feedback = f"Expected ['access_review','mfa'], got {missing}."
 `,
-    hints: ["Use set difference REQUIRED - implemented.", "missing = sorted(REQUIRED - implemented)"],
+    hints: ["Use set difference REQUIRED - implemented.", "The missing controls are the required set minus what is implemented — sort the difference."],
     solution: `REQUIRED = {"encryption", "mfa", "logging", "backups", "access_review"}\nimplemented = {"encryption", "logging", "backups"}\n\nmissing = sorted(REQUIRED - implemented)\nprint(missing)`,
   },
   {
