@@ -24,6 +24,7 @@
         <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
         <div class="xp-sub"><span id="xp-into">0 / 200</span> to next level</div>
       </div>
+      <button id="lab-btn" class="mini-btn" title="Open the free practice lab">🧪 Lab</button>
       <button id="backup-btn" class="mini-btn" title="Sync / backup your progress">☁ sync</button>
       <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
     </div>
@@ -72,6 +73,61 @@
       </details>
       <div class="modal-btns" style="margin-top:14px"><button id="close-modal" class="btn ghost">Close</button></div>
       <div id="backup-msg" class="backup-msg"></div>
+    </div>
+  </div>
+
+  <div id="lab-modal" class="modal-overlay">
+    <div class="modal modal-lg">
+      <div class="modal-title">🧪 Practice Lab <button id="lab-close" class="mini-btn lab-x">✕ close</button></div>
+      <p class="modal-text">Free, ungraded practice — experiment as much as you like. Write real rules or do the math, hit <b>Run</b>, and the lab tells you exactly what passed and what's wrong. Nothing here affects your quest progress.</p>
+      <div class="lab-tabs">
+        <button class="lab-tab active" data-tab="fw">🧱 Firewall</button>
+        <button class="lab-tab" data-tab="sub">🧮 Subnetting</button>
+        <button class="lab-tab" data-tab="api">🔑 API / WAF</button>
+      </div>
+
+      <div id="lab-fw" class="lab-pane">
+        <div class="lab-goal" id="lab-fw-goal"></div>
+        <div class="editor-wrap">
+          <div class="editor-bar"><span>firewall.rules</span><button id="lab-fw-reset" class="mini-btn">↺ reset</button></div>
+          <textarea id="lab-fw-ed" class="lab-ed" spellcheck="false"></textarea>
+        </div>
+        <div class="lab-btns">
+          <button id="lab-fw-run" class="btn check">▶ Run traffic</button>
+          <button id="lab-fw-sol" class="btn ghost">👀 Solution</button>
+        </div>
+        <div id="lab-fw-out" class="lab-out"></div>
+      </div>
+
+      <div id="lab-sub" class="lab-pane" hidden>
+        <label class="modal-label">Enter a CIDR block and analyze it:</label>
+        <div class="sync-row">
+          <input id="lab-sub-in" class="backup-code sync-input" placeholder="e.g. 10.0.8.0/22" autocomplete="off" spellcheck="false">
+          <button id="lab-sub-run" class="btn check">Analyze</button>
+        </div>
+        <div id="lab-sub-out" class="lab-out"></div>
+        <div class="modal-sep"></div>
+        <div class="lab-goal">🎯 Challenge: <span id="lab-sub-q"></span></div>
+        <div class="sync-row">
+          <input id="lab-sub-ans" class="backup-code sync-input" placeholder="your answer" autocomplete="off" spellcheck="false">
+          <button id="lab-sub-check" class="btn check">Check</button>
+          <button id="lab-sub-new" class="btn ghost">↻ New</button>
+        </div>
+        <div id="lab-sub-fb" class="lab-out"></div>
+      </div>
+
+      <div id="lab-api" class="lab-pane" hidden>
+        <div class="lab-goal" id="lab-api-goal"></div>
+        <div class="editor-wrap">
+          <div class="editor-bar"><span>waf.rules</span><button id="lab-api-reset" class="mini-btn">↺ reset</button></div>
+          <textarea id="lab-api-ed" class="lab-ed" spellcheck="false"></textarea>
+        </div>
+        <div class="lab-btns">
+          <button id="lab-api-run" class="btn check">▶ Run requests</button>
+          <button id="lab-api-sol" class="btn ghost">👀 Solution</button>
+        </div>
+        <div id="lab-api-out" class="lab-out"></div>
+      </div>
     </div>
   </div>
 

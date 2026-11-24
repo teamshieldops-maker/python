@@ -625,6 +625,121 @@ async function requestPersistence() {
   } catch (e) { /* not supported — localStorage still used */ }
 }
 
+/* ---------------- practice lab (free sandbox, not graded) ---------------- */
+const LAB_FW = {
+  goal: `Let the public reach the web tier, let the web tier reach the database, and block everything else (<b>default deny</b>). Syntax: <code>action proto src dst port</code> — e.g. <code>allow tcp internet dmz 443</code>.`,
+  starter: `# action proto src dst port   (first match wins; anything unmatched is denied)\n`,
+  flows: [
+    { proto: "tcp", src: "internet", dst: "dmz",      port: 443,  desc: "Public user loads the website",       expect: "allow" },
+    { proto: "tcp", src: "dmz",      dst: "db",        port: 5432, desc: "Web app queries the database",         expect: "allow" },
+    { proto: "tcp", src: "internet", dst: "db",        port: 5432, desc: "Attacker hits the DB directly",        expect: "deny"  },
+    { proto: "tcp", src: "internet", dst: "internal",  port: 22,   desc: "SSH straight from the internet",       expect: "deny"  },
+    { proto: "tcp", src: "dmz",      dst: "internal",  port: 445,  desc: "Compromised web box pivots to SMB",    expect: "deny"  },
+  ],
+  solution: `allow tcp internet dmz 443\nallow tcp dmz db 5432\ndeny any any any any`,
+};
+const LAB_API = {
+  goal: `Protect an API: <b>block</b> any path containing <code>/admin</code> unless the caller's role is <code>admin</code>, <b>block</b> requests with no token, and <b>allow</b> everything else. Syntax: <code>allow|block when &lt;field&gt; &lt;op&gt; &lt;value&gt;</code>. Fields: path, role, token, method. Ops: eq, contains, present, missing.`,
+  starter: `# first match wins\n`,
+  defaultAction: "allow",
+  requests: [
+    { method: "GET", path: "/api/admin/users", role: "user",  token: "t", desc: "Normal user reaches admin route", expect: "block" },
+    { method: "GET", path: "/api/admin/users", role: "admin", token: "t", desc: "Admin reaches admin route",       expect: "allow" },
+    { method: "GET", path: "/api/orders",      role: "user",  token: "",  desc: "Request arrives with no token",   expect: "block" },
+    { method: "GET", path: "/api/orders",      role: "user",  token: "t", desc: "Authenticated normal request",    expect: "allow" },
+  ],
+  solution: `block when token missing\nallow when role eq admin\nblock when path contains /admin\nallow`,
+};
+
+function openLab() {
+  document.getElementById("lab-fw-goal").innerHTML = LAB_FW.goal;
+  document.getElementById("lab-api-goal").innerHTML = LAB_API.goal;
+  const fw = document.getElementById("lab-fw-ed"); if (!fw.value) fw.value = LAB_FW.starter;
+  const api = document.getElementById("lab-api-ed"); if (!api.value) api.value = LAB_API.starter;
+  if (!document.getElementById("lab-sub-q").textContent) labNewSubChallenge();
+  document.getElementById("lab-modal").classList.add("show");
+}
+function closeLab() { document.getElementById("lab-modal").classList.remove("show"); }
+function labTab(tab) {
+  document.querySelectorAll(".lab-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".lab-pane").forEach(p => { p.hidden = (p.id !== "lab-" + tab); });
+}
+function labVerdictRow(proto, path, desc, expect, actual, correct) {
+  const cls = correct ? "ok" : "bad";
+  return `<div class="lab-row ${cls}">
+    <span class="lab-proto">${escapeHtml(proto)}</span>
+    <span class="lab-path">${escapeHtml(path)}<div class="lab-desc">${escapeHtml(desc)}</div></span>
+    <span class="flow-expect">want <b>${expect}</b></span>
+    <span class="verdict ${actual}">${actual.toUpperCase()}</span>
+    <span class="lab-mark ${cls}">${correct ? "✔" : "✘"}</span>
+  </div>`;
+}
+function labSummary(results) {
+  const n = results.length, ok = results.filter(r => r.correct).length;
+  const pass = ok === n;
+  const first = results.find(r => !r.correct);
+  const hint = pass ? "All flows behave as intended. 🎉"
+    : `Not yet — e.g. "${escapeHtml(first.desc)}" should be <b>${first.expect.toUpperCase()}</b> but your rules made it <b>${first.actual.toUpperCase()}</b>.`;
+  return `<div class="lab-summary ${pass ? "ok" : "bad"}">${ok}/${n} correct — ${hint}</div>`;
+}
+function labRunFirewall() {
+  const text = document.getElementById("lab-fw-ed").value;
+  const out = document.getElementById("lab-fw-out");
+  const { results, errors } = NetEngine.evaluate(text, LAB_FW.flows);
+  const rows = results.map(r => labVerdictRow(r.flow.proto.toUpperCase(),
+    `${r.flow.src} → ${r.flow.dst}:${r.flow.port}`, r.flow.desc, r.flow.expect, r.result, r.result === r.flow.expect));
+  const mapped = results.map(r => ({ correct: r.result === r.flow.expect, desc: r.flow.desc, expect: r.flow.expect, actual: r.result }));
+  const errHtml = errors.length ? `<div class="lab-err">${errors.map(e => escapeHtml(e.msg)).join("<br>")}</div>` : "";
+  out.innerHTML = errHtml + labSummary(mapped) + rows.join("");
+}
+function labRunApi() {
+  const text = document.getElementById("lab-api-ed").value;
+  const out = document.getElementById("lab-api-out");
+  const { results, errors } = NetEngine.evaluateL7(text, LAB_API.requests, LAB_API.defaultAction);
+  const rows = results.map(r => {
+    const payload = `${r.req.method} ${r.req.path} · role:${r.req.role} · token:${r.req.token ? "present" : "none"}`;
+    return labVerdictRow("HTTP", payload, r.req.desc, r.req.expect, r.result, r.result === r.req.expect);
+  });
+  const mapped = results.map(r => ({ correct: r.result === r.req.expect, desc: r.req.desc, expect: r.req.expect, actual: r.result }));
+  const errHtml = errors.length ? `<div class="lab-err">${errors.map(e => escapeHtml(e.msg)).join("<br>")}</div>` : "";
+  out.innerHTML = errHtml + labSummary(mapped) + rows.join("");
+}
+function labAnalyzeCidr() {
+  const v = document.getElementById("lab-sub-in").value.trim();
+  const out = document.getElementById("lab-sub-out");
+  const info = NetEngine.parseCidr(v);
+  if (!info) { out.innerHTML = `<div class="lab-err">Not a valid CIDR. Try something like 10.0.8.0/22.</div>`; return; }
+  const f = (k, val) => `<div><span>${k}</span><b>${val}</b></div>`;
+  out.innerHTML = `<div class="lab-facts">
+    ${f("Network", info.network)}${f("Broadcast", info.broadcast)}
+    ${f("Mask", info.mask + " (/" + info.bits + ")")}${f("Usable hosts", info.usableHosts.toLocaleString())}
+    ${f("First host", info.firstHost)}${f("Last host", info.lastHost)}
+  </div>`;
+}
+let labSubChallenge = null;
+function labNewSubChallenge() {
+  const bits = 8 + Math.floor(Math.random() * 23); // /8../30
+  const octet = () => Math.floor(Math.random() * 256);
+  const base = `10.${octet()}.${octet()}.0`;
+  const cidr = base + "/" + bits;
+  const info = NetEngine.parseCidr("10.0.0.0/" + bits);
+  const types = [
+    { q: `How many <b>usable hosts</b> are in a <code>/${bits}</code>?`, a: String(info.usableHosts) },
+    { q: `What is the <b>subnet mask</b> (dotted decimal) for a <code>/${bits}</code>?`, a: info.mask },
+  ];
+  labSubChallenge = types[Math.floor(Math.random() * types.length)];
+  document.getElementById("lab-sub-q").innerHTML = labSubChallenge.q;
+  document.getElementById("lab-sub-ans").value = "";
+  document.getElementById("lab-sub-fb").innerHTML = "";
+}
+function labCheckSub() {
+  if (!labSubChallenge) return;
+  const given = document.getElementById("lab-sub-ans").value.trim().replace(/,/g, "");
+  const fb = document.getElementById("lab-sub-fb");
+  const ok = given === labSubChallenge.a;
+  fb.innerHTML = `<div class="lab-summary ${ok ? "ok" : "bad"}">${ok ? "✔ Correct!" : "✘ Not quite — the answer is <b>" + escapeHtml(labSubChallenge.a) + "</b>."}</div>`;
+}
+
 /* ---------------- boot ---------------- */
 function render() { renderSidebar(); renderHUD(); renderLesson(); }
 window.addEventListener("DOMContentLoaded", () => {
@@ -644,4 +759,17 @@ window.addEventListener("DOMContentLoaded", () => {
   wire("sync-connect", connectSync);
   wire("sync-disconnect", disconnectSync);
   wire("sync-copy", copySyncCode);
+  // practice lab
+  wire("lab-btn", openLab);
+  wire("lab-close", closeLab);
+  document.querySelectorAll(".lab-tab").forEach(b => b.onclick = () => labTab(b.dataset.tab));
+  wire("lab-fw-run", labRunFirewall);
+  wire("lab-fw-reset", () => { document.getElementById("lab-fw-ed").value = LAB_FW.starter; document.getElementById("lab-fw-out").innerHTML = ""; });
+  wire("lab-fw-sol", () => { document.getElementById("lab-fw-ed").value = LAB_FW.solution; labRunFirewall(); });
+  wire("lab-api-run", labRunApi);
+  wire("lab-api-reset", () => { document.getElementById("lab-api-ed").value = LAB_API.starter; document.getElementById("lab-api-out").innerHTML = ""; });
+  wire("lab-api-sol", () => { document.getElementById("lab-api-ed").value = LAB_API.solution; labRunApi(); });
+  wire("lab-sub-run", labAnalyzeCidr);
+  wire("lab-sub-check", labCheckSub);
+  wire("lab-sub-new", labNewSubChallenge);
 });
