@@ -20,8 +20,8 @@ html = html.replace(
   (_, src) => `<script>\n${read(src)}\n</script>`
 );
 
-// Base64, not a raw `data:image/svg+xml,<svg ...>` URI. Chromium's parser drops a
-// link whose attribute value contains raw `<`/`>` and closes <head> early.
+// The standalone file has no sibling assets, so the favicon has to travel with it.
+// Base64 keeps the data URI free of characters that need escaping in an attribute.
 html = html.replace(
   /href="favicon\.svg"/,
   () => `href="data:image/svg+xml;base64,${fs.readFileSync(path.join(root, "favicon.svg")).toString("base64")}"`

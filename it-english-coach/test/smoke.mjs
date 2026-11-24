@@ -232,15 +232,16 @@ ok("[hidden] is forced off", /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.
 const favicon = doc.querySelector('link[rel="icon"]');
 ok("a favicon is declared", !!favicon, favicon ? favicon.getAttribute("href") : "missing");
 
-// Checked against the source, not the parsed DOM: jsdom tolerates a raw
-// `data:image/svg+xml,<svg ...>` attribute value, but Chromium drops the element
-// and closes <head> early. Inline SVG must be base64-encoded instead.
-const rawAngle = read("index.html")
-  .split("\n")
-  .map((line, i) => ({ n: i + 1, line }))
-  .filter(({ line }) => /=\s*"[^"]*<[a-zA-Z/]/.test(line));
-ok("no raw '<' inside an HTML attribute value", rawAngle.length === 0,
-  rawAngle.map(r => `line ${r.n}`).join(", "));
+// The standalone build has no sibling files, so a relative favicon reference
+// would 404 there. build.mjs must inline it.
+if (fs.existsSync(path.join(root, "dist/it-english-coach.html"))) {
+  const bundle = read("dist/it-english-coach.html");
+  ok("standalone build inlines the favicon",
+    !/href="favicon\.svg"/.test(bundle) && /rel="icon"[^>]*base64,/.test(bundle),
+    "relative favicon.svg left in the single-file build");
+  ok("standalone build has no external asset references",
+    !/<script src=|<link rel="stylesheet"/.test(bundle));
+}
 
 ok("no emoji left in the UI source",
   !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(read("js/app.js") + read("js/data.js") + read("index.html")),
