@@ -703,6 +703,33 @@ async function requestPersistence() {
   } catch (e) { /* not supported — localStorage still used */ }
 }
 
+/* ---------------- python playground (free sandbox, not graded) ---------------- */
+const PLAY_EXAMPLES = {
+  list: `# Every device in the simulated Intune tenant\nfor d in intune.devices:\n    print(d["name"], "|", d["os"], d["osVersion"], "| compliant:", d["compliant"])`,
+  tag: `# Apply an OS tag to each device and show the result\nfor d in intune.devices:\n    tag = f"{d['os']}-{d['osVersion'].split('.')[0]}"\n    d["tags"].append(tag)\n    print(d["name"], "->", tag)`,
+  graph: `# Call the mock Microsoft Graph API (authenticate, then GET devices)\ngraph.authenticate("client-id", "secret", "tenant-id")\nresp = graph.get("/deviceManagement/managedDevices")\nprint("status:", resp.status_code)\nfor dev in resp.json()["value"]:\n    print(dev["deviceName"], "-", dev["operatingSystem"])`,
+  falcon: `# CrowdStrike Falcon detections in the environment\nfor det in falcon.detections:\n    print(det["severity"].upper(), "-", det["hostname"], "-", det["tactic"])`,
+};
+const PLAY_STARTER = `# Live sandbox — real Python against a simulated endpoint environment.\n# Objects available: intune, graph, falcon, aws, k8s\n# Example: list the devices in the tenant.\n\nfor d in intune.devices:\n    print(d["name"], "-", d["os"])\n`;
+
+function openPlay() {
+  const ed = document.getElementById("play-ed");
+  if (!ed.value) ed.value = PLAY_STARTER;
+  document.getElementById("play-modal").classList.add("show");
+}
+function closePlay() { document.getElementById("play-modal").classList.remove("show"); }
+async function runPlayground() {
+  const out = document.getElementById("play-out");
+  out.classList.remove("err");
+  if (!pyReady) { out.textContent = "🐍 Python is still loading — try again in a moment."; return; }
+  const code = document.getElementById("play-ed").value;
+  out.textContent = "Running…";
+  const res = await runUserCode(code, "");
+  let text = res.output || "";
+  if (res.feedback) { text += (text ? "\n" : "") + res.feedback; out.classList.add("err"); }
+  out.textContent = text.trim() || "(ran successfully — no output. Add print(...) to see results.)";
+}
+
 /* ---------------- boot ---------------- */
 window.addEventListener("DOMContentLoaded", () => {
   load();
@@ -723,5 +750,11 @@ window.addEventListener("DOMContentLoaded", () => {
   wire("sync-connect", connectSync);
   wire("sync-disconnect", disconnectSync);
   wire("sync-copy", copySyncCode);
+  // playground
+  wire("play-btn", openPlay);
+  wire("play-close", closePlay);
+  wire("play-run", runPlayground);
+  wire("play-reset", () => { document.getElementById("play-ed").value = ""; document.getElementById("play-out").textContent = "Press ▶ Run to see output."; document.getElementById("play-out").classList.remove("err"); });
+  document.querySelectorAll(".play-ex").forEach(b => b.onclick = () => { document.getElementById("play-ed").value = PLAY_EXAMPLES[b.dataset.ex] || ""; });
   initPython();
 });

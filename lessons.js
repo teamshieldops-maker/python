@@ -151,20 +151,20 @@ not compliant          # flips it</pre>
     concept: `Comparisons produce booleans. <code>=</code> assigns, <code>==</code> compares:
 <pre>10 == 10   # True
 7 >= 80    # False</pre>`,
-    task: `A <code>score</code> of 75 is given. Make <code>is_compliant</code> True only if score is 80 or higher.`,
-    starter: `score = 75\n\n# Is it compliant?\n`,
+    task: `A device counts as compliant only if its <code>score</code> is 80 or higher <b>and</b> it is <code>managed</code>. Given <code>score = 85</code> and <code>managed = False</code>, set <code>is_compliant</code> accordingly.`,
+    starter: `score = 85\nmanaged = False\n\n# Compliant only if score >= 80 AND the device is managed\n`,
     check: `
 if 'is_compliant' not in globals():
     _feedback = "Create is_compliant."
 elif is_compliant is False:
-    _passed = True; _feedback = "Correct — 75 < 80 so False. A decision in code! ✅"
+    _passed = True; _feedback = "Right — the score passes (85 >= 80) but the device isn't managed, so overall it's non-compliant. 🎯"
 elif is_compliant is True:
-    _feedback = "75 is NOT >= 80, so this should be False."
+    _feedback = "The score passes, but managed is False — BOTH conditions must hold. How do you require two things at once?"
 else:
-    _feedback = "is_compliant should be True/False. Use score >= 80."
+    _feedback = "is_compliant should be a boolean (True/False)."
 `,
-    hints: ['Use >=', 'score >= 80 is itself True/False', 'is_compliant = score >= 80'],
-    solution: `score = 75\n\nis_compliant = score >= 80\nprint(is_compliant)`,
+    hints: ['You need BOTH conditions true at once — which keyword combines them?', 'score >= 80 gives one boolean; combine it with the managed flag.'],
+    solution: `score = 85\nmanaged = False\n\nis_compliant = score >= 80 and managed\nprint(is_compliant)`,
   },
   {
     id: "l4", world: "w1", title: "Compliance Math", xp: 50,
@@ -199,18 +199,20 @@ round(x, n)        round to n decimals</pre>
     concept: `Python does math with <code>+ - * /</code>. <code>round()</code> rounds:
 <pre>rate = 4 / 6        # 0.666...
 pct = round(rate * 100)   # 67</pre>`,
-    task: `<code>compliant</code>=4 of <code>total</code>=6. Compute <code>percent</code> = rounded whole-number percentage (should be 67).`,
-    starter: `compliant = 4\ntotal = 6\n\n# percent = ?\n`,
+    task: `Your fleet has <code>13</code> compliant devices out of <code>17</code> total. Compute <code>percent</code> as a rounded whole-number percentage for the dashboard.`,
+    starter: `compliant = 13\ntotal = 17\n\n# percent = ?\n`,
     check: `
 if 'percent' not in globals():
     _feedback = "Create percent."
-elif percent == 67:
-    _passed = True; _feedback = "67% compliant. You just built a KPI. 📊"
+elif percent == 76:
+    _passed = True; _feedback = "76% — 13/17 is 76.47%, rounded to a whole number. You just built a KPI. 📊"
+elif percent == 76.47058823529412:
+    _feedback = "Close — that's the raw ratio. Round it to a whole number for the dashboard."
 else:
-    _feedback = f"Expected 67, got {percent}. Try round(compliant/total*100)."
+    _feedback = f"Expected 76, got {percent}. Divide compliant by total, scale to 100, then round."
 `,
-    hints: ['Divide then multiply by 100', 'Wrap in round()', 'percent = round(compliant / total * 100)'],
-    solution: `compliant = 4\ntotal = 6\n\npercent = round(compliant / total * 100)\nprint(percent)`,
+    hints: ['Divide compliant by total, then scale the ratio up to 100.', 'Wrap the whole expression in round() to get a clean whole number.'],
+    solution: `compliant = 13\ntotal = 17\n\npercent = round(compliant / total * 100)\nprint(percent)`,
   },
   {
     id: "l5", world: "w1", title: "Clean the Hostname", xp: 50,
@@ -250,18 +252,20 @@ s.strip()    # "pc-1"  (trim spaces)
 s.upper()    # "  PC-1 "
 "a,b".split(",")  # ["a","b"]</pre>
 You can chain them: <code>s.strip().upper()</code>.`,
-    task: `Clean <code>raw</code> into <code>hostname</code> — trimmed and UPPERCASE (result: <code>"LAPTOP-01"</code>).`,
-    starter: `raw = "  Laptop-01 "\n\n# hostname = ?\n`,
+    task: `<code>raw</code> holds a messy fully-qualified name: <code>"  Laptop-01.contoso.com  "</code>. Extract just the <b>short hostname</b>, trimmed and UPPERCASE (result: <code>"LAPTOP-01"</code>).`,
+    starter: `raw = "  Laptop-01.contoso.com  "\n\n# hostname = just the short name, UPPERCASE\n`,
     check: `
 if 'hostname' not in globals():
     _feedback = "Create hostname."
 elif hostname == "LAPTOP-01":
-    _passed = True; _feedback = "Spotless. Chaining string methods is a daily move. 🧼"
+    _passed = True; _feedback = "Spotless — trimmed, split off the domain, and upper-cased. Chaining is a daily move. 🧼"
+elif hostname == "LAPTOP-01.CONTOSO.COM":
+    _feedback = "Almost — you still have the domain attached. Take only the part before the first dot."
 else:
-    _feedback = f"Expected 'LAPTOP-01', got '{hostname}'. Try raw.strip().upper()."
+    _feedback = f"Expected 'LAPTOP-01', got '{hostname}'. Trim it, take the piece before the first '.', then upper-case."
 `,
-    hints: ['Trim with .strip()', 'Uppercase with .upper()', 'hostname = raw.strip().upper()'],
-    solution: `raw = "  Laptop-01 "\n\nhostname = raw.strip().upper()\nprint(hostname)`,
+    hints: ['Three steps: trim the spaces, take the part before the first dot, then upper-case.', 'Chain them: .strip(), then .split(".") and index [0], then .upper().'],
+    solution: `raw = "  Laptop-01.contoso.com  "\n\nhostname = raw.strip().split(".")[0].upper()\nprint(hostname)`,
   },
 
   /* ================= WORLD 2: COLLECTIONS ================= */

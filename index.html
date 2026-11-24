@@ -33,6 +33,7 @@
         <div class="xp-bar"><div id="xp-bar-fill" class="xp-bar-fill"></div></div>
         <div class="xp-sub"><span id="xp-into">0 / 150</span> to next level</div>
       </div>
+      <button id="play-btn" class="mini-btn" title="Open the free Python playground">🧪 Playground</button>
       <button id="backup-btn" class="mini-btn" title="Sync / backup your progress">☁ sync</button>
       <button id="reset-progress" class="mini-btn danger" title="Reset all progress">reset</button>
     </div>
@@ -83,6 +84,29 @@
       </details>
       <div class="modal-btns" style="margin-top:14px"><button id="close-modal" class="btn ghost">Close</button></div>
       <div id="backup-msg" class="backup-msg"></div>
+    </div>
+  </div>
+
+  <div id="play-modal" class="modal-overlay">
+    <div class="modal modal-lg">
+      <div class="modal-title">🧪 Python Playground <button id="play-close" class="mini-btn play-x">✕ close</button></div>
+      <p class="modal-text">Free sandbox — write real Python and press Run. Your code runs against a fresh simulated endpoint environment every time. Available objects: <code>intune</code>, <code>graph</code>, <code>falcon</code>, <code>aws</code>, <code>k8s</code>. Use <code>print(...)</code> to see results. Nothing here affects your quest progress.</p>
+      <div class="play-examples">
+        <span class="modal-label" style="margin:0">Load an example:</span>
+        <button class="play-ex" data-ex="list">List devices</button>
+        <button class="play-ex" data-ex="tag">Tag by OS</button>
+        <button class="play-ex" data-ex="graph">Graph call</button>
+        <button class="play-ex" data-ex="falcon">Falcon detections</button>
+      </div>
+      <div class="editor-wrap">
+        <div class="editor-bar"><span>playground.py</span><button id="play-reset" class="mini-btn">↺ clear</button></div>
+        <textarea id="play-ed" class="play-ed" spellcheck="false"></textarea>
+      </div>
+      <div class="btn-row">
+        <button id="play-run" class="btn run">▶ Run</button>
+      </div>
+      <div class="editor-bar" style="border-radius:8px 8px 0 0;border:1px solid var(--line)"><span>output</span></div>
+      <pre id="play-out" class="play-out">Press ▶ Run to see output.</pre>
     </div>
   </div>
 
