@@ -229,6 +229,19 @@ console.log("\n\x1b[1mSTYLESHEET GUARDS\x1b[0m");
 // would otherwise beat the UA stylesheet's [hidden] rule and leave them visible.
 const css = read("styles.css");
 ok("[hidden] is forced off", /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(css));
+const favicon = doc.querySelector('link[rel="icon"]');
+ok("a favicon is declared", !!favicon, favicon ? favicon.getAttribute("href") : "missing");
+
+// Checked against the source, not the parsed DOM: jsdom tolerates a raw
+// `data:image/svg+xml,<svg ...>` attribute value, but Chromium drops the element
+// and closes <head> early. Inline SVG must be base64-encoded instead.
+const rawAngle = read("index.html")
+  .split("\n")
+  .map((line, i) => ({ n: i + 1, line }))
+  .filter(({ line }) => /=\s*"[^"]*<[a-zA-Z/]/.test(line));
+ok("no raw '<' inside an HTML attribute value", rawAngle.length === 0,
+  rawAngle.map(r => `line ${r.n}`).join(", "));
+
 ok("no emoji left in the UI source",
   !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(read("js/app.js") + read("js/data.js") + read("index.html")),
   "emoji fall back to empty boxes without a colour-emoji font");
