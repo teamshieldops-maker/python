@@ -20,7 +20,14 @@ html = html.replace(
   (_, src) => `<script>\n${read(src)}\n</script>`
 );
 
-const missed = html.match(/<(?:script src|link rel="stylesheet")[^>]*>/g);
+// Base64, not a raw `data:image/svg+xml,<svg ...>` URI. Chromium's parser drops a
+// link whose attribute value contains raw `<`/`>` and closes <head> early.
+html = html.replace(
+  /href="favicon\.svg"/,
+  () => `href="data:image/svg+xml;base64,${fs.readFileSync(path.join(root, "favicon.svg")).toString("base64")}"`
+);
+
+const missed = html.match(/<(?:script src|link rel="stylesheet")[^>]*>|href="favicon\.svg"/g);
 if (missed) {
   console.error("Unbundled asset reference left in output:", missed);
   process.exit(1);
